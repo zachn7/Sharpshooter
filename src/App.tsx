@@ -6,51 +6,50 @@ import { Levels } from './pages/Levels';
 import { Settings } from './pages/Settings';
 import { Game } from './pages/Game';
 
+function InnerApp() {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <Layout showBackButton={false}>
+            <MainMenu />
+          </Layout>
+        }
+      />
+      <Route
+        path="/weapons"
+        element={
+          <Layout>
+            <Weapons />
+          </Layout>
+        }
+      />
+      <Route
+        path="/levels"
+        element={
+          <Layout>
+            <Levels />
+          </Layout>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <Layout>
+            <Settings />
+          </Layout>
+        }
+      />
+      <Route path="/play" element={<Game />} />
+    </Routes>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <Layout showBackButton={false}>
-              <MainMenu />
-            </Layout>
-          }
-        />
-        <Route
-          path="/weapons"
-          element={
-            <Layout>
-              <Weapons />
-            </Layout>
-          }
-        />
-        <Route
-          path="/levels"
-          element={
-            <Layout>
-              <Levels />
-            </Layout>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <Layout>
-              <Settings />
-            </Layout>
-          }
-        />
-        <Route
-          path="/play"
-          element={
-            <Layout>
-              <Game />
-            </Layout>
-          }
-        />
-      </Routes>
+      <InnerApp />
     </BrowserRouter>
   );
 }
