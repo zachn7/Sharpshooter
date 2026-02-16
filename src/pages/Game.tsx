@@ -3,6 +3,7 @@ import type { PointerEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore } from '../utils/scoring';
+import { simulateShotToDistance } from '../physics';
 
 interface Impact {
   x: number;
@@ -15,6 +16,12 @@ const MAX_SHOTS = 3;
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
 
+// Physics parameters (temporary constants until Prompt 5)
+const TARGET_DISTANCE_M = 100; // meters
+const MUZZLE_VELOCITY_MPS = 800; // m/s
+const DRAG_FACTOR = 0.00002; // gameplay-tunable
+const WIND_MPS = 3; // m/s crosswind to the right
+
 export function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,6 +30,7 @@ export function Game() {
   const [shotCount, setShotCount] = useState(MAX_SHOTS);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
 
+  // Target center at (WORLD_WIDTH/2, WORLD_HEIGHT/2) corresponds to aim (0, 0) in physics
   const targetConfig = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
   // Handle canvas resize
@@ -70,10 +78,41 @@ export function Game() {
   const handlePointerDown = useCallback(() => {
     if (shotCount <= 0) return;
 
+    // Convert reticle world position to physics aim coordinates (meters from target center)
+    // Physics: aimY_M is vertical (up = +), aimZ_M is horizontal (right = +)
+    // World: y is down, x is right
+    const aimX_M = (recticlePosition.x - WORLD_WIDTH / 2);
+    const aimY_M = -(recticlePosition.y - WORLD_HEIGHT / 2);
+
+    // Run physics simulation
+    const result = simulateShotToDistance(
+      {
+        distanceM: TARGET_DISTANCE_M,
+        muzzleVelocityMps: MUZZLE_VELOCITY_MPS,
+        dragFactor: DRAG_FACTOR,
+        aimY_M,
+        aimZ_M: aimX_M,
+        dtS: 0.002,
+      },
+      {
+        windMps: WIND_MPS,
+        airDensityKgM3: 1.225,
+        gravityMps2: 9.80665,
+        seed: Date.now(), // Each shot gets a different seed
+      }
+    );
+
+    // Convert physics impact back to world coordinates
+    // Physics: impactY_M is vertical (down = -), impactZ_M is horizontal (right = +)
+    // World: y is down, x is right
+    // Map to world: x = WORLD_WIDTH/2 + impactZ_M, y = WORLD_HEIGHT/2 - impactY_M
+    const impactX = WORLD_WIDTH / 2 + result.impactZ_M;
+    const impactY = WORLD_HEIGHT / 2 - result.impactY_M;
+
     const impact: Impact = {
-      x: recticlePosition.x,
-      y: recticlePosition.y,
-      score: calculateRingScore(recticlePosition, targetConfig),
+      x: impactX,
+      y: impactY,
+      score: calculateRingScore({ x: impactX, y: impactY }, targetConfig),
       timestamp: Date.now(),
     };
 
