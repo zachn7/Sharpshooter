@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
@@ -7,8 +7,13 @@ import { Weapons } from './pages/Weapons';
 import { Levels } from './pages/Levels';
 import { Settings } from './pages/Settings';
 import { Game } from './pages/Game';
+import { clearSaveData } from './storage';
 
 describe('App Pages', () => {
+  beforeEach(() => {
+    clearSaveData();
+  });
+
   describe('MainMenu', () => {
     it('renders navigation buttons', () => {
       render(
@@ -32,7 +37,7 @@ describe('App Pages', () => {
         </BrowserRouter>
       );
       expect(screen.getByTestId('weapons-page')).toBeInTheDocument();
-      expect(screen.getByTestId('tab-pistols')).toBeInTheDocument();
+      expect(screen.getByTestId('tab-pistol')).toBeInTheDocument();
       expect(screen.getByTestId('weapon-content')).toBeInTheDocument();
     });
 
@@ -42,7 +47,7 @@ describe('App Pages', () => {
           <Weapons />
         </BrowserRouter>
       );
-      const riflesTab = screen.getByTestId('tab-rifles');
+      const riflesTab = screen.getByTestId('tab-rifle');
       await userEvent.click(riflesTab);
       expect(riflesTab).toHaveClass('active');
     });
@@ -57,7 +62,7 @@ describe('App Pages', () => {
       );
       expect(screen.getByTestId('levels-page')).toBeInTheDocument();
       expect(screen.getByTestId('level-pack-pistol-basics')).toBeInTheDocument();
-      expect(screen.getByTestId('level-pack-rifle-mastery')).toBeInTheDocument();
+      expect(screen.getByTestId('level-pack-sniper-basics')).toBeInTheDocument();
     });
   });
 

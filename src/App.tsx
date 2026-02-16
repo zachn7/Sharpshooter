@@ -41,7 +41,7 @@ function InnerApp() {
           </Layout>
         }
       />
-      <Route path="/play" element={<Game />} />
+      <Route path="/game/:levelId" element={<Game />} />
     </Routes>
   );
 }

@@ -1,9 +1,12 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import type { PointerEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore } from '../utils/scoring';
 import { simulateShotToDistance } from '../physics';
+import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
+import { getLevelById, DEFAULT_LEVEL_ID, calculateStars } from '../data/levels';
+import { getSelectedWeaponId, updateLevelProgress } from '../storage';
 
 interface Impact {
   x: number;
@@ -12,25 +15,30 @@ interface Impact {
   timestamp: number;
 }
 
-const MAX_SHOTS = 3;
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
 
-// Physics parameters (temporary constants until Prompt 5)
-const TARGET_DISTANCE_M = 100; // meters
-const MUZZLE_VELOCITY_MPS = 800; // m/s
-const DRAG_FACTOR = 0.00002; // gameplay-tunable
-const WIND_MPS = 3; // m/s crosswind to the right
-
 export function Game() {
+  const { levelId } = useParams<{ levelId?: string }>();
+  const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [recticlePosition, setReticlePosition] = useState({ x: 0.5, y: 0.5 });
   const [impacts, setImpacts] = useState<Impact[]>([]);
-  const [shotCount, setShotCount] = useState(MAX_SHOTS);
+  const [levelComplete, setLevelComplete] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-
-  // Target center at (WORLD_WIDTH/2, WORLD_HEIGHT/2) corresponds to aim (0, 0) in physics
+  
+  // Load level data
+  const levelIdSafe = levelId || DEFAULT_LEVEL_ID;
+  const level = getLevelById(levelIdSafe);
+  const maxShots = level?.maxShots ?? 3;
+  const [shotCount, setShotCount] = useState(maxShots);
+  
+  // Load weapon data
+  const weaponId = getSelectedWeaponId();
+  const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
+  
+  // Target configuration based on level's targetScale
   const targetConfig = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
   // Handle canvas resize
@@ -76,36 +84,33 @@ export function Game() {
 
   // Pointer down handler (fire shot)
   const handlePointerDown = useCallback(() => {
-    if (shotCount <= 0) return;
+    if (shotCount <= 0 || !level || !weapon) return;
+    if (levelComplete) return;
 
     // Convert reticle world position to physics aim coordinates (meters from target center)
-    // Physics: aimY_M is vertical (up = +), aimZ_M is horizontal (right = +)
-    // World: y is down, x is right
     const aimX_M = (recticlePosition.x - WORLD_WIDTH / 2);
     const aimY_M = -(recticlePosition.y - WORLD_HEIGHT / 2);
 
-    // Run physics simulation
+    // Run physics simulation with level and weapon parameters
     const result = simulateShotToDistance(
       {
-        distanceM: TARGET_DISTANCE_M,
-        muzzleVelocityMps: MUZZLE_VELOCITY_MPS,
-        dragFactor: DRAG_FACTOR,
+        distanceM: level.distanceM,
+        muzzleVelocityMps: weapon.params.muzzleVelocityMps,
+        dragFactor: weapon.params.dragFactor,
         aimY_M,
         aimZ_M: aimX_M,
         dtS: 0.002,
       },
       {
-        windMps: WIND_MPS,
-        airDensityKgM3: 1.225,
-        gravityMps2: 9.80665,
+        windMps: level.windMps,
+        gustMps: level.gustMps,
+        airDensityKgM3: level.airDensityKgM3,
+        gravityMps2: level.gravityMps2,
         seed: Date.now(), // Each shot gets a different seed
       }
     );
 
     // Convert physics impact back to world coordinates
-    // Physics: impactY_M is vertical (down = -), impactZ_M is horizontal (right = +)
-    // World: y is down, x is right
-    // Map to world: x = WORLD_WIDTH/2 + impactZ_M, y = WORLD_HEIGHT/2 - impactY_M
     const impactX = WORLD_WIDTH / 2 + result.impactZ_M;
     const impactY = WORLD_HEIGHT / 2 - result.impactY_M;
 
@@ -116,15 +121,35 @@ export function Game() {
       timestamp: Date.now(),
     };
 
-    setImpacts((prev) => [...prev, impact]);
-    setShotCount((prev) => prev - 1);
-  }, [recticlePosition, shotCount, targetConfig]);
+    const newImpacts = [...impacts, impact];
+    setImpacts(newImpacts);
+    const newShotCount = shotCount - 1;
+    setShotCount(newShotCount);
+    
+    // Check if level is complete
+    if (newShotCount === 0) {
+      setLevelComplete(true);
+      
+      // Save progress
+      const totalScore = newImpacts.reduce((sum, i) => sum + i.score, 0);
+      updateLevelProgress(level.id, totalScore, level.starThresholds);
+    }
+  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, levelComplete]);
 
   // Reset level handler
   const handleReset = useCallback(() => {
     setImpacts([]);
-    setShotCount(MAX_SHOTS);
-  }, []);
+    setShotCount(maxShots);
+    setLevelComplete(false);
+  }, [maxShots]);
+
+  // Back to levels handler
+  const handleBack = useCallback(() => {
+    navigate('/levels');
+  }, [navigate]);
+
+  const totalScore = impacts.reduce((sum, impact) => sum + impact.score, 0);
+  const earnedStars = level ? calculateStars(totalScore, level.starThresholds) : 0;
 
   // Drawing loop
   useEffect(() => {
@@ -146,13 +171,13 @@ export function Game() {
         canvasHeight: canvasSize.height,
       };
 
-      // Draw target rings
+      // Draw target rings (scaled by level.targetScale)
       targetConfig.rings.forEach((ring) => {
         const center = worldToCanvas(
           { x: targetConfig.centerX, y: targetConfig.centerY },
           viewportConfig
         );
-        const radiusPixels = ring.radius * (canvasSize.width / WORLD_WIDTH);
+        const radiusPixels = ring.radius * (canvasSize.width / WORLD_WIDTH) * (level?.targetScale || 1);
 
         // Alternate colors for rings
         const ringIndex = targetConfig.rings.findIndex((r) => r.radius === ring.radius);
@@ -205,24 +230,51 @@ export function Game() {
 
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [canvasSize, impacts, targetConfig, recticlePosition]);
+  }, [canvasSize, impacts, targetConfig, recticlePosition, level?.targetScale]);
 
-  const totalScore = impacts.reduce((sum, impact) => sum + impact.score, 0);
+  if (!level || !weapon) {
+    return (
+      <div className="game-page" data-testid="game-page">
+        <div className="game-header">
+          <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
+            ← Back
+          </button>
+          <h2>Loading...</h2>
+        </div>
+        <div className="game-container">
+          <p>Loading level data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="game-page" data-testid="game-page">
       <div className="game-header">
-        <Link to="/" className="back-button-in-game" data-testid="back-button">
+        <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
           ← Back
-        </Link>
-        <h2>Sharpshooter</h2>
+        </button>
+        <h2>{level.name}</h2>
         <div className="game-stats">
           <span className="stat" data-testid="shot-count">
-            Shots: {shotCount}/{MAX_SHOTS}
+            Shots: {shotCount}/{level.maxShots}
           </span>
           <span className="stat">Score: {totalScore}</span>
+          {levelComplete && (
+            <span className="stat stars" data-testid="stars-earned">
+              {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
+            </span>
+          )}
         </div>
       </div>
+      
+      <div className="level-info-bar" data-testid="level-info-bar">
+        <span>Weapon: {weapon.name}</span>
+        <span>{level.distanceM}m</span>
+        <span>Wind: {level.windMps} m/s</span>
+        {level.gustMps > 0 && <span>Gust: ±{level.gustMps} m/s</span>}
+      </div>
+      
       <div className="game-container" ref={containerRef}>
         <canvas
           ref={canvasRef}
@@ -234,10 +286,11 @@ export function Game() {
           onPointerDown={handlePointerDown}
         />
       </div>
+      
       <div className="game-controls">
         <button
           onClick={handleReset}
-          disabled={shotCount === MAX_SHOTS}
+          disabled={shotCount === maxShots}
           className="game-button"
           data-testid="reset-level-button"
         >
