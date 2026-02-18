@@ -627,3 +627,81 @@ test('dispersion: scales with weapon precision', async ({ page }) => {
   // Competition pistol (more precise) should have smaller group
   expect(competitionCm).toBeLessThan(trainingCm);
 });
+
+test('wind visibility: numeric wind hidden in realistic, visible in arcade', async ({ page }) => {
+  // Go to settings and change to Realistic preset
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+  
+  // Select Realistic preset
+  await page.getByText('Realistic').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // In Realistic mode, numeric wind should be hidden by default
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).not.toBeAttached();
+  
+  // Go back to settings
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  
+  // Change to Arcade preset
+  await page.getByText('Arcade').click();
+  
+  // Navigate to game level again
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // In Arcade mode, numeric wind should be visible by default
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).toBeVisible();
+});
+
+test('wind visibility: toggle overrides preset default', async ({ page }) => {
+  // Go to settings and change to Realistic preset
+  await page.goto('/settings');
+  await page.getByText('Realistic').click();
+  
+  // Enable numeric wind toggle (override default)
+  await page.getByTestId('toggle-show-numeric-wind').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Numeric wind should be visible because toggle overrides preset
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).toBeVisible();
+  
+  // Go back and disable toggle
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  await page.getByTestId('toggle-show-numeric-wind').click();
+  
+  // Change to Arcade preset (default is to show)
+  await page.getByText('Arcade').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Numeric wind should still be visible because toggle allows it
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).toBeVisible();
+  
+  // Disable toggle in Arcade
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  await page.getByTestId('toggle-show-numeric-wind').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Now numeric wind should be hidden because toggle is off
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).not.toBeAttached();
+});

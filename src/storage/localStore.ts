@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 // Turret state (imported type)
 export interface TurretState {
@@ -39,6 +39,7 @@ export interface GameSettings {
   showShotTrace: boolean;
   showMilOffset: boolean;
   showHud: boolean;
+  showNumericWind: boolean; // Show numeric wind values (arcade default true, others false)
   zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
 }
 
@@ -103,6 +104,18 @@ const MIGRATIONS: Migration[] = [
       settings: save.settings ? {
         ...save.settings,
         zeroRangeShotLimitMode: save.settings.zeroRangeShotLimitMode || 'unlimited',
+      } : save.settings,
+    };
+  },
+  // v5 -> v6: Add showNumericWind to settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 6,
+      settings: save.settings ? {
+        ...save.settings,
+        showNumericWind: save.settings.showNumericWind ?? false, // Default to false
       } : save.settings,
     };
   },
@@ -188,6 +201,7 @@ function createDefaultSave(): GameSave {
       showShotTrace: false,
       showMilOffset: false,
       showHud: true,
+      showNumericWind: false, // Default to false for realistic preset
       zeroRangeShotLimitMode: 'unlimited',
     },
     turretStates: {},

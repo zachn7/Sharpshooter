@@ -10,6 +10,7 @@ import {
   type RealismPreset,
   type ZeroProfile
 } from '../storage';
+import { getDefaultShowNumericWind } from '../physics/windCues';
 
 const ZERO_DISTANCE_OPTIONS = [25, 50, 100, 200] as const;
 
@@ -44,7 +45,11 @@ export function Settings() {
 
   const handlePresetChange = (preset: RealismPreset) => {
     if (!settings) return;
-    const updated = updateGameSettings({ realismPreset: preset });
+    const defaultShowNumericWind = getDefaultShowNumericWind(preset);
+    const updated = updateGameSettings({ 
+      realismPreset: preset,
+      showNumericWind: defaultShowNumericWind 
+    });
     setSettings(updated.settings);
   };
 
@@ -186,6 +191,23 @@ export function Settings() {
                 disabled
               >
                 {settings.showMilOffset ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Show Numeric Wind</span>
+                <span className="setting-sublabel">
+                  Display wind values (off by default for Realistic/Expert)
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.showNumericWind ? 'on' : 'off'}`}
+                onClick={() => handleToggleChange('showNumericWind')}
+                data-testid="toggle-show-numeric-wind"
+                aria-pressed={settings.showNumericWind}
+              >
+                {settings.showNumericWind ? 'ON' : 'OFF'}
               </button>
             </div>
           </div>

@@ -26,6 +26,7 @@ import {
   isTestModeEnabled,
   type RecoilState,
 } from '../physics/sway';
+import { drawWindCues } from '../physics/windCues';
 
 interface Impact {
   x: number;
@@ -492,49 +493,23 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         canvasHeight: canvasSize.height,
       };
 
-      // Draw wind flags (visual indicator)
-      if (level && (level.windMps !== 0 || level.gustMps > 0)) {
-        const flagY = canvasSize.height * 0.15;
-        const flagScale = Math.min(canvasSize.width, canvasSize.height) / 800;
+      // Draw wind cues (flags and mirage) if there's any wind
+      if (level && (level.windMps !== 0 || level.gustMps > 0) && settings.showHud) {
+        // Get the wind used for the most recent shot, or use baseline/gust for visual cues
+        // Use baseline wind for visual indicator, scaled by realism preset
+        const visualWind = level.windMps * windScale;
+        const timeS = performance.now() / 1000;
         
-        // Draw 2 wind flags
-        [0.15, 0.85].forEach((relX, _idx) => {
-          const flagX = canvasSize.width * relX;
-          
-          // Determine wind direction and strength
-          const baselineWind = level.windMps;
-          const maxWind = Math.abs(baselineWind) + level.gustMps;
-          const windStrength = Math.min(maxWind / 15, 1); // Normalize 0-1 for visual
-          
-          // Flag pole
-          ctx.strokeStyle = '#666';
-          ctx.lineWidth = 2 * flagScale;
-          ctx.beginPath();
-          ctx.moveTo(flagX, canvasSize.height * 0.05);
-          ctx.lineTo(flagX, flagY);
-          ctx.stroke();
-          
-          // Flag size based on wind strength
-          const flagLength = 30 * flagScale * (0.5 + 0.5 * windStrength);
-          const flagHeight = 20 * flagScale;
-          
-          // Flag color based on wind direction (positive=right, negative=left)
-          ctx.fillStyle = baselineWind >= 0 ? '#4a9eff' : '#ff6b4a';
-          ctx.beginPath();
-          ctx.moveTo(flagX, flagY);
-          
-          // Curved flag based on wind direction
-          const windDirection = baselineWind >= 0 ? 1 : -1;
-          const controlX1 = flagX + windDirection * flagLength * 0.5;
-          const controlY1 = flagY - flagHeight * 0.3;
-          const controlX2 = flagX + windDirection * flagLength * 0.7;
-          const controlY2 = flagY + flagHeight * 0.3;
-          const endX = flagX + windDirection * flagLength;
-          
-          ctx.quadraticCurveTo(controlX1, controlY1, endX, controlY2);
-          ctx.quadraticCurveTo(controlX2, flagY + flagHeight * 0.5, flagX, flagY + flagHeight);
-          ctx.fill();
-        });
+        drawWindCues(
+          ctx,
+          visualWind,
+          timeS,
+          canvasSize.width,
+          canvasSize.height,
+          WORLD_WIDTH,
+          WORLD_HEIGHT,
+          true // Show mirage
+        );
       }
 
       // Draw target rings (scaled by level.targetScale)
@@ -669,7 +644,17 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [canvasSize, impacts, targetConfig, recticlePosition, level, magnification, reticleMode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    canvasSize,
+    impacts,
+    targetConfig,
+    recticlePosition,
+    level,
+    magnification,
+    reticleMode,
+    settings.showHud,
+  ]);
 
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
@@ -698,8 +683,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               
               <div className="briefing-section">
                 <h4>Wind Conditions</h4>
-                <p>Baseline: {level.windMps} m/s</p>
-                {level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                {settings.showNumericWind ? (
+                  <>
+                    <p>Baseline: {level.windMps} m/s</p>
+                    {level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                  </>
+                ) : (
+                  <p>Visual indicators only (flags + mirage)</p>
+                )}
               </div>
               
               <div className="briefing-section">
@@ -867,7 +858,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       
       {/* Wind HUD Panel */}
       {level && settings.showHud && (
-        <div className="wind-hud" data-testid="wind-hud">
+        <div className="wind-hud" data-testid="wind-cues">
           <div className="wind-display">
             <div className="wind-header">
               <span>Wind</span>
@@ -876,8 +867,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               </div>
             </div>
             <div className="wind-details">
-              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
-              <span className="wind-gust">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+              {settings.showNumericWind ? (
+                <>
+                  <span className="wind-baseline" data-testid="wind-numeric">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
+                  <span className="wind-gust" data-testid="wind-numeric">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+                </>
+              ) : (
+                <span className="wind-visual">Visual cues only</span>
+              )}
               {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
             </div>
           </div>
