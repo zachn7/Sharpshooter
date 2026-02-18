@@ -17,7 +17,12 @@ import {
   getTurretState,
   updateTurretState,
   resetTurretStateForWeapon,
+  getZeroProfile,
+  saveZeroProfile,
+  deleteZeroProfile,
+  getZeroDistance,
   type TurretState,
+  type ZeroProfile,
   CURRENT_SCHEMA_VERSION,
 } from '../localStore';
 
@@ -46,6 +51,7 @@ describe('localStore', () => {
           showHud: true,
         },
         turretStates: {},
+        zeroProfiles: {},
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -162,7 +168,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(3);
+      expect(loaded?.version).toBe(4); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
     });
   });
@@ -345,8 +351,8 @@ describe('localStore', () => {
         },
       };
 
-      const v2Save = {
-        version: 2,
+      const v3Save = {
+        version: 3,
         selectedWeaponId: 'pistol-training',
         levelProgress: {},
         unlockedWeapons: ['pistol-training'],
@@ -356,15 +362,16 @@ describe('localStore', () => {
           showMilOffset: false,
           showHud: true,
         },
+        turretStates: {},
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
-      localStorageMock.setItem('sharpshooter_save', JSON.stringify(v2Save));
-      localStorageMock.setItem('sharpshooter_schema_version', '2');
+      localStorageMock.setItem('sharpshooter_save', JSON.stringify(v3Save));
+      localStorageMock.setItem('sharpshooter_schema_version', '3');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(3);
+      expect(loaded?.version).toBe(4); // Migrates all the way to latest version
       expect(loaded?.turretStates).toEqual({});
     });
   });
@@ -379,6 +386,190 @@ describe('localStore', () => {
       
       expect(progress?.bestScore).toBe(25);
       expect(turret.elevationMils).toBe(2.0);
+    });
+  });
+
+  describe('getZeroProfile', () => {
+    it('returns null for weapon without zero profile', () => {
+      const profile = getZeroProfile('weapon-1');
+      expect(profile).toBeNull();
+    });
+
+    it('returns saved zero profile for weapon', () => {
+      const profile: ZeroProfile = {
+        zeroDistanceM: 100,
+        zeroElevationMils: 2.5,
+        zeroWindageMils: -1.0,
+      };
+      saveZeroProfile('weapon-1', profile);
+      
+      const loaded = getZeroProfile('weapon-1');
+      expect(loaded).toEqual(profile);
+    });
+
+    it('returns different profiles for different weapons', () => {
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 100,
+        zeroElevationMils: 1.0,
+        zeroWindageMils: 0.0,
+      });
+      saveZeroProfile('weapon-2', {
+        zeroDistanceM: 200,
+        zeroElevationMils: 2.0,
+        zeroWindageMils: 1.0,
+      });
+      
+      const profile1 = getZeroProfile('weapon-1');
+      const profile2 = getZeroProfile('weapon-2');
+      
+      expect(profile1?.zeroDistanceM).toBe(100);
+      expect(profile2?.zeroDistanceM).toBe(200);
+    });
+  });
+
+  describe('saveZeroProfile', () => {
+    it('saves zero profile for weapon', () => {
+      const profile: ZeroProfile = {
+        zeroDistanceM: 50,
+        zeroElevationMils: 1.5,
+        zeroWindageMils: -0.5,
+      };
+      const save = saveZeroProfile('weapon-1', profile);
+      
+      expect(save.zeroProfiles['weapon-1']).toEqual(profile);
+    });
+
+    it('overwrites existing zero profile', () => {
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 100,
+        zeroElevationMils: 1.0,
+        zeroWindageMils: 0.0,
+      });
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 150,
+        zeroElevationMils: 2.0,
+        zeroWindageMils: 1.0,
+      });
+      
+      const profile = getZeroProfile('weapon-1');
+      expect(profile?.zeroDistanceM).toBe(150);
+    });
+
+    it('updates timestamp', () => {
+      const before = getOrCreateGameSave();
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 100,
+        zeroElevationMils: 0.0,
+        zeroWindageMils: 0.0,
+      });
+      
+      const save = getOrCreateGameSave();
+      expect(save.updatedAt).toBeGreaterThanOrEqual(before.updatedAt);
+    });
+  });
+
+  describe('deleteZeroProfile', () => {
+    it('deletes zero profile for weapon', () => {
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 100,
+        zeroElevationMils: 0.0,
+        zeroWindageMils: 0.0,
+      });
+      
+      expect(getZeroProfile('weapon-1')).not.toBeNull();
+      
+      deleteZeroProfile('weapon-1');
+      expect(getZeroProfile('weapon-1')).toBeNull();
+    });
+
+    it('does not affect other weapons', () => {
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 100,
+        zeroElevationMils: 0.0,
+        zeroWindageMils: 0.0,
+      });
+      saveZeroProfile('weapon-2', {
+        zeroDistanceM: 200,
+        zeroElevationMils: 0.0,
+        zeroWindageMils: 0.0,
+      });
+      
+      deleteZeroProfile('weapon-1');
+      expect(getZeroProfile('weapon-1')).toBeNull();
+      expect(getZeroProfile('weapon-2')).not.toBeNull();
+    });
+  });
+
+  describe('getZeroDistance', () => {
+    it('returns 0 for weapon without zero profile', () => {
+      const distance = getZeroDistance('weapon-1');
+      expect(distance).toBe(0);
+    });
+
+    it('returns zero distance from profile', () => {
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 100,
+        zeroElevationMils: 1.0,
+        zeroWindageMils: 0.0,
+      });
+      
+      const distance = getZeroDistance('weapon-1');
+      expect(distance).toBe(100);
+    });
+  });
+
+  describe('zero schema migration', () => {
+    it('migrates v3 to v4 saves', () => {
+      const localStorageMock = {
+        getItem: (key: string) => {
+          if (typeof localStorage === 'undefined') return null;
+          return localStorage.getItem(key);
+        },
+        setItem: (key: string, value: string) => {
+          if (typeof localStorage === 'undefined') return;
+          localStorage.setItem(key, value);
+        },
+      };
+
+      const v3Save = {
+        version: 3,
+        selectedWeaponId: 'pistol-training',
+        levelProgress: {},
+        unlockedWeapons: ['pistol-training'],
+        settings: {
+          realismPreset: 'realistic',
+          showShotTrace: false,
+          showMilOffset: false,
+          showHud: true,
+        },
+        turretStates: {},
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      localStorageMock.setItem('sharpshooter_save', JSON.stringify(v3Save));
+      localStorageMock.setItem('sharpshooter_schema_version', '3');
+      
+      const loaded = loadGameSave();
+      expect(loaded?.version).toBe(4);
+      expect(loaded?.zeroProfiles).toEqual({});
+    });
+  });
+
+  describe('zero profile with other game data', () => {
+    it('zero profile persists alongside turret state', () => {
+      updateTurretState('weapon-1', { elevationMils: 1.0, windageMils: 0.0 });
+      saveZeroProfile('weapon-1', {
+        zeroDistanceM: 100,
+        zeroElevationMils: 2.0,
+        zeroWindageMils: 1.0,
+      });
+      
+      const turret = getTurretState('weapon-1');
+      const profile = getZeroProfile('weapon-1');
+      
+      expect(turret.elevationMils).toBe(1.0);
+      expect(profile?.zeroElevationMils).toBe(2.0);
     });
   });
 });

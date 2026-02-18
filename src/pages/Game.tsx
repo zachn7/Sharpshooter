@@ -6,7 +6,7 @@ import { createStandardTarget, calculateRingScore } from '../utils/scoring';
 import { simulateShotToDistance } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, type TurretState } from '../storage';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 
@@ -206,6 +206,28 @@ export function Game() {
     const newTurretState = { elevationMils: 0.0, windageMils: 0.0 };
     setTurretState(newTurretState);
     updateTurretState(weaponId, newTurretState);
+  }, [weaponId]);
+
+  const handleSaveZero = useCallback(() => {
+    if (!level) return;
+    const profile = {
+      zeroDistanceM: level.distanceM,
+      zeroElevationMils: turretState.elevationMils,
+      zeroWindageMils: turretState.windageMils,
+    };
+    saveZeroProfile(weaponId, profile);
+  }, [level, turretState, weaponId]);
+
+  const handleReturnToZero = useCallback(() => {
+    const profile = getZeroProfile(weaponId);
+    if (profile) {
+      const newTurretState = {
+        elevationMils: profile.zeroElevationMils,
+        windageMils: profile.zeroWindageMils,
+      };
+      setTurretState(newTurretState);
+      updateTurretState(weaponId, newTurretState);
+    }
   }, [weaponId]);
 
   // Reset level handler
@@ -724,6 +746,26 @@ export function Game() {
                   +
                 </button>
               </div>
+            </div>
+            
+            {/* Zero Profile Actions */}
+            <div className="turret-actions">
+              <button
+                onClick={handleSaveZero}
+                className="zero-action-button save-zero"
+                data-testid="save-zero"
+                title="Save current turret settings as zero profile"
+              >
+                Save Zero
+              </button>
+              <button
+                onClick={handleReturnToZero}
+                className="zero-action-button return-zero"
+                data-testid="return-to-zero"
+                title="Return to saved zero profile"
+              >
+                Return to Zero
+              </button>
             </div>
           </div>
         </div>

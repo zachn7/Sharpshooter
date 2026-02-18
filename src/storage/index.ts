@@ -18,6 +18,10 @@ export {
   getTurretState,
   updateTurretState,
   resetTurretStateForWeapon,
+  getZeroProfile,
+  saveZeroProfile,
+  deleteZeroProfile,
+  getZeroDistance,
   CURRENT_SCHEMA_VERSION,
 } from './localStore';
-export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState } from './localStore';
+export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState, ZeroProfile } from './localStore';

@@ -1,10 +1,17 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 // Turret state (imported type)
 export interface TurretState {
   elevationMils: number;
   windageMils: number;
+}
+
+// Zeroing profile for a weapon
+export interface ZeroProfile {
+  zeroDistanceM: number;      // Distance at zero (e.g., 25, 50, 100, 200)
+  zeroElevationMils: number;   // Elevation dial setting at zero
+  zeroWindageMils: number;     // Windage dial setting at zero
 }
 
 // Storage keys
@@ -38,6 +45,7 @@ export interface GameSave {
   unlockedWeapons: string[];
   settings: GameSettings;
   turretStates: Record<string, TurretState>; // Per-weapon turret state
+  zeroProfiles: Record<string, ZeroProfile>; // Per-weapon zero profiles
   createdAt: number;
   updatedAt: number;
 }
@@ -70,6 +78,15 @@ const MIGRATIONS: Migration[] = [
       ...save,
       version: 3,
       turretStates: save.turretStates || {},
+    };
+  },
+  // v3 -> v4: Add zeroProfiles field with empty defaults
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 4,
+      zeroProfiles: save.zeroProfiles || {},
     };
   },
 ];
@@ -117,6 +134,7 @@ function validateGameSave(data: unknown): data is GameSave {
     Array.isArray(save.unlockedWeapons) &&
     typeof save.settings === 'object' &&
     typeof save.turretStates === 'object' &&
+    typeof save.zeroProfiles === 'object' &&
     typeof save.createdAt === 'number' &&
     typeof save.updatedAt === 'number'
   );
@@ -155,6 +173,7 @@ function createDefaultSave(): GameSave {
       showHud: true,
     },
     turretStates: {},
+    zeroProfiles: {},
     createdAt: now,
     updatedAt: now,
   };
@@ -231,6 +250,45 @@ export function resetTurretStateForWeapon(weaponId: string): GameSave {
   save.updatedAt = Date.now();
   saveGameSave(save);
   return save;
+}
+
+/**
+ * Get zero profile for a weapon
+ */
+export function getZeroProfile(weaponId: string): ZeroProfile | null {
+  const save = getOrCreateGameSave();
+  return save.zeroProfiles[weaponId] || null;
+}
+
+/**
+ * Save zero profile for a weapon
+ */
+export function saveZeroProfile(weaponId: string, profile: ZeroProfile): GameSave {
+  const save = getOrCreateGameSave();
+  save.zeroProfiles[weaponId] = profile;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Delete zero profile for a weapon
+ */
+export function deleteZeroProfile(weaponId: string): GameSave {
+  const save = getOrCreateGameSave();
+  delete save.zeroProfiles[weaponId];
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Get default zero distance for a weapon
+ * Returns 0 if no profile exists
+ */
+export function getZeroDistance(weaponId: string): number {
+  const profile = getZeroProfile(weaponId);
+  return profile ? profile.zeroDistanceM : 0;
 }
 
 /**

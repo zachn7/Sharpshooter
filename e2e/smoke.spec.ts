@@ -360,3 +360,49 @@ test('level unlock progression: next level unlocks on star', async ({ page }) =>
   const windyTextAfter = await pistolWindyAfter.textContent();
   expect(windyTextAfter).not.toContain('🔒'); // Should not have lock icon
 });
+
+test('zeroing profile: save and return to zero', async ({ page }) => {
+  // Start fresh
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+
+  // Go to game
+  await page.goto('/game/pistol-calm');
+  await page.getByTestId('start-level').click();
+
+  // Verify turret HUD is visible and zeroed
+  await expect(page.getByTestId('turret-hud')).toBeVisible();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.0');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.0');
+
+  // Adjust turret to some values
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('windage-right').click();
+  await page.getByTestId('windage-right').click();
+
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.2');
+
+  // Save zero profile
+  await page.getByTestId('save-zero').click();
+  await page.waitForTimeout(100);
+
+  // Adjust turret to different values
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-down').click();
+  await page.getByTestId('windage-left').click();
+
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.1');
+
+  // Return to zero - should restore saved values
+  await page.getByTestId('return-to-zero').click();
+  await page.waitForTimeout(100);
+
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.2');
+});

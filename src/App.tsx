@@ -5,6 +5,7 @@ import { Weapons } from './pages/Weapons';
 import { Levels } from './pages/Levels';
 import { Settings } from './pages/Settings';
 import { Game } from './pages/Game';
+import { ZeroRange } from './pages/ZeroRange';
 
 function InnerApp() {
   return (
@@ -42,6 +43,14 @@ function InnerApp() {
         }
       />
       <Route path="/game/:levelId" element={<Game />} />
+      <Route
+        path="/zero"
+        element={
+          <Layout>
+            <ZeroRange />
+          </Layout>
+        }
+      />
     </Routes>
   );
 }

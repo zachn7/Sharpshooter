@@ -3,9 +3,17 @@ import { Link } from 'react-router-dom';
 import { 
   getGameSettings, 
   updateGameSettings, 
+  getSelectedWeaponId,
+  saveZeroProfile,
+  getZeroProfile,
   type GameSettings, 
-  type RealismPreset 
+  type RealismPreset,
+  type ZeroProfile
 } from '../storage';
+
+const ZERO_DISTANCE_OPTIONS = [25, 50, 100, 200] as const;
+
+type ZeroDistanceOption = typeof ZERO_DISTANCE_OPTIONS[number];
 
 const REALISM_PRESETS: { id: RealismPreset; label: string; description: string }[] = [
   {
@@ -27,6 +35,12 @@ const REALISM_PRESETS: { id: RealismPreset; label: string; description: string }
 
 export function Settings() {
   const [settings, setSettings] = useState<GameSettings>(() => getGameSettings());
+  const [selectedWeaponId] = useState(() => getSelectedWeaponId());
+  const [zeroDistance, setZeroDistance] = useState<ZeroDistanceOption>(() => {
+    const weaponId = getSelectedWeaponId();
+    const profile = getZeroProfile(weaponId);
+    return (profile?.zeroDistanceM || 0) as ZeroDistanceOption;
+  });
 
   const handlePresetChange = (preset: RealismPreset) => {
     if (!settings) return;
@@ -39,6 +53,19 @@ export function Settings() {
     const currentValue = settings[key] as boolean;
     const updated = updateGameSettings({ [key]: !currentValue } as Partial<GameSettings>);
     setSettings(updated.settings);
+  };
+
+  const handleZeroDistanceChange = async (distance: number) => {
+    setZeroDistance(distance as ZeroDistanceOption);
+    
+    // Get or create profile
+    const profile: ZeroProfile = {
+      zeroDistanceM: distance,
+      zeroElevationMils: 0.0,
+      zeroWindageMils: 0.0,
+    };
+    
+    saveZeroProfile(selectedWeaponId, profile);
   };
 
   if (!settings) {
@@ -161,6 +188,42 @@ export function Settings() {
                 {settings.showMilOffset ? 'ON' : 'OFF'}
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Zero Distance Section */}
+        <div className="settings-section" data-testid="zeroing-section">
+          <h3>Zero Settings</h3>
+          <p className="setting-description">
+            Set zero distance for each weapon and access zero range for calibration.
+          </p>
+          
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Zero Distance</span>
+              <span className="setting-sublabel">
+                Distance at which turret is adjusted to hit center
+              </span>
+            </div>
+            <select
+              value={zeroDistance}
+              onChange={(e) => handleZeroDistanceChange(Number(e.target.value))}
+              className="preset-select"
+              data-testid="zero-distance-select"
+            >
+              <option value={0}>Not Set</option>
+              {ZERO_DISTANCE_OPTIONS.map((distance) => (
+                <option key={distance} value={distance}>
+                  {distance}m
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="setting-item">
+            <Link to="/zero" className="zero-link-button" data-testid="go-to-zero-range">
+              Go to Zero Range
+            </Link>
           </div>
         </div>
       </div>
