@@ -212,6 +212,45 @@ test('deterministic test mode: stable physics with seed', async ({ page }) => {
   expect(score).toBeGreaterThan(0); // Should have scored some points
 });
 
+test('turret dialing controls adjust elevation and windage', async ({ page }) => {
+  // Navigate to a level
+  await page.goto('/game/pistol-windy');
+  await page.getByTestId('start-level').click();
+
+  // Verify turret HUD is visible
+  await expect(page.getByTestId('turret-hud')).toBeVisible();
+
+  // Verify initial values (zeroed)
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.0');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.0');
+
+  // Adjust elevation up
+  await page.getByTestId('elevation-up').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.1');
+
+  // Adjust windage right
+  await page.getByTestId('windage-right').click();
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.1');
+
+  // Adjust multiple times
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-up').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+
+  // Adjust down/left
+  await page.getByTestId('elevation-down').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.2');
+
+  await page.getByTestId('windage-left').click();
+  await page.getByTestId('windage-left').click();
+  await expect(page.getByTestId('windage-value')).toHaveText('-0.1');
+
+  // Reset turret
+  await page.getByTestId('reset-turret').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.0');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.0');
+});
+
 test('reticle mode toggle and magnification control', async ({ page }) => {
   // Navigate to a level
   await page.goto('/game/pistol-windy');

@@ -15,6 +15,9 @@ export {
   getGameSettings,
   updateGameSettings,
   getRealismScaling,
+  getTurretState,
+  updateTurretState,
+  resetTurretStateForWeapon,
   CURRENT_SCHEMA_VERSION,
 } from './localStore';
-export type { GameSave, LevelProgress, GameSettings, RealismPreset } from './localStore';
+export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState } from './localStore';

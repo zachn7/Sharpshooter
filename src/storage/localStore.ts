@@ -1,5 +1,11 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
+
+// Turret state (imported type)
+export interface TurretState {
+  elevationMils: number;
+  windageMils: number;
+}
 
 // Storage keys
 const STORAGE_KEY = 'sharpshooter_save';
@@ -31,6 +37,7 @@ export interface GameSave {
   levelProgress: Record<string, LevelProgress>;
   unlockedWeapons: string[];
   settings: GameSettings;
+  turretStates: Record<string, TurretState>; // Per-weapon turret state
   createdAt: number;
   updatedAt: number;
 }
@@ -54,6 +61,15 @@ const MIGRATIONS: Migration[] = [
         showMilOffset: false,
         showHud: true,
       },
+    };
+  },
+  // v2 -> v3: Add turretStates field with empty defaults
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 3,
+      turretStates: save.turretStates || {},
     };
   },
 ];
@@ -99,6 +115,8 @@ function validateGameSave(data: unknown): data is GameSave {
     typeof save.selectedWeaponId === 'string' &&
     typeof save.levelProgress === 'object' &&
     Array.isArray(save.unlockedWeapons) &&
+    typeof save.settings === 'object' &&
+    typeof save.turretStates === 'object' &&
     typeof save.createdAt === 'number' &&
     typeof save.updatedAt === 'number'
   );
@@ -136,6 +154,7 @@ function createDefaultSave(): GameSave {
       showMilOffset: false,
       showHud: true,
     },
+    turretStates: {},
     createdAt: now,
     updatedAt: now,
   };
@@ -176,6 +195,42 @@ export function getRealismScaling(preset: RealismPreset): { dragScale: number; w
     default:
       return { dragScale: 1.0, windScale: 1.0 }; // Baseline
   }
+}
+
+/**
+ * Get turret state for a specific weapon
+ */
+export function getTurretState(weaponId: string): TurretState {
+  const save = getOrCreateGameSave();
+  return save.turretStates[weaponId] || {
+    elevationMils: 0.0,
+    windageMils: 0.0,
+  };
+}
+
+/**
+ * Update turret state for a specific weapon
+ */
+export function updateTurretState(weaponId: string, turretState: TurretState): GameSave {
+  const save = getOrCreateGameSave();
+  save.turretStates[weaponId] = turretState;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Reset turret state for a specific weapon
+ */
+export function resetTurretStateForWeapon(weaponId: string): GameSave {
+  const save = getOrCreateGameSave();
+  save.turretStates[weaponId] = {
+    elevationMils: 0.0,
+    windageMils: 0.0,
+  };
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
 }
 
 /**
