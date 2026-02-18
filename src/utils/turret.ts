@@ -120,3 +120,44 @@ export function applyTurretOffset(
 export function resetTurretState(): TurretState {
   return createDefaultTurretState();
 }
+
+/**
+ * Compute turret adjustment needed to correct an impact offset
+ * @param offsetYMeters - Vertical offset from target center in meters (positive = impact high)
+ * @param offsetZMeters - Horizontal offset from target center in meters (positive = impact right)
+ * @param distanceM - Target distance in meters
+ * @returns Turret adjustment in mils to correct the shot
+ * 
+ * Note: If shot is high (positive Y offset), we need to aim LOWER (negative elevation adjustment)
+ * If shot is right (positive Z offset), we need to aim LEFT (negative windage adjustment)
+ */
+export function computeAdjustmentForOffset(
+  offsetYMeters: number,
+  offsetZMeters: number,
+  distanceM: number
+): TurretState {
+  // Convert offset meters to mils first
+  const elevationMils = metersToMils(distanceM, offsetYMeters);
+  const windageMils = metersToMils(distanceM, offsetZMeters);
+
+  // Apply correction: opposite direction of offset
+  // Shot high (positive offset) → aim lower (negative adjustment)
+  // Shot right (positive offset) → aim left (negative adjustment)
+  return {
+    elevationMils: -elevationMils,
+    windageMils: -windageMils,
+  };
+}
+
+/**
+ * Quantize adjustment to specific click steps
+ * @param adjustment - Adjustment in mils
+ * @param clickSize - Click size in mils (default 0.1)
+ * @returns Quantized adjustment in mils
+ */
+export function quantizeAdjustmentToClicks(
+  adjustment: number,
+  clickSize: number = 0.1
+): number {
+  return quantizeToClick(adjustment, clickSize);
+}

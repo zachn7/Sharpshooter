@@ -7,7 +7,7 @@ import { simulateShotToDistance } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
 import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, type TurretState } from '../storage';
-import { applyTurretOffset, nextClickValue } from '../utils/turret';
+import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 
 interface Impact {
@@ -17,6 +17,9 @@ interface Impact {
   timestamp: number;
   windUsedMps: number;
   index: number;
+  // Offset from target center in mils (for aiming correction)
+  elevationMils: number; // Positive = shot is high
+  windageMils: number;  // Positive = shot is right
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -154,6 +157,10 @@ export function Game() {
     const impactX = WORLD_WIDTH / 2 + result.impactZ_M;
     const impactY = WORLD_HEIGHT / 2 - result.impactY_M;
 
+    // Compute offset from target center in mils
+    const elevationMils = metersToMils(level.distanceM, result.impactY_M);
+    const windageMils = metersToMils(level.distanceM, result.impactZ_M);
+
     const impact: Impact = {
       x: impactX,
       y: impactY,
@@ -161,6 +168,8 @@ export function Game() {
       timestamp: Date.now(),
       windUsedMps: result.windUsedMps,
       index: impacts.length + 1,
+      elevationMils,
+      windageMils,
     };
 
     const newImpacts = [...impacts, impact];
@@ -229,6 +238,36 @@ export function Game() {
       updateTurretState(weaponId, newTurretState);
     }
   }, [weaponId]);
+
+  const handleApplyCorrection = useCallback(() => {
+    // Get last shot's offset
+    const lastImpact = impacts[impacts.length - 1];
+    if (!lastImpact || !level) return;
+
+    // Calculate correction needed (opposite of offset)
+    const correction = computeAdjustmentForOffset(
+      lastImpact.elevationMils * level.distanceM * 0.001, // Convert mils back to meters
+      lastImpact.windageMils * level.distanceM * 0.001,
+      level.distanceM
+    );
+
+    // Apply correction quantized to 0.1 mil clicks
+    const newElevation = quantizeAdjustmentToClicks(
+      turretState.elevationMils + correction.elevationMils,
+      0.1
+    );
+    const newWindage = quantizeAdjustmentToClicks(
+      turretState.windageMils + correction.windageMils,
+      0.1
+    );
+
+    const newTurretState = {
+      elevationMils: newElevation,
+      windageMils: newWindage,
+    };
+    setTurretState(newTurretState);
+    updateTurretState(weaponId, newTurretState);
+  }, [impacts, level, turretState, weaponId]);
 
   // Reset level handler
   const handleReset = useCallback(() => {
@@ -776,6 +815,43 @@ export function Game() {
         <span>{level.distanceM}m</span>
         <span>Range: {level.difficulty}</span>
       </div>
+      
+      {/* Impact Offset Panel */}
+      {impacts.length > 0 && settings.showHud && (
+        <div className="impact-offset-panel" data-testid="impact-offset-panel">
+          <div className="impact-offset-header">
+            <span>Impact Offset</span>
+            {impacts.length > 0 && (
+              <span className="last-shot-label">(Last Shot)</span>
+            )}
+          </div>
+          <div className="impact-offset-values">
+            <div className="offset-row">
+              <span className="offset-label">Elevation:</span>
+              <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`}>
+                {impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL
+              </span>
+            </div>
+            <div className="offset-row">
+              <span className="offset-label">Windage:</span>
+              <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`}>
+                {impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].windageMils.toFixed(1)} MIL
+              </span>
+            </div>
+          </div>
+          {/* Apply Correction button - only available in Arcade mode */}
+          {settings.realismPreset === 'arcade' && (
+            <button
+              onClick={handleApplyCorrection}
+              className="apply-correction-button"
+              data-testid="apply-correction"
+              title="Apply correction to turret (Arcade only)"
+            >
+              Apply Correction
+            </button>
+          )}
+        </div>
+      )}
       
       <div className="game-container" ref={containerRef}>
         <canvas

@@ -8,6 +8,8 @@ import {
   formatTurretState,
   applyTurretOffset,
   resetTurretState,
+  computeAdjustmentForOffset,
+  quantizeAdjustmentToClicks,
   type TurretState,
 } from '../turret';
 
@@ -194,5 +196,70 @@ describe('applyTurretOffset', () => {
     // At 500m, 1 MIL = 0.5m
     const result = applyTurretOffset(0, 0, turret, 500);
     expect(result.aimY_M).toBe(0.5);
+  });
+});
+
+describe('computeAdjustmentForOffset', () => {
+  it('computes opposite correction for positive elevation offset', () => {
+    // Shot is 0.1m high at 100m (1 MIL offset)
+    // Need to lower turret by 1 MIL
+    const adjustment = computeAdjustmentForOffset(0.1, 0, 100);
+    expect(adjustment.elevationMils).toBe(-1.0);
+    expect(Math.abs(adjustment.windageMils)).toBeCloseTo(0, 10);
+  });
+
+  it('computes opposite correction for negative elevation offset', () => {
+    // Shot is 0.1m low at 100m (-1 MIL offset)
+    // Need to raise turret by 1 MIL
+    const adjustment = computeAdjustmentForOffset(-0.1, 0, 100);
+    expect(adjustment.elevationMils).toBe(1.0);
+    expect(Math.abs(adjustment.windageMils)).toBeCloseTo(0, 10);
+  });
+
+  it('computes opposite correction for positive windage offset', () => {
+    // Shot is 0.1m right at 100m (1 MIL offset)
+    // Need to aim left by 1 MIL
+    const adjustment = computeAdjustmentForOffset(0, 0.1, 100);
+    expect(Math.abs(adjustment.elevationMils)).toBeCloseTo(0, 10);
+    expect(adjustment.windageMils).toBe(-1.0);
+  });
+
+  it('computes opposite correction for negative windage offset', () => {
+    // Shot is 0.1m left at 100m (-1 MIL offset)
+    // Need to aim right by 1 MIL
+    const adjustment = computeAdjustmentForOffset(0, -0.1, 100);
+    expect(Math.abs(adjustment.elevationMils)).toBeCloseTo(0, 10);
+    expect(adjustment.windageMils).toBe(1.0);
+  });
+
+  it('computes correction for both elevation and windage', () => {
+    // Shot is high and right
+    const adjustment = computeAdjustmentForOffset(0.15, 0.2, 100);
+    // At 100m: 0.15m = 1.5 MIL, 0.2m = 2 MIL
+    expect(adjustment.elevationMils).toBeCloseTo(-1.5, 10);
+    expect(adjustment.windageMils).toBeCloseTo(-2.0, 10);
+  });
+
+  it('scales conversion with distance', () => {
+    // Shot is 0.5m high at 500m (1 MIL offset)
+    const adjustment = computeAdjustmentForOffset(0.5, 0, 500);
+    expect(adjustment.elevationMils).toBe(-1.0);
+  });
+});
+
+describe('quantizeAdjustmentToClicks', () => {
+  it('quantizes adjustment to 0.1 mil clicks', () => {
+    expect(quantizeAdjustmentToClicks(0.123)).toBe(0.1);
+    expect(quantizeAdjustmentToClicks(0.156)).toBe(0.2);
+  });
+
+  it('handles negative adjustments', () => {
+    expect(quantizeAdjustmentToClicks(-0.123)).toBe(-0.1);
+    expect(quantizeAdjustmentToClicks(-0.156)).toBe(-0.2);
+  });
+
+  it('uses custom click size', () => {
+    expect(quantizeAdjustmentToClicks(0.26, 0.25)).toBe(0.25);
+    expect(quantizeAdjustmentToClicks(0.51, 0.25)).toBe(0.5);
   });
 });

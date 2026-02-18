@@ -801,6 +801,95 @@ body {
   color: #aaa;
 }
 
+/* Impact Offset Panel */
+.impact-offset-panel {
+  padding: 1rem;
+  background: #0f3460;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.impact-offset-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.impact-offset-header span {
+  color: #e94560;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.last-shot-label {
+  color: #aaa;
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+
+.impact-offset-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.offset-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: #16213e;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.offset-label {
+  color: #a0a0a0;
+  font-weight: 500;
+}
+
+.offset-value {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.offset-value.positive {
+  color: #ff6b4a;
+}
+
+.offset-value.negative {
+  color: #4a9eff;
+}
+
+.offset-value.zero {
+  color: #aaa;
+}
+
+.apply-correction-button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.apply-correction-button:hover {
+  background: #66bb6a;
+  transform: translateY(-2px);
+}
+
+.apply-correction-button:active {
+  transform: translateY(0);
+}
+
 /* Level Briefing */
 .level-briefing {
   max-width: 800px;
