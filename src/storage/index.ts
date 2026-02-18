@@ -22,6 +22,10 @@ export {
   saveZeroProfile,
   deleteZeroProfile,
   getZeroDistance,
+  getTutorialsSeen,
+  markTutorialSeen,
+  hasTutorialBeenSeen,
+  clearTutorialsSeen,
   CURRENT_SCHEMA_VERSION,
 } from './localStore';
 export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState, ZeroProfile } from './localStore';

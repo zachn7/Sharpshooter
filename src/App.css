@@ -1101,3 +1101,111 @@ body {
 .cta-button:hover {
   background: #1e4d8c;
 }
+
+/* Tutorial Overlay */
+.tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.tutorial-content {
+  background: #16213e;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  color: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: tutorialFadeIn 0.3s ease-out;
+}
+
+@keyframes tutorialFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tutorial-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.tutorial-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #e94560;
+}
+
+.tutorial-close-button {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.tutorial-close-button:hover {
+  color: #fff;
+}
+
+.tutorial-body {
+  margin-bottom: 2rem;
+}
+
+.tutorial-body p {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #e0e0e0;
+}
+
+.tutorial-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tutorial-progress {
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.tutorial-next-button {
+  background: #e94560;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.tutorial-next-button:hover {
+  background: #ff6b6b;
+  transform: translateY(-2px);
+}
+
+.tutorial-next-button:active {
+  transform: translateY(0);
+}

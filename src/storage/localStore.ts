@@ -17,6 +17,7 @@ export interface ZeroProfile {
 // Storage keys
 const STORAGE_KEY = 'sharpshooter_save';
 const VERSION_KEY = 'sharpshooter_schema_version';
+const TUTORIALS_KEY = 'sharpshooter_tutorials_seen';
 
 // Level progress record
 export interface LevelProgress {
@@ -476,4 +477,45 @@ export function isLevelUnlocked(levelId: string, allLevelIds: string[]): boolean
  */
 export function getUnlockedLevels(allLevelIds: string[]): string[] {
   return allLevelIds.filter((levelId) => isLevelUnlocked(levelId, allLevelIds));
+}
+
+/**
+ * Get tutorials seen from localStorage
+ * @returns Set of tutorial IDs that have been seen
+ */
+export function getTutorialsSeen(): Set<string> {
+  try {
+    const raw = storage.getItem(TUTORIALS_KEY);
+    if (!raw) return new Set();
+    const data = JSON.parse(raw) as string[];
+    return new Set(data);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Mark a tutorial as seen
+ * @param tutorialId - The tutorial ID to mark as seen
+ */
+export function markTutorialSeen(tutorialId: string): void {
+  const seen = getTutorialsSeen();
+  seen.add(tutorialId);
+  storage.setItem(TUTORIALS_KEY, JSON.stringify(Array.from(seen)));
+}
+
+/**
+ * Check if a tutorial has been seen
+ * @param tutorialId - The tutorial ID to check
+ * @returns true if tutorial has been seen
+ */
+export function hasTutorialBeenSeen(tutorialId: string): boolean {
+  return getTutorialsSeen().has(tutorialId);
+}
+
+/**
+ * Clear tutorials seen (for testing/reset)
+ */
+export function clearTutorialsSeen(): void {
+  storage.removeItem(TUTORIALS_KEY);
 }

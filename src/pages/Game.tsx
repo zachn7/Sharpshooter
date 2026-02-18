@@ -9,6 +9,7 @@ import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/
 import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
+import { TutorialOverlay } from '../components/TutorialOverlay';
 
 interface Impact {
   x: number;
@@ -894,6 +895,15 @@ export function Game() {
         </button>
         <span className="instructions">Move mouse/touch to aim, click/tap to fire</span>
       </div>
+
+      {/* Tutorial Overlay - shows on first play of tutorial levels */}
+      {level && (
+        <TutorialOverlay
+          key={level.id}
+          levelId={level.id}
+          onDismiss={() => {}}
+        />
+      )}
     </div>
   );
 }
