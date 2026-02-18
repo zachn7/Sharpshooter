@@ -6,7 +6,8 @@ import { createStandardTarget, calculateRingScore } from '../utils/scoring';
 import { simulateShotToDistance } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress } from '../storage';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling } from '../storage';
+import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 
 interface Impact {
   x: number;
@@ -18,6 +19,7 @@ interface Impact {
 }
 
 type GameState = 'briefing' | 'running' | 'results';
+type ReticleMode = 'simple' | 'mil';
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
@@ -34,6 +36,13 @@ export function Game() {
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
+  
+  // Reticle state
+  const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
+  const [magnification, setMagnification] = useState<MagnificationLevel>(1);
+  
+  const settings = useState(() => getGameSettings())[0];
+  const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
   // Get test seed from URL params for deterministic testing
   // Use useState with lazy initializer - only executed once
@@ -105,18 +114,23 @@ export function Game() {
     const aimY_M = -(recticlePosition.y - WORLD_HEIGHT / 2);
 
     // Run physics simulation with level and weapon parameters
+    // Apply realism scaling based on preset
+    const scaledDragFactor = weapon.params.dragFactor * dragScale;
+    const scaledWindMps = level.windMps * windScale;
+    const scaledGustMps = level.gustMps * windScale;
+    
     const result = simulateShotToDistance(
       {
         distanceM: level.distanceM,
         muzzleVelocityMps: weapon.params.muzzleVelocityMps,
-        dragFactor: weapon.params.dragFactor,
+        dragFactor: scaledDragFactor,
         aimY_M,
         aimZ_M: aimX_M,
         dtS: 0.002,
       },
       {
-        windMps: level.windMps,
-        gustMps: level.gustMps,
+        windMps: scaledWindMps,
+        gustMps: scaledGustMps,
         airDensityKgM3: level.airDensityKgM3,
         gravityMps2: level.gravityMps2,
         seed: testSeed + shotCount, // Each shot gets a different deterministic seed
@@ -153,7 +167,7 @@ export function Game() {
       // Save progress
       updateLevelProgress(level.id, finalScore, level.starThresholds);
     }
-  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed]);
+  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale]);
 
   // Start level handler
   const handleStartLevel = useCallback(() => {
@@ -313,26 +327,99 @@ export function Game() {
 
       // Draw reticle
       const reticleCanvas = worldToCanvas(recticlePosition, viewportConfig);
-      const reticleSize = 20;
 
-      ctx.strokeStyle = '#ff0000';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      // Crosshair
-      ctx.moveTo(reticleCanvas.x - reticleSize, reticleCanvas.y);
-      ctx.lineTo(reticleCanvas.x + reticleSize, reticleCanvas.y);
-      ctx.moveTo(reticleCanvas.x, reticleCanvas.y - reticleSize);
-      ctx.lineTo(reticleCanvas.x, reticleCanvas.y + reticleSize);
-      // Circle
-      ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleSize / 2, 0, Math.PI * 2);
-      ctx.stroke();
+      if (reticleMode === 'simple') {
+        // Simple crosshair reticle
+        const reticleSize = 20;
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Crosshair
+        ctx.moveTo(reticleCanvas.x - reticleSize, reticleCanvas.y);
+        ctx.lineTo(reticleCanvas.x + reticleSize, reticleCanvas.y);
+        ctx.moveTo(reticleCanvas.x, reticleCanvas.y - reticleSize);
+        ctx.lineTo(reticleCanvas.x, reticleCanvas.y + reticleSize);
+        // Circle
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleSize / 2, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (reticleMode === 'mil' && level) {
+        // MIL reticle with tick marks
+        const milSpacingPixels = getMilSpacingPixels(
+          level.distanceM,
+          1,
+          WORLD_WIDTH,
+          canvasSize.width,
+          magnification
+        );
+
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = '#ff0000';
+
+        // Draw center dot
+        ctx.beginPath();
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw horizontal MIL ticks (left and right from center)
+        [-1, 1].forEach((direction) => {
+          for (let i = 1; i <= 10; i++) {
+            const xPos = reticleCanvas.x + (i * milSpacingPixels * direction);
+            const isMajorTick = i % 5 === 0;
+            const tickLength = isMajorTick ? 15 : 8;
+
+            ctx.beginPath();
+            ctx.moveTo(xPos, reticleCanvas.y - tickLength / 2);
+            ctx.lineTo(xPos, reticleCanvas.y + tickLength / 2);
+            ctx.stroke();
+
+            // Draw number labels for major ticks
+            if (isMajorTick && i <= 10) {
+              ctx.font = '10px sans-serif';
+              ctx.textAlign = 'center';
+              const labelY = reticleCanvas.y + (direction === 1 ? 25 : -10);
+              ctx.fillText(i.toString() + 'M', xPos, labelY);
+            }
+          }
+        });
+
+        // Draw vertical MIL ticks (up and down from center)
+        [-1, 1].forEach((direction) => {
+          for (let i = 1; i <= 10; i++) {
+            const yPos = reticleCanvas.y + (i * milSpacingPixels * direction);
+            const isMajorTick = i % 5 === 0;
+            const tickLength = isMajorTick ? 15 : 8;
+
+            ctx.beginPath();
+            ctx.moveTo(reticleCanvas.x - tickLength / 2, yPos);
+            ctx.lineTo(reticleCanvas.x + tickLength / 2, yPos);
+            ctx.stroke();
+
+            // Draw number labels for major ticks
+            if (isMajorTick && i <= 10) {
+              ctx.font = '10px sans-serif';
+              ctx.textAlign = 'left';
+              const labelX = reticleCanvas.x + 15;
+              ctx.fillText(i.toString() + 'M', labelX, yPos + 3);
+            }
+          }
+        });
+
+        // Draw thin crosshair lines to edges
+        ctx.beginPath();
+        ctx.moveTo(0, reticleCanvas.y);
+        ctx.lineTo(canvasSize.width, reticleCanvas.y);
+        ctx.moveTo(reticleCanvas.x, 0);
+        ctx.lineTo(reticleCanvas.x, canvasSize.height);
+        ctx.stroke();
+      }
 
       requestAnimationFrame(draw);
     };
 
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [canvasSize, impacts, targetConfig, recticlePosition, level]);
+  }, [canvasSize, impacts, targetConfig, recticlePosition, level, magnification, reticleMode]);
 
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
@@ -494,10 +581,32 @@ export function Game() {
           </span>
           <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
         </div>
+        <div className="reticle-controls">
+          <button
+            onClick={() => setReticleMode(reticleMode === 'simple' ? 'mil' : 'simple')}
+            className="control-button"
+            data-testid="reticle-mode-toggle"
+            title="Toggle reticle mode"
+          >
+            {reticleMode === 'simple' ? 'Crosshair' : 'MIL Reticle'}
+          </button>
+          <button
+            onClick={() => {
+              const currentIndex = MAGNIFICATION_LEVELS.indexOf(magnification);
+              const nextIndex = (currentIndex + 1) % MAGNIFICATION_LEVELS.length;
+              setMagnification(MAGNIFICATION_LEVELS[nextIndex]);
+            }}
+            className="control-button"
+            data-testid="magnification-control"
+            title={`Magnification: ${magnification}x`}
+          >
+            {magnification}x
+          </button>
+        </div>
       </div>
       
       {/* Wind HUD Panel */}
-      {level && (
+      {level && settings.showHud && (
         <div className="wind-hud" data-testid="wind-hud">
           <div className="wind-display">
             <div className="wind-header">
@@ -507,8 +616,9 @@ export function Game() {
               </div>
             </div>
             <div className="wind-details">
-              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{level.windMps} m/s</strong></span>
-              <span className="wind-gust">Gust: ±{level.gustMps} m/s</span>
+              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
+              <span className="wind-gust">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+              {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
             </div>
           </div>
         </div>
@@ -533,7 +643,7 @@ export function Game() {
       </div>
       
       {/* Shot History */}
-      {impacts.length > 0 && (
+      {impacts.length > 0 && settings.showHud && (
         <div className="shot-history" data-testid="shot-history">
           <h4>Shot History</h4>
           <div className="shot-list">

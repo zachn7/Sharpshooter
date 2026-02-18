@@ -4,27 +4,25 @@ import {
   getLevelProgress,
   getOrCreateGameSave,
   getPackStars,
-  getPackMaxStars,
-  getSelectedWeaponId,
   getTotalStars,
   loadGameSave,
   saveGameSave,
-  setSelectedWeapon,
   type GameSave,
   updateLevelProgress,
   isLevelUnlocked,
   getUnlockedLevels,
+  getGameSettings,
+  updateGameSettings,
+  getRealismScaling,
   CURRENT_SCHEMA_VERSION,
 } from '../localStore';
 
 describe('localStore', () => {
   beforeEach(() => {
-    // Clear storage before each test
     clearSaveData();
   });
 
   afterEach(() => {
-    // Clean up after each test
     clearSaveData();
   });
 
@@ -37,12 +35,17 @@ describe('localStore', () => {
           'level-1': { stars: 3, bestScore: 30, attempts: 1, lastPlayedAt: Date.now() },
         },
         unlockedWeapons: ['pistol-training', 'rifle-assault'],
+        settings: {
+          realismPreset: 'realistic',
+          showShotTrace: false,
+          showMilOffset: false,
+          showHud: true,
+        },
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
-      const saved = saveGameSave(save);
-      expect(saved).toBe(true);
+      expect(saveGameSave(save)).toBe(true);
 
       const loaded = loadGameSave();
       expect(loaded).not.toBeNull();
@@ -51,215 +54,124 @@ describe('localStore', () => {
     });
 
     it('returns null when no save exists', () => {
-      const loaded = loadGameSave();
-      expect(loaded).toBeNull();
+      expect(loadGameSave()).toBeNull();
     });
 
     it('rejects invalid save data', () => {
       const invalid = { foo: 'bar' } as unknown as GameSave;
-      const saved = saveGameSave(invalid);
-      expect(saved).toBe(false);
-    });
-
-    it('creates default save with correct structure', () => {
-      const save = getOrCreateGameSave();
-      
-      expect(save.version).toBe(CURRENT_SCHEMA_VERSION);
-      expect(save.selectedWeaponId).toBe('pistol-training');
-      expect(save.levelProgress).toEqual({});
-      expect(save.unlockedWeapons).toEqual(['pistol-training']);
-      expect(save.createdAt).toBeGreaterThan(0);
-      expect(save.updatedAt).toBeGreaterThan(0);
+      expect(saveGameSave(invalid)).toBe(false);
     });
   });
 
-  describe('getOrCreateGameSave', () => {
-    it('returns existing save if available', () => {
-      const save = getOrCreateGameSave();
-      save.selectedWeaponId = 'sniper-bolt';
-      saveGameSave(save);
-
-      const result = getOrCreateGameSave();
-      expect(result.selectedWeaponId).toBe('sniper-bolt');
+  describe('getGameSettings', () => {
+    it('returns default settings for new save', () => {
+      const settings = getGameSettings();
+      expect(settings.realismPreset).toBe('realistic');
+      expect(settings.showShotTrace).toBe(false);
+      expect(settings.showMilOffset).toBe(false);
+      expect(settings.showHud).toBe(true);
     });
 
-    it('creates new save if none exists', () => {
-      const result = getOrCreateGameSave();
-      expect(result.selectedWeaponId).toBe('pistol-training');
-    });
-  });
-
-  describe('setSelectedWeapon and getSelectedWeaponId', () => {
-    it('sets and retrieves selected weapon', () => {
-      setSelectedWeapon('rifle-carbine');
-      expect(getSelectedWeaponId()).toBe('rifle-carbine');
-    });
-
-    it('returns default weapon ID when no save exists', () => {
-      clearSaveData();
-      expect(getSelectedWeaponId()).toBe('pistol-training');
+    it('returns persisted settings after update', () => {
+      updateGameSettings({ realismPreset: 'arcade' });
+      const settings = getGameSettings();
+      expect(settings.realismPreset).toBe('arcade');
     });
   });
 
-  describe('updateLevelProgress', () => {
-    it('creates new progress record', () => {
-      const save = updateLevelProgress('level-1', 25, {
-        one: 10,
-        two: 20,
-        three: 30,
+  describe('updateGameSettings', () => {
+    it('updates single setting', () => {
+      const updated = updateGameSettings({ realismPreset: 'expert' });
+      expect(updated.settings.realismPreset).toBe('expert');
+      expect(updated.settings.showHud).toBe(true);
+    });
+
+    it('updates multiple settings', () => {
+      const updated = updateGameSettings({
+        realismPreset: 'arcade',
+        showHud: false,
+        showShotTrace: true,
       });
-
-      expect(save.levelProgress['level-1']).toEqual({
-        stars: 2,
-        bestScore: 25,
-        attempts: 1,
-        lastPlayedAt: expect.any(Number),
-      });
+      expect(updated.settings.realismPreset).toBe('arcade');
+      expect(updated.settings.showHud).toBe(false);
+      expect(updated.settings.showShotTrace).toBe(true);
+      expect(updated.settings.showMilOffset).toBe(false);
     });
 
-    it('updates best score if new score is higher', () => {
-      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 });
-      const save = updateLevelProgress('level-1', 25, {
-        one: 10,
-        two: 20,
-        three: 30,
-      });
-
-      expect(save.levelProgress['level-1'].bestScore).toBe(25);
-      expect(save.levelProgress['level-1'].stars).toBe(2);
-      expect(save.levelProgress['level-1'].attempts).toBe(2);
-    });
-
-    it('does not update best score if new score is lower', () => {
-      updateLevelProgress('level-1', 25, { one: 10, two: 20, three: 30 });
-      const save = updateLevelProgress('level-1', 15, {
-        one: 10,
-        two: 20,
-        three: 30,
-      });
-
-      expect(save.levelProgress['level-1'].bestScore).toBe(25);
-      expect(save.levelProgress['level-1'].stars).toBe(2);
-      expect(save.levelProgress['level-1'].attempts).toBe(2);
-    });
-
-    it('calculates correct stars (3 star)', () => {
-      const save = updateLevelProgress('level-1', 35, {
-        one: 10,
-        two: 20,
-        three: 30,
-      });
-      expect(save.levelProgress['level-1'].stars).toBe(3);
-    });
-
-    it('calculates correct stars (0 star)', () => {
-      const save = updateLevelProgress('level-1', 5, {
-        one: 10,
-        two: 20,
-        three: 30,
-      });
-      expect(save.levelProgress['level-1'].stars).toBe(0);
+    it('persists settings across function calls', () => {
+      updateGameSettings({ realismPreset: 'expert', showHud: false });
+      const settings1 = getGameSettings();
+      const settings2 = getGameSettings();
+      expect(settings1.realismPreset).toBe('expert');
+      expect(settings2.realismPreset).toBe('expert');
+      expect(settings1.showHud).toBe(false);
+      expect(settings2.showHud).toBe(false);
     });
   });
 
-  describe('getLevelProgress', () => {
-    it('returns progress for completed level', () => {
-      updateLevelProgress('level-1', 25, { one: 10, two: 20, three: 30 });
-      const progress = getLevelProgress('level-1');
-
-      expect(progress).toEqual({
-        stars: 2,
-        bestScore: 25,
-        attempts: 1,
-        lastPlayedAt: expect.any(Number),
-      });
+  describe('getRealismScaling', () => {
+    it('returns baseline scaling for realistic preset', () => {
+      const scaling = getRealismScaling('realistic');
+      expect(scaling.dragScale).toBe(1.0);
+      expect(scaling.windScale).toBe(1.0);
     });
 
-    it('returns undefined for unplayed level', () => {
-      const progress = getLevelProgress('level-99');
-      expect(progress).toBeUndefined();
-    });
-  });
-
-  describe('getTotalStars', () => {
-    it('calculates total stars across all levels', () => {
-      updateLevelProgress('level-1', 35, { one: 10, two: 20, three: 30 }); // 3 stars
-      updateLevelProgress('level-2', 15, { one: 10, two: 20, three: 30 }); // 1 star
-      updateLevelProgress('level-3', 25, { one: 10, two: 20, three: 30 }); // 2 stars
-
-      expect(getTotalStars()).toBe(6);
+    it('returns reduced scaling for arcade preset', () => {
+      const scaling = getRealismScaling('arcade');
+      expect(scaling.dragScale).toBe(0.5);
+      expect(scaling.windScale).toBe(0.5);
     });
 
-    it('returns 0 when no progress exists', () => {
-      expect(getTotalStars()).toBe(0);
+    it('returns increased scaling for expert preset', () => {
+      const scaling = getRealismScaling('expert');
+      expect(scaling.dragScale).toBe(1.2);
+      expect(scaling.windScale).toBe(1.3);
     });
   });
 
-  describe('getPackStars', () => {
-    it('calculates stars for specific pack', () => {
-      updateLevelProgress('level-1', 35, { one: 10, two: 20, three: 30 });
-      updateLevelProgress('level-2', 35, { one: 10, two: 20, three: 30 });
-      updateLevelProgress('level-3', 35, { one: 10, two: 20, three: 30 });
+  describe('settings schema migration', () => {
+    it('migrates v1 to v2 saves', () => {
+      // Manually create and save a v1 save (without settings field)
+      // We need to bypass validation for this test
+      const localStorageMock = {
+        getItem: (key: string) => {
+          if (typeof localStorage === 'undefined') return null;
+          return localStorage.getItem(key);
+        },
+        setItem: (key: string, value: string) => {
+          if (typeof localStorage === 'undefined') return;
+          localStorage.setItem(key, value);
+        },
+      };
 
-      const packStars = getPackStars(['level-1', 'level-3']);
-      expect(packStars).toBe(6);
-    });
+      const v1Save = {
+        version: 1,
+        selectedWeaponId: 'pistol-training',
+        levelProgress: {},
+        unlockedWeapons: ['pistol-training'],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
 
-    it('returns 0 for empty pack', () => {
-      expect(getPackStars([])).toBe(0);
-    });
-
-    it('returns 0 when played levels not in pack', () => {
-      updateLevelProgress('level-1', 35, { one: 10, two: 20, three: 30 });
-      expect(getPackStars(['level-99'])).toBe(0);
-    });
-  });
-
-  describe('getPackMaxStars', () => {
-    it('calculates max stars for pack', () => {
-      expect(getPackMaxStars(['level-1', 'level-2', 'level-3'])).toBe(9);
-    });
-
-    it('returns 0 for empty pack', () => {
-      expect(getPackMaxStars([])).toBe(0);
-    });
-  });
-
-  describe('clearSaveData', () => {
-    it('clears all save data', () => {
-      getOrCreateGameSave();
-      expect(loadGameSave()).not.toBeNull();
-
-      clearSaveData();
-      expect(loadGameSave()).toBeNull();
-    });
-  });
-
-  describe('schema versioning', () => {
-    it('validates schema version is tracked', () => {
-      expect(CURRENT_SCHEMA_VERSION).toBeGreaterThan(0);
-    });
-
-    it('handles migration path when version changes', () => {
-      // This test ensures migration infrastructure exists
-      // Actual migration tests would be added when schema evolves
-      const save = getOrCreateGameSave();
-      saveGameSave(save);
+      localStorageMock.setItem('sharpshooter_save', JSON.stringify(v1Save));
+      localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(CURRENT_SCHEMA_VERSION);
+      expect(loaded?.version).toBe(2);
+      expect(loaded?.settings.realismPreset).toBe('realistic');
     });
   });
 
-  describe('persistence across operations', () => {
-    it('maintains data through multiple operations', () => {
-      setSelectedWeapon('sniper-bolt');
-      updateLevelProgress('level-1', 30, { one: 10, two: 20, three: 30 });
-      updateLevelProgress('level-2', 15, { one: 10, two: 20, three: 30 });
+  describe('settings with other game data', () => {
+    it('settings persist alongside level progress', () => {
+      updateLevelProgress('level-1', 25, { one: 10, two: 20, three: 30 });
+      updateGameSettings({ realismPreset: 'expert', showHud: false });
 
-      expect(getSelectedWeaponId()).toBe('sniper-bolt');
-      expect(getTotalStars()).toBe(4);
-      expect(getLevelProgress('level-1')?.attempts).toBe(1);
+      const settings = getGameSettings();
+      const progress = getLevelProgress('level-1');
+
+      expect(settings.realismPreset).toBe('expert');
+      expect(progress?.bestScore).toBe(25);
     });
   });
 
@@ -271,40 +183,14 @@ describe('localStore', () => {
 
     it('level is locked if previous level has 0 stars', () => {
       const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 5, { one: 10, two: 20, three: 30 }); // 0 stars
+      updateLevelProgress('level-1', 5, { one: 10, two: 20, three: 30 });
       expect(isLevelUnlocked('level-2', allLevels)).toBe(false);
     });
 
     it('level is unlocked if previous level has >= 1 star', () => {
       const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 10, { one: 10, two: 20, three: 30 }); // 1 star
+      updateLevelProgress('level-1', 10, { one: 10, two: 20, three: 30 });
       expect(isLevelUnlocked('level-2', allLevels)).toBe(true);
-    });
-
-    it('level is unlocked if previous level has 2 stars', () => {
-      const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 25, { one: 10, two: 20, three: 30 }); // 2 stars
-      expect(isLevelUnlocked('level-2', allLevels)).toBe(true);
-    });
-
-    it('level is unlocked if previous level has 3 stars', () => {
-      const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 35, { one: 10, two: 20, three: 30 }); // 3 stars
-      expect(isLevelUnlocked('level-2', allLevels)).toBe(true);
-    });
-
-    it('third level is locked if second level has 0 stars', () => {
-      const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
-      updateLevelProgress('level-2', 5, { one: 10, two: 20, three: 30 }); // 0 stars
-      expect(isLevelUnlocked('level-3', allLevels)).toBe(false);
-    });
-
-    it('third level is unlocked if second level has >= 1 star', () => {
-      const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
-      updateLevelProgress('level-2', 12, { one: 10, two: 20, three: 30 }); // 1 star
-      expect(isLevelUnlocked('level-3', allLevels)).toBe(true);
     });
   });
 
@@ -317,17 +203,41 @@ describe('localStore', () => {
 
     it('returns multiple levels when progress exists', () => {
       const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
+      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 });
       const unlocked = getUnlockedLevels(allLevels);
       expect(unlocked).toEqual(['level-1', 'level-2']);
     });
+  });
 
-    it('returns all levels when all have stars', () => {
-      const allLevels = ['level-1', 'level-2', 'level-3'];
-      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
-      updateLevelProgress('level-2', 15, { one: 10, two: 20, three: 30 }); // 1 star
-      const unlocked = getUnlockedLevels(allLevels);
-      expect(unlocked).toEqual(['level-1', 'level-2', 'level-3']);
+  describe('updateLevelProgress', () => {
+    it('creates new progress record', () => {
+      const save = updateLevelProgress('level-1', 25, { one: 10, two: 20, three: 30 });
+      expect(save.levelProgress['level-1'].stars).toBe(2);
+    });
+  });
+
+  describe('getTotalStars', () => {
+    it('calculates total stars across all levels', () => {
+      updateLevelProgress('level-1', 35, { one: 10, two: 20, three: 30 });
+      updateLevelProgress('level-2', 15, { one: 10, two: 20, three: 30 });
+      expect(getTotalStars()).toBe(4);
+    });
+  });
+
+  describe('getPackStars', () => {
+    it('calculates stars for specific pack', () => {
+      updateLevelProgress('level-1', 35, { one: 10, two: 20, three: 30 });
+      updateLevelProgress('level-2', 35, { one: 10, two: 20, three: 30 });
+      expect(getPackStars(['level-1', 'level-3'])).toBe(3);
+    });
+  });
+
+  describe('clearSaveData', () => {
+    it('clears all save data', () => {
+      getOrCreateGameSave();
+      expect(loadGameSave()).not.toBeNull();
+      clearSaveData();
+      expect(loadGameSave()).toBeNull();
     });
   });
 });

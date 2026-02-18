@@ -212,6 +212,70 @@ test('deterministic test mode: stable physics with seed', async ({ page }) => {
   expect(score).toBeGreaterThan(0); // Should have scored some points
 });
 
+test('reticle mode toggle and magnification control', async ({ page }) => {
+  // Navigate to a level
+  await page.goto('/game/pistol-windy');
+  await page.getByTestId('start-level').click();
+
+  // Verify default simple crosshair
+  await expect(page.getByTestId('reticle-mode-toggle')).toHaveText('Crosshair');
+  await expect(page.getByTestId('magnification-control')).toHaveText('1x');
+
+  // Toggle to MIL reticle
+  await page.getByTestId('reticle-mode-toggle').click();
+  await expect(page.getByTestId('reticle-mode-toggle')).toHaveText('MIL Reticle');
+
+  // Toggle magnification
+  await page.getByTestId('magnification-control').click();
+  await expect(page.getByTestId('magnification-control')).toHaveText('4x');
+
+  await page.getByTestId('magnification-control').click();
+  await expect(page.getByTestId('magnification-control')).toHaveText('8x');
+
+  await page.getByTestId('magnification-control').click();
+  await expect(page.getByTestId('magnification-control')).toHaveText('1x');
+
+  // Toggle back to simple crosshair
+  await page.getByTestId('reticle-mode-toggle').click();
+  await expect(page.getByTestId('reticle-mode-toggle')).toHaveText('Crosshair');
+});
+
+test('settings: preset selection persists and affects HUD', async ({ page }) => {
+  // Navigate to settings
+  await page.goto('/');
+  await page.getByTestId('settings-button').click();
+  await page.waitForURL('**/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Select Arcade preset
+  await page.getByTestId('preset-arcade').click();
+  await expect(page.getByTestId('preset-arcade')).toBeVisible();
+
+  // Wait a moment for save to complete
+  await page.waitForTimeout(100);
+
+  // Go to settings again and verify preset is saved
+  await page.goto('/settings');
+  await expect(page.getByTestId('preset-arcade')).toBeVisible();
+
+  // Navigate to a level
+  await page.goto('/game/pistol-windy');
+  await page.getByTestId('start-level').click();
+
+  // HUD should be visible by default
+  await expect(page.getByTestId('wind-hud')).toBeVisible();
+
+  // Navigate back and turn off HUD
+  await page.goto('/settings');
+  await page.getByTestId('toggle-show-hud').click();
+  await page.waitForTimeout(100);
+
+  // Verify HUD is off
+  await page.goto('/game/pistol-windy');
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('wind-hud')).not.toBeVisible();
+});
+
 test('level unlock progression: next level unlocks on star', async ({ page }) => {
   // Clear localStorage to start fresh
   await page.goto('/');

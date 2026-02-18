@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 // Storage keys
 const STORAGE_KEY = 'sharpshooter_save';
@@ -13,12 +13,24 @@ export interface LevelProgress {
   lastPlayedAt: number;
 }
 
+// Realism presets
+export type RealismPreset = 'arcade' | 'realistic' | 'expert';
+
+// Game settings
+export interface GameSettings {
+  realismPreset: RealismPreset;
+  showShotTrace: boolean;
+  showMilOffset: boolean;
+  showHud: boolean;
+}
+
 // Complete game save data
 export interface GameSave {
   version: number;
   selectedWeaponId: string;
   levelProgress: Record<string, LevelProgress>;
   unlockedWeapons: string[];
+  settings: GameSettings;
   createdAt: number;
   updatedAt: number;
 }
@@ -30,6 +42,20 @@ type Migration = (data: unknown) => unknown;
 const MIGRATIONS: Migration[] = [
   // v0 -> v1: Initial structure (no-op)
   (data) => data,
+  // v1 -> v2: Add settings field with defaults
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 2,
+      settings: save.settings || {
+        realismPreset: 'realistic',
+        showShotTrace: false,
+        showMilOffset: false,
+        showHud: true,
+      },
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -104,9 +130,52 @@ function createDefaultSave(): GameSave {
     selectedWeaponId: 'pistol-training',
     levelProgress: {},
     unlockedWeapons: ['pistol-training'],
+    settings: {
+      realismPreset: 'realistic',
+      showShotTrace: false,
+      showMilOffset: false,
+      showHud: true,
+    },
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * Get current game settings
+ */
+export function getGameSettings(): GameSettings {
+  const save = getOrCreateGameSave();
+  return save.settings;
+}
+
+/**
+ * Update game settings
+ */
+export function updateGameSettings(settings: Partial<GameSettings>): GameSave {
+  const save = getOrCreateGameSave();
+  const updated = {
+    ...save.settings,
+    ...settings,
+  };
+  save.settings = updated;
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Get realism preset scaling factors
+ */
+export function getRealismScaling(preset: RealismPreset): { dragScale: number; windScale: number } {
+  switch (preset) {
+    case 'arcade':
+      return { dragScale: 0.5, windScale: 0.5 }; // Easier - less wind and drag
+    case 'expert':
+      return { dragScale: 1.2, windScale: 1.3 }; // Harder - more wind and drag
+    case 'realistic':
+    default:
+      return { dragScale: 1.0, windScale: 1.0 }; // Baseline
+  }
 }
 
 /**
@@ -124,7 +193,7 @@ export function loadGameSave(): GameSave | null {
     const storedVersion = version ? parseInt(version, 10) : 0;
     
     if (storedVersion < CURRENT_SCHEMA_VERSION) {
-      const migrated = migrateData(data, storedVersion, CURRENT_SCHEMA_VERSION);
+      const migrated = migrateData(data, storedVersion, CURRENT_SCHEMA_VERSION) as GameSave;
       if (validateGameSave(migrated)) {
         storage.setItem(STORAGE_KEY, JSON.stringify(migrated));
         storage.setItem(VERSION_KEY, CURRENT_SCHEMA_VERSION.toString());
