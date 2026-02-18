@@ -363,6 +363,123 @@ body {
   opacity: 0.8;
 }
 
+/* Wind HUD */
+.wind-hud {
+  padding: 1rem;
+  background: #0f3460;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.wind-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wind-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #fff;
+}
+
+.wind-arrow {
+  font-size: 1.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.wind-arrow.right {
+  color: #4a9eff;
+  background: rgba(74, 158, 255, 0.2);
+}
+
+.wind-arrow.left {
+  color: #ff6b4a;
+  background: rgba(255, 107, 74, 0.2);
+}
+
+.wind-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  color: #ddd;
+  font-size: 0.9rem;
+}
+
+.wind-baseline strong {
+  color: #fff;
+}
+
+.wind-gust {
+  opacity: 0.8;
+}
+
+/* Shot History */
+.shot-history {
+  padding: 1rem;
+  background: #0f3460;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.shot-history h4 {
+  margin: 0 0 0.75rem 0;
+  color: #e94560;
+  font-size: 1rem;
+}
+
+.shot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.shot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background: #16213e;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.shot-number {
+  font-weight: bold;
+  color: #aaa;
+  min-width: 40px;
+}
+
+.shot-score {
+  font-weight: bold;
+  color: #4a9eff;
+  min-width: 70px;
+}
+
+.shot-wind {
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.shot-wind.right {
+  color: #4a9eff;
+}
+
+.shot-wind.left {
+  color: #ff6b4a;
+}
+
+.shot-wind.neutral {
+  color: #aaa;
+}
+
 /* Level Briefing */
 .level-briefing {
   max-width: 800px;

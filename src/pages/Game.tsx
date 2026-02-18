@@ -13,6 +13,8 @@ interface Impact {
   y: number;
   score: number;
   timestamp: number;
+  windUsedMps: number;
+  index: number;
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -130,6 +132,8 @@ export function Game() {
       y: impactY,
       score: calculateRingScore({ x: impactX, y: impactY }, targetConfig),
       timestamp: Date.now(),
+      windUsedMps: result.windUsedMps,
+      index: impacts.length + 1,
     };
 
     const newImpacts = [...impacts, impact];
@@ -224,6 +228,51 @@ export function Game() {
         canvasHeight: canvasSize.height,
       };
 
+      // Draw wind flags (visual indicator)
+      if (level && (level.windMps !== 0 || level.gustMps > 0)) {
+        const flagY = canvasSize.height * 0.15;
+        const flagScale = Math.min(canvasSize.width, canvasSize.height) / 800;
+        
+        // Draw 2 wind flags
+        [0.15, 0.85].forEach((relX, _idx) => {
+          const flagX = canvasSize.width * relX;
+          
+          // Determine wind direction and strength
+          const baselineWind = level.windMps;
+          const maxWind = Math.abs(baselineWind) + level.gustMps;
+          const windStrength = Math.min(maxWind / 15, 1); // Normalize 0-1 for visual
+          
+          // Flag pole
+          ctx.strokeStyle = '#666';
+          ctx.lineWidth = 2 * flagScale;
+          ctx.beginPath();
+          ctx.moveTo(flagX, canvasSize.height * 0.05);
+          ctx.lineTo(flagX, flagY);
+          ctx.stroke();
+          
+          // Flag size based on wind strength
+          const flagLength = 30 * flagScale * (0.5 + 0.5 * windStrength);
+          const flagHeight = 20 * flagScale;
+          
+          // Flag color based on wind direction (positive=right, negative=left)
+          ctx.fillStyle = baselineWind >= 0 ? '#4a9eff' : '#ff6b4a';
+          ctx.beginPath();
+          ctx.moveTo(flagX, flagY);
+          
+          // Curved flag based on wind direction
+          const windDirection = baselineWind >= 0 ? 1 : -1;
+          const controlX1 = flagX + windDirection * flagLength * 0.5;
+          const controlY1 = flagY - flagHeight * 0.3;
+          const controlX2 = flagX + windDirection * flagLength * 0.7;
+          const controlY2 = flagY + flagHeight * 0.3;
+          const endX = flagX + windDirection * flagLength;
+          
+          ctx.quadraticCurveTo(controlX1, controlY1, endX, controlY2);
+          ctx.quadraticCurveTo(controlX2, flagY + flagHeight * 0.5, flagX, flagY + flagHeight);
+          ctx.fill();
+        });
+      }
+
       // Draw target rings (scaled by level.targetScale)
       targetConfig.rings.forEach((ring) => {
         const center = worldToCanvas(
@@ -283,7 +332,7 @@ export function Game() {
 
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [canvasSize, impacts, targetConfig, recticlePosition, level?.targetScale]);
+  }, [canvasSize, impacts, targetConfig, recticlePosition, level]);
 
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
@@ -447,11 +496,28 @@ export function Game() {
         </div>
       </div>
       
+      {/* Wind HUD Panel */}
+      {level && (
+        <div className="wind-hud" data-testid="wind-hud">
+          <div className="wind-display">
+            <div className="wind-header">
+              <span>Wind</span>
+              <div className={`wind-arrow ${level.windMps >= 0 ? 'right' : 'left'}`} data-testid="wind-arrow">
+                {level.windMps >= 0 ? '→' : '←'}
+              </div>
+            </div>
+            <div className="wind-details">
+              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{level.windMps} m/s</strong></span>
+              <span className="wind-gust">Gust: ±{level.gustMps} m/s</span>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="level-info-bar" data-testid="level-info-bar">
         <span>Weapon: {weapon.name}</span>
         <span>{level.distanceM}m</span>
-        <span>Wind: {level.windMps} m/s</span>
-        {level.gustMps > 0 && <span>Gust: ±{level.gustMps} m/s</span>}
+        <span>Range: {level.difficulty}</span>
       </div>
       
       <div className="game-container" ref={containerRef}>
@@ -465,6 +531,24 @@ export function Game() {
           onPointerDown={handlePointerDown}
         />
       </div>
+      
+      {/* Shot History */}
+      {impacts.length > 0 && (
+        <div className="shot-history" data-testid="shot-history">
+          <h4>Shot History</h4>
+          <div className="shot-list">
+            {impacts.map((impact) => (
+              <div key={impact.index} className="shot-row" data-testid={`shot-row-${impact.index}`}>
+                <span className="shot-number">#{impact.index}</span>
+                <span className="shot-score">{impact.score} pts</span>
+                <span className={`shot-wind ${impact.windUsedMps > 0 ? 'right' : impact.windUsedMps < 0 ? 'left' : 'neutral'}`}>
+              {impact.windUsedMps > 0 ? '→' : impact.windUsedMps < 0 ? '←' : '•'} {impact.windUsedMps.toFixed(1)} m/s
+            </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       <div className="game-controls">
         <button
