@@ -75,7 +75,11 @@ describe('App Pages', () => {
       );
       expect(screen.getByTestId('settings-page')).toBeInTheDocument();
       expect(screen.getByTestId('toggle-show-hud')).toBeInTheDocument();
-      expect(screen.getByTestId('realism-preset')).toBeInTheDocument();
+      expect(screen.getByTestId('realism-section')).toBeInTheDocument();
+      expect(screen.getByTestId('hud-section')).toBeInTheDocument();
+      expect(screen.getByTestId('preset-arcade')).toBeInTheDocument();
+      expect(screen.getByTestId('preset-realistic')).toBeInTheDocument();
+      expect(screen.getByTestId('preset-expert')).toBeInTheDocument();
     });
   });
 

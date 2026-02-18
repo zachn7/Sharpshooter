@@ -6,7 +6,7 @@ import { createStandardTarget, calculateRingScore } from '../utils/scoring';
 import { simulateShotToDistance } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress } from '../storage';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling } from '../storage';
 
 interface Impact {
   x: number;
@@ -34,6 +34,8 @@ export function Game() {
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
+  const settings = useState(() => getGameSettings())[0];
+  const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
   // Get test seed from URL params for deterministic testing
   // Use useState with lazy initializer - only executed once
@@ -105,18 +107,23 @@ export function Game() {
     const aimY_M = -(recticlePosition.y - WORLD_HEIGHT / 2);
 
     // Run physics simulation with level and weapon parameters
+    // Apply realism scaling based on preset
+    const scaledDragFactor = weapon.params.dragFactor * dragScale;
+    const scaledWindMps = level.windMps * windScale;
+    const scaledGustMps = level.gustMps * windScale;
+    
     const result = simulateShotToDistance(
       {
         distanceM: level.distanceM,
         muzzleVelocityMps: weapon.params.muzzleVelocityMps,
-        dragFactor: weapon.params.dragFactor,
+        dragFactor: scaledDragFactor,
         aimY_M,
         aimZ_M: aimX_M,
         dtS: 0.002,
       },
       {
-        windMps: level.windMps,
-        gustMps: level.gustMps,
+        windMps: scaledWindMps,
+        gustMps: scaledGustMps,
         airDensityKgM3: level.airDensityKgM3,
         gravityMps2: level.gravityMps2,
         seed: testSeed + shotCount, // Each shot gets a different deterministic seed
@@ -153,7 +160,7 @@ export function Game() {
       // Save progress
       updateLevelProgress(level.id, finalScore, level.starThresholds);
     }
-  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed]);
+  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale]);
 
   // Start level handler
   const handleStartLevel = useCallback(() => {
@@ -497,7 +504,7 @@ export function Game() {
       </div>
       
       {/* Wind HUD Panel */}
-      {level && (
+      {level && settings.showHud && (
         <div className="wind-hud" data-testid="wind-hud">
           <div className="wind-display">
             <div className="wind-header">
@@ -507,8 +514,9 @@ export function Game() {
               </div>
             </div>
             <div className="wind-details">
-              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{level.windMps} m/s</strong></span>
-              <span className="wind-gust">Gust: ±{level.gustMps} m/s</span>
+              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
+              <span className="wind-gust">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+              {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
             </div>
           </div>
         </div>
@@ -533,7 +541,7 @@ export function Game() {
       </div>
       
       {/* Shot History */}
-      {impacts.length > 0 && (
+      {impacts.length > 0 && settings.showHud && (
         <div className="shot-history" data-testid="shot-history">
           <h4>Shot History</h4>
           <div className="shot-list">

@@ -12,6 +12,9 @@ export {
   getPackMaxStars,
   isLevelUnlocked,
   getUnlockedLevels,
+  getGameSettings,
+  updateGameSettings,
+  getRealismScaling,
   CURRENT_SCHEMA_VERSION,
 } from './localStore';
-export type { GameSave, LevelProgress } from './localStore';
+export type { GameSave, LevelProgress, GameSettings, RealismPreset } from './localStore';
