@@ -80,14 +80,15 @@ describe('App Pages', () => {
   });
 
   describe('Game', () => {
-    it('renders game canvas', () => {
+    it('renders level briefing', () => {
       render(
         <BrowserRouter>
           <Game />
         </BrowserRouter>
       );
       expect(screen.getByTestId('game-page')).toBeInTheDocument();
-      expect(screen.getByTestId('game-canvas')).toBeInTheDocument();
+      expect(screen.getByTestId('level-briefing')).toBeInTheDocument();
+      expect(screen.getByTestId('start-level')).toBeInTheDocument();
     });
   });
 });

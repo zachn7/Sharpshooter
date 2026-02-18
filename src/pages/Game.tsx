@@ -1,11 +1,11 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore } from '../utils/scoring';
 import { simulateShotToDistance } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
-import { getLevelById, DEFAULT_LEVEL_ID, calculateStars } from '../data/levels';
+import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
 import { getSelectedWeaponId, updateLevelProgress } from '../storage';
 
 interface Impact {
@@ -13,20 +13,34 @@ interface Impact {
   y: number;
   score: number;
   timestamp: number;
+  windUsedMps: number;
+  index: number;
 }
+
+type GameState = 'briefing' | 'running' | 'results';
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
 
 export function Game() {
   const { levelId } = useParams<{ levelId?: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [recticlePosition, setReticlePosition] = useState({ x: 0.5, y: 0.5 });
   const [impacts, setImpacts] = useState<Impact[]>([]);
-  const [levelComplete, setLevelComplete] = useState(false);
+  const [gameState, setGameState] = useState<GameState>('briefing');
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+  const [totalScore, setTotalScore] = useState(0);
+  const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
+  
+  // Get test seed from URL params for deterministic testing
+  // Use useState with lazy initializer - only executed once
+  const [testSeed] = useState(() => {
+    const seedParam = searchParams.get('seed');
+    return seedParam ? parseInt(seedParam, 10) : Date.now();
+  });
   
   // Load level data
   const levelIdSafe = levelId || DEFAULT_LEVEL_ID;
@@ -35,7 +49,7 @@ export function Game() {
   const [shotCount, setShotCount] = useState(maxShots);
   
   // Load weapon data
-  const weaponId = getSelectedWeaponId();
+  const weaponId = getSelectedWeaponId() || DEFAULT_WEAPON_ID;
   const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
   
   // Target configuration based on level's targetScale
@@ -84,8 +98,7 @@ export function Game() {
 
   // Pointer down handler (fire shot)
   const handlePointerDown = useCallback(() => {
-    if (shotCount <= 0 || !level || !weapon) return;
-    if (levelComplete) return;
+    if (shotCount <= 0 || !level || !weapon || gameState !== 'running') return;
 
     // Convert reticle world position to physics aim coordinates (meters from target center)
     const aimX_M = (recticlePosition.x - WORLD_WIDTH / 2);
@@ -106,7 +119,7 @@ export function Game() {
         gustMps: level.gustMps,
         airDensityKgM3: level.airDensityKgM3,
         gravityMps2: level.gravityMps2,
-        seed: Date.now(), // Each shot gets a different seed
+        seed: testSeed + shotCount, // Each shot gets a different deterministic seed
       }
     );
 
@@ -119,6 +132,8 @@ export function Game() {
       y: impactY,
       score: calculateRingScore({ x: impactX, y: impactY }, targetConfig),
       timestamp: Date.now(),
+      windUsedMps: result.windUsedMps,
+      index: impacts.length + 1,
     };
 
     const newImpacts = [...impacts, impact];
@@ -128,28 +143,70 @@ export function Game() {
     
     // Check if level is complete
     if (newShotCount === 0) {
-      setLevelComplete(true);
+      const finalScore = newImpacts.reduce((sum, i) => sum + i.score, 0);
+      const stars = level ? calculateStars(finalScore, level.starThresholds) : 0;
+      
+      setTotalScore(finalScore);
+      setEarnedStars(stars);
+      setGameState('results');
       
       // Save progress
-      const totalScore = newImpacts.reduce((sum, i) => sum + i.score, 0);
-      updateLevelProgress(level.id, totalScore, level.starThresholds);
+      updateLevelProgress(level.id, finalScore, level.starThresholds);
     }
-  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, levelComplete]);
+  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed]);
+
+  // Start level handler
+  const handleStartLevel = useCallback(() => {
+    setGameState('running');
+  }, []);
 
   // Reset level handler
   const handleReset = useCallback(() => {
     setImpacts([]);
     setShotCount(maxShots);
-    setLevelComplete(false);
+    setTotalScore(0);
+    setEarnedStars(0);
+    setGameState('running');
   }, [maxShots]);
+
+  // Retry level handler
+  const handleRetry = useCallback(() => {
+    setImpacts([]);
+    setShotCount(maxShots);
+    setTotalScore(0);
+    setEarnedStars(0);
+    setGameState('briefing');
+  }, [maxShots]);
+
+  // Find next level
+  const getNextLevel = useCallback(() => {
+    if (!level) return null;
+    const currentIndex = LEVELS.findIndex(l => l.id === level.id);
+    if (currentIndex < LEVELS.length - 1) {
+      return LEVELS[currentIndex + 1];
+    }
+    return null;
+  }, [level]);
+
+  // Next level handler
+  const handleNextLevel = useCallback(() => {
+    const next = getNextLevel();
+    if (next) {
+      setImpacts([]);
+      setShotCount(next.maxShots);
+      setTotalScore(0);
+      setEarnedStars(0);
+      setGameState('briefing');
+      navigate(`/game/${next.id}`);
+    }
+  }, [getNextLevel, navigate]);
 
   // Back to levels handler
   const handleBack = useCallback(() => {
     navigate('/levels');
   }, [navigate]);
 
-  const totalScore = impacts.reduce((sum, impact) => sum + impact.score, 0);
-  const earnedStars = level ? calculateStars(totalScore, level.starThresholds) : 0;
+
 
   // Drawing loop
   useEffect(() => {
@@ -170,6 +227,51 @@ export function Game() {
         canvasWidth: canvasSize.width,
         canvasHeight: canvasSize.height,
       };
+
+      // Draw wind flags (visual indicator)
+      if (level && (level.windMps !== 0 || level.gustMps > 0)) {
+        const flagY = canvasSize.height * 0.15;
+        const flagScale = Math.min(canvasSize.width, canvasSize.height) / 800;
+        
+        // Draw 2 wind flags
+        [0.15, 0.85].forEach((relX, _idx) => {
+          const flagX = canvasSize.width * relX;
+          
+          // Determine wind direction and strength
+          const baselineWind = level.windMps;
+          const maxWind = Math.abs(baselineWind) + level.gustMps;
+          const windStrength = Math.min(maxWind / 15, 1); // Normalize 0-1 for visual
+          
+          // Flag pole
+          ctx.strokeStyle = '#666';
+          ctx.lineWidth = 2 * flagScale;
+          ctx.beginPath();
+          ctx.moveTo(flagX, canvasSize.height * 0.05);
+          ctx.lineTo(flagX, flagY);
+          ctx.stroke();
+          
+          // Flag size based on wind strength
+          const flagLength = 30 * flagScale * (0.5 + 0.5 * windStrength);
+          const flagHeight = 20 * flagScale;
+          
+          // Flag color based on wind direction (positive=right, negative=left)
+          ctx.fillStyle = baselineWind >= 0 ? '#4a9eff' : '#ff6b4a';
+          ctx.beginPath();
+          ctx.moveTo(flagX, flagY);
+          
+          // Curved flag based on wind direction
+          const windDirection = baselineWind >= 0 ? 1 : -1;
+          const controlX1 = flagX + windDirection * flagLength * 0.5;
+          const controlY1 = flagY - flagHeight * 0.3;
+          const controlX2 = flagX + windDirection * flagLength * 0.7;
+          const controlY2 = flagY + flagHeight * 0.3;
+          const endX = flagX + windDirection * flagLength;
+          
+          ctx.quadraticCurveTo(controlX1, controlY1, endX, controlY2);
+          ctx.quadraticCurveTo(controlX2, flagY + flagHeight * 0.5, flagX, flagY + flagHeight);
+          ctx.fill();
+        });
+      }
 
       // Draw target rings (scaled by level.targetScale)
       targetConfig.rings.forEach((ring) => {
@@ -230,7 +332,130 @@ export function Game() {
 
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [canvasSize, impacts, targetConfig, recticlePosition, level?.targetScale]);
+  }, [canvasSize, impacts, targetConfig, recticlePosition, level]);
+
+  // Show briefing screen
+  if (gameState === 'briefing' && level && weapon) {
+    return (
+      <div className="game-page" data-testid="game-page">
+        <div className="game-header">
+          <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
+            ← Back
+          </button>
+          <h2>{level.name}</h2>
+        </div>
+        
+        <div className="game-container">
+          <div className="level-briefing" data-testid="level-briefing">
+            <h3>Mission Briefing</h3>
+            <div className="briefing-content">
+              <div className="briefing-section">
+                <h4>Weapon</h4>
+                <p>{weapon.name}</p>
+              </div>
+              
+              <div className="briefing-section">
+                <h4>Target Distance</h4>
+                <p>{level.distanceM}m</p>
+              </div>
+              
+              <div className="briefing-section">
+                <h4>Wind Conditions</h4>
+                <p>Baseline: {level.windMps} m/s</p>
+                {level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+              </div>
+              
+              <div className="briefing-section">
+                <h4>Mission</h4>
+                <p>{level.description}</p>
+              </div>
+              
+              <div className="briefing-section">
+                <h4>Star Thresholds</h4>
+                <p>★ {level.starThresholds.one}pts | ★★ {level.starThresholds.two}pts | ★★★ {level.starThresholds.three}pts</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleStartLevel}
+              className="level-start-button"
+              data-testid="start-level"
+            >
+              Start Mission
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show results screen
+  if (gameState === 'results' && level) {
+    const nextLevel = getNextLevel();
+    return (
+      <div className="game-page" data-testid="game-page">
+        <div className="game-header">
+          <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
+            ← Back
+          </button>
+          <h2>Mission Complete</h2>
+        </div>
+        
+        <div className="game-container">
+          <div className="results-screen" data-testid="results-screen">
+            <h3>Results</h3>
+            
+            <div className="score-display">
+              <div className="total-score">
+                <span className="score-label">Total Score</span>
+                <span className="score-value" data-testid="total-score">{totalScore}</span>
+              </div>
+              
+              <div className="stars-display">
+                <span className="score-label">Stars Earned</span>
+                <span className="stars-value" data-testid="stars-earned">
+                  {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
+                </span>
+              </div>
+            </div>
+            
+            <div className="results-summary">
+              <p>Shots fired: {level.maxShots}</p>
+              <p>Weapon: {weapon?.name}</p>
+            </div>
+            
+            <div className="results-actions">
+              <button
+                onClick={handleRetry}
+                className="results-button retry-button"
+                data-testid="retry-button"
+              >
+                Retry
+              </button>
+              
+              {nextLevel && (
+                <button
+                  onClick={handleNextLevel}
+                  className="results-button next-level-button"
+                  data-testid="next-level"
+                >
+                  Next Level: {nextLevel.name}
+                </button>
+              )}
+              
+              <button
+                onClick={handleBack}
+                className="results-button back-to-levels-button"
+                data-testid="back-to-levels"
+              >
+                Back to Levels
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!level || !weapon) {
     return (
@@ -239,10 +464,18 @@ export function Game() {
           <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
             ← Back
           </button>
-          <h2>Loading...</h2>
+          <h2>{!level ? 'Select Level' : 'Select Weapon'}</h2>
         </div>
         <div className="game-container">
-          <p>Loading level data...</p>
+          <div className="cta-container" data-testid="friendly-cta">
+            <p>{!level ? 'Please select a level from the Levels page.' : 'Please select a weapon from the Weapons page.'}</p>
+            <button
+              onClick={handleBack}
+              className="cta-button"
+            >
+              Go Back
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -259,20 +492,32 @@ export function Game() {
           <span className="stat" data-testid="shot-count">
             Shots: {shotCount}/{level.maxShots}
           </span>
-          <span className="stat">Score: {totalScore}</span>
-          {levelComplete && (
-            <span className="stat stars" data-testid="stars-earned">
-              {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
-            </span>
-          )}
+          <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
         </div>
       </div>
+      
+      {/* Wind HUD Panel */}
+      {level && (
+        <div className="wind-hud" data-testid="wind-hud">
+          <div className="wind-display">
+            <div className="wind-header">
+              <span>Wind</span>
+              <div className={`wind-arrow ${level.windMps >= 0 ? 'right' : 'left'}`} data-testid="wind-arrow">
+                {level.windMps >= 0 ? '→' : '←'}
+              </div>
+            </div>
+            <div className="wind-details">
+              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{level.windMps} m/s</strong></span>
+              <span className="wind-gust">Gust: ±{level.gustMps} m/s</span>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="level-info-bar" data-testid="level-info-bar">
         <span>Weapon: {weapon.name}</span>
         <span>{level.distanceM}m</span>
-        <span>Wind: {level.windMps} m/s</span>
-        {level.gustMps > 0 && <span>Gust: ±{level.gustMps} m/s</span>}
+        <span>Range: {level.difficulty}</span>
       </div>
       
       <div className="game-container" ref={containerRef}>
@@ -286,6 +531,24 @@ export function Game() {
           onPointerDown={handlePointerDown}
         />
       </div>
+      
+      {/* Shot History */}
+      {impacts.length > 0 && (
+        <div className="shot-history" data-testid="shot-history">
+          <h4>Shot History</h4>
+          <div className="shot-list">
+            {impacts.map((impact) => (
+              <div key={impact.index} className="shot-row" data-testid={`shot-row-${impact.index}`}>
+                <span className="shot-number">#{impact.index}</span>
+                <span className="shot-score">{impact.score} pts</span>
+                <span className={`shot-wind ${impact.windUsedMps > 0 ? 'right' : impact.windUsedMps < 0 ? 'left' : 'neutral'}`}>
+              {impact.windUsedMps > 0 ? '→' : impact.windUsedMps < 0 ? '←' : '•'} {impact.windUsedMps.toFixed(1)} m/s
+            </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       <div className="game-controls">
         <button

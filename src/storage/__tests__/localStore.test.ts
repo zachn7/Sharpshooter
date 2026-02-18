@@ -12,6 +12,8 @@ import {
   setSelectedWeapon,
   type GameSave,
   updateLevelProgress,
+  isLevelUnlocked,
+  getUnlockedLevels,
   CURRENT_SCHEMA_VERSION,
 } from '../localStore';
 
@@ -258,6 +260,74 @@ describe('localStore', () => {
       expect(getSelectedWeaponId()).toBe('sniper-bolt');
       expect(getTotalStars()).toBe(4);
       expect(getLevelProgress('level-1')?.attempts).toBe(1);
+    });
+  });
+
+  describe('isLevelUnlocked', () => {
+    it('first level is always unlocked', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      expect(isLevelUnlocked('level-1', allLevels)).toBe(true);
+    });
+
+    it('level is locked if previous level has 0 stars', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 5, { one: 10, two: 20, three: 30 }); // 0 stars
+      expect(isLevelUnlocked('level-2', allLevels)).toBe(false);
+    });
+
+    it('level is unlocked if previous level has >= 1 star', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 10, { one: 10, two: 20, three: 30 }); // 1 star
+      expect(isLevelUnlocked('level-2', allLevels)).toBe(true);
+    });
+
+    it('level is unlocked if previous level has 2 stars', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 25, { one: 10, two: 20, three: 30 }); // 2 stars
+      expect(isLevelUnlocked('level-2', allLevels)).toBe(true);
+    });
+
+    it('level is unlocked if previous level has 3 stars', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 35, { one: 10, two: 20, three: 30 }); // 3 stars
+      expect(isLevelUnlocked('level-2', allLevels)).toBe(true);
+    });
+
+    it('third level is locked if second level has 0 stars', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
+      updateLevelProgress('level-2', 5, { one: 10, two: 20, three: 30 }); // 0 stars
+      expect(isLevelUnlocked('level-3', allLevels)).toBe(false);
+    });
+
+    it('third level is unlocked if second level has >= 1 star', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
+      updateLevelProgress('level-2', 12, { one: 10, two: 20, three: 30 }); // 1 star
+      expect(isLevelUnlocked('level-3', allLevels)).toBe(true);
+    });
+  });
+
+  describe('getUnlockedLevels', () => {
+    it('returns first level when no progress', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      const unlocked = getUnlockedLevels(allLevels);
+      expect(unlocked).toEqual(['level-1']);
+    });
+
+    it('returns multiple levels when progress exists', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
+      const unlocked = getUnlockedLevels(allLevels);
+      expect(unlocked).toEqual(['level-1', 'level-2']);
+    });
+
+    it('returns all levels when all have stars', () => {
+      const allLevels = ['level-1', 'level-2', 'level-3'];
+      updateLevelProgress('level-1', 15, { one: 10, two: 20, three: 30 }); // 1 star
+      updateLevelProgress('level-2', 15, { one: 10, two: 20, three: 30 }); // 1 star
+      const unlocked = getUnlockedLevels(allLevels);
+      expect(unlocked).toEqual(['level-1', 'level-2', 'level-3']);
     });
   });
 });
