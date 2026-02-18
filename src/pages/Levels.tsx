@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { LEVEL_PACKS, getLevelsByPack, calculateStars } from '../data/levels';
+import {LEVEL_PACKS, getLevelsByPackWithUnlock, calculateStars, LEVELS } from '../data/levels';
 import { getLevelProgress, getPackStars, getPackMaxStars } from '../storage';
 
 export function Levels() {
@@ -23,6 +23,8 @@ export function Levels() {
     return colors[difficulty] || '#ffffff';
   };
 
+  const allLevelIds = LEVELS.map(l => l.id);
+
   return (
     <div className="levels-page" data-testid="levels-page">
       <div className="page-header">
@@ -34,7 +36,7 @@ export function Levels() {
       
       <div className="level-packs">
         {LEVEL_PACKS.map((pack) => {
-          const levels = getLevelsByPack(pack.id);
+          const levels = getLevelsByPackWithUnlock(pack.id, allLevelIds, getLevelProgress);
           const earnedStars = getPackStars(pack.levels);
           const maxStars = getPackMaxStars(pack.levels);
 

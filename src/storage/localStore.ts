@@ -263,3 +263,35 @@ export function getPackStars(packLevels: string[]): number {
 export function getPackMaxStars(packLevels: string[]): number {
   return packLevels.length * 3;
 }
+
+/**
+ * Check if a level is unlocked based on previous level progress
+ * @param levelId - Current level ID
+ * @param allLevelIds - Array of all level IDs in order
+ * @returns true if level is unlocked
+ */
+export function isLevelUnlocked(levelId: string, allLevelIds: string[]): boolean {
+  // Find the index of the current level
+  const currentIndex = allLevelIds.indexOf(levelId);
+  
+  // First level is always unlocked
+  if (currentIndex <= 0) return true;
+  
+  const save = loadGameSave();
+  if (!save) return false;
+  
+  // Check if the previous level has at least 1 star
+  const previousLevelId = allLevelIds[currentIndex - 1];
+  const previousProgress = save.levelProgress[previousLevelId];
+  
+  return (previousProgress?.stars ?? 0) >= 1;
+}
+
+/**
+ * Get all unlocked level IDs
+ * @param allLevelIds - Array of all level IDs in order
+ * @returns Array of unlocked level IDs
+ */
+export function getUnlockedLevels(allLevelIds: string[]): string[] {
+  return allLevelIds.filter((levelId) => isLevelUnlocked(levelId, allLevelIds));
+}

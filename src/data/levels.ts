@@ -308,7 +308,7 @@ export function getLevelById(id: string): Level | undefined {
   return LEVELS.find((l) => l.id === id);
 }
 
-// Helper: Get levels in a pack
+// Helper: Get levels in a pack (without dynamic unlock)
 export function getLevelsByPack(packId: string): Level[] {
   return LEVELS.filter((l) => l.packId === packId);
 }
@@ -318,12 +318,58 @@ export function getPackById(id: string): LevelPack | undefined {
   return LEVEL_PACKS.find((p) => p.id === id);
 }
 
+// Helper: Get levels in a pack with dynamic unlock status
+// This function requires getLevelProgress to be passed as a parameter to avoid circular imports
+export function getLevelsByPackWithUnlock(
+  packId: string,
+  allLevelIds: string[],
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+): Level[] {
+  return getLevelsByPack(packId).map(level => ({
+    ...level,
+    unlocked: allLevelIds.indexOf(level.id) === 0 || 
+              checkPreviousLevelUnlocked(level.id, allLevelIds, getLevelProgress)
+  }));
+}
+
+// Internal helper to check if previous level is unlocked
+function checkPreviousLevelUnlocked(
+  levelId: string,
+  allLevelIds: string[],
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+): boolean {
+  const currentIndex = allLevelIds.indexOf(levelId);
+  if (currentIndex <= 0) return true;
+  
+  const previousLevelId = allLevelIds[currentIndex - 1];
+  const previousProgress = getLevelProgress(previousLevelId);
+  return (previousProgress?.stars ?? 0) >= 1;
+}
+
 // Calculate stars earned (0-3) from score
 export function calculateStars(score: number, thresholds: { one: number; two: number; three: number }): 0 | 1 | 2 | 3 {
   if (score >= thresholds.three) return 3;
   if (score >= thresholds.two) return 2;
   if (score >= thresholds.one) return 1;
   return 0;
+}
+
+// Get level with unlocked status from storage
+// This function requires getLevelProgress to be passed as a parameter to avoid circular imports
+export function getLevelWithUnlockStatus(
+  levelId: string,
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+): Level | undefined {
+  const level = getLevelById(levelId);
+  if (!level) return undefined;
+  
+  // Get all level IDs to determine index
+  const allLevelIds = LEVELS.map(l => l.id);
+  
+  // Dynamically determine unlock status from storage
+  const unlocked = checkPreviousLevelUnlocked(levelId, allLevelIds, getLevelProgress);
+  
+  return { ...level, unlocked };
 }
 
 // Default level for quick play
