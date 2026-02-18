@@ -87,6 +87,13 @@ test('level run flow: complete level and see results', async ({ page }) => {
   await expect(page.getByTestId('total-score')).toBeVisible();
   await expect(page.getByTestId('stars-earned')).toBeVisible();
 
+  // Verify group size is displayed (requires 2+ shots)
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSizeText = await page.getByTestId('group-size').textContent();
+  expect(groupSizeText).toContain('Group Size:');
+  expect(groupSizeText).toContain('cm');
+  expect(groupSizeText).toContain('MILs');
+
   // Verify result elements are present
   await expect(page.getByTestId('retry-button')).toBeVisible();
   await expect(page.getByTestId('back-to-levels')).toBeVisible();
@@ -544,4 +551,80 @@ test('impact offset readout and arcade assist', async ({ page }) => {
   // Values should be different from original unless shot was dead center
   const hasChanged = newElevation !== originalElevation || newWindage !== originalWindage;
   expect(hasChanged).toBe(true);
+});
+
+test('dispersion: deterministic with seed', async ({ page }) => {
+  // Test that the same seed produces the same group size
+  await page.goto('/game/pistol-calm?seed=99999');
+  await page.getByTestId('start-level').click();
+  
+  // Fire all shots at center
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  // Get group size
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSize1 = await page.getByTestId('group-size').textContent();
+  
+  // Go back and try again with the same seed
+  await page.getByTestId('retry-button').click();
+  await page.getByTestId('start-level').click();
+  
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  const groupSize2 = await page.getByTestId('group-size').textContent();
+  
+  // Group sizes should be identical with the same seed
+  expect(groupSize1).toBe(groupSize2);
+});
+
+test('dispersion: scales with weapon precision', async ({ page }) => {
+  // Test that less precise weapons have larger group sizes
+  const baseSeed = 12345;
+  
+  // Test with training pistol (3.0 MOA)
+  await page.goto(`/weapons`);
+  await page.getByTestId('weapon-pistol-training').click();
+  await page.goto(`/game/pistol-calm?seed=${baseSeed}`);
+  await page.getByTestId('start-level').click();
+  
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSizeTrainingText = await page.getByTestId('group-size').textContent();
+  const trainingCm = parseFloat(groupSizeTrainingText?.match(/Group Size: ([\d.]+) cm/)?.[1] || '0');
+  
+  // Test with competition pistol (1.5 MOA - more precise)
+  await page.goto('/weapons');
+  await page.getByTestId('weapon-pistol-competition').click();
+  await page.goto(`/game/pistol-calm?seed=${baseSeed}`);
+  await page.getByTestId('start-level').click();
+  
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSizeCompetitionText = await page.getByTestId('group-size').textContent();
+  const competitionCm = parseFloat(groupSizeCompetitionText?.match(/Group Size: ([\d.]+) cm/)?.[1] || '0');
+  
+  // Competition pistol (more precise) should have smaller group
+  expect(competitionCm).toBeLessThan(trainingCm);
 });

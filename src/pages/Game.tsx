@@ -11,6 +11,13 @@ import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismSc
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
+import {
+  stringHash,
+  combineSeed,
+  sampleRadialOffset,
+  calculateGroupSize,
+  metersToMils as dispersionMetersToMils,
+} from '../physics/dispersion';
 
 interface Impact {
   x: number;
@@ -22,6 +29,9 @@ interface Impact {
   // Offset from target center in mils (for aiming correction)
   elevationMils: number; // Positive = shot is high
   windageMils: number;  // Positive = shot is right
+  // Dispersion offsets from weapon precision (in meters)
+  dispersionY: number; // Vertical dispersion (up positive)
+  dispersionZ: number; // Horizontal dispersion (right positive)
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -47,6 +57,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
+  const [groupSizeMeters, setGroupSizeMeters] = useState(0);
   
   // Reticle state
   const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
@@ -165,13 +176,29 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       }
     );
 
+    // Apply weapon precision dispersion
+    // Generate base seed from level ID for determinism
+    const baseSeed = stringHash(level.id + weapon.id);
+    // Combine with test seed and shot number for per-shot randomness
+    const shotSeed = combineSeed(baseSeed + testSeed, impacts.length);
+    const dispersion = sampleRadialOffset(
+      level.distanceM,
+      weapon.params.precisionMoaAt100,
+      shotSeed
+    );
+
+    // Apply dispersion AFTER ballistic calculation
+    // Wind/drag affects center of aim, dispersion adds scatter around that point
+    const finalImpactY = result.impactY_M + dispersion.dY; // Apply vertical dispersion
+    const finalImpactZ = result.impactZ_M + dispersion.dZ; // Apply horizontal dispersion
+
     // Convert physics impact back to world coordinates
-    const impactX = WORLD_WIDTH / 2 + result.impactZ_M;
-    const impactY = WORLD_HEIGHT / 2 - result.impactY_M;
+    const impactX = WORLD_WIDTH / 2 + finalImpactZ;
+    const impactY = WORLD_HEIGHT / 2 - finalImpactY;
 
     // Compute offset from target center in mils
-    const elevationMils = metersToMils(level.distanceM, result.impactY_M);
-    const windageMils = metersToMils(level.distanceM, result.impactZ_M);
+    const elevationMils = metersToMils(level.distanceM, finalImpactY);
+    const windageMils = metersToMils(level.distanceM, finalImpactZ);
 
     const impact: Impact = {
       x: impactX,
@@ -182,6 +209,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       index: impacts.length + 1,
       elevationMils,
       windageMils,
+      dispersionY: dispersion.dY,
+      dispersionZ: dispersion.dZ,
     };
 
     const newImpacts = [...impacts, impact];
@@ -194,8 +223,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       const finalScore = newImpacts.reduce((sum, i) => sum + i.score, 0);
       const stars = level ? calculateStars(finalScore, level.starThresholds) : 0;
       
+      // Calculate group size (maximum spread between any two shots)
+      const dispersionOffsets = newImpacts.map(impact => ({
+        dY: impact.dispersionY,
+        dZ: impact.dispersionZ,
+      }));
+      const groupSize = calculateGroupSize(dispersionOffsets);
+      
       setTotalScore(finalScore);
       setEarnedStars(stars);
+      setGroupSizeMeters(groupSize);
       setGameState('results');
       
       // Save progress only for regular levels, not Zero Range
@@ -289,6 +326,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setShotCount(maxShots);
     setTotalScore(0);
     setEarnedStars(0);
+    setGroupSizeMeters(0);
     setGameState('running');
   }, [maxShots]);
 
@@ -298,6 +336,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setShotCount(maxShots);
     setTotalScore(0);
     setEarnedStars(0);
+    setGroupSizeMeters(0);
     setGameState('briefing');
   }, [maxShots]);
 
@@ -319,6 +358,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       setShotCount(next.maxShots);
       setTotalScore(0);
       setEarnedStars(0);
+      setGroupSizeMeters(0);
       setGameState('briefing');
       navigate(`/game/${next.id}`);
     }
@@ -620,6 +660,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             <div className="results-summary">
               <p>Shots fired: {level.maxShots}</p>
               <p>Weapon: {weapon?.name}</p>
+              {impacts.length >= 2 && (
+                <p data-testid="group-size">
+                  Group Size: {(groupSizeMeters * 100).toFixed(1)} cm
+                  ({dispersionMetersToMils(groupSizeMeters, level.distanceM).toFixed(1)} MILs)
+                </p>
+              )}
             </div>
             
             <div className="results-actions">
