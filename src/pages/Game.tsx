@@ -7,6 +7,7 @@ import { simulateShotToDistance } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
 import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling } from '../storage';
+import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 
 interface Impact {
   x: number;
@@ -18,6 +19,7 @@ interface Impact {
 }
 
 type GameState = 'briefing' | 'running' | 'results';
+type ReticleMode = 'simple' | 'mil';
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
@@ -34,6 +36,11 @@ export function Game() {
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
+  
+  // Reticle state
+  const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
+  const [magnification, setMagnification] = useState<MagnificationLevel>(1);
+  
   const settings = useState(() => getGameSettings())[0];
   const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
@@ -320,26 +327,99 @@ export function Game() {
 
       // Draw reticle
       const reticleCanvas = worldToCanvas(recticlePosition, viewportConfig);
-      const reticleSize = 20;
 
-      ctx.strokeStyle = '#ff0000';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      // Crosshair
-      ctx.moveTo(reticleCanvas.x - reticleSize, reticleCanvas.y);
-      ctx.lineTo(reticleCanvas.x + reticleSize, reticleCanvas.y);
-      ctx.moveTo(reticleCanvas.x, reticleCanvas.y - reticleSize);
-      ctx.lineTo(reticleCanvas.x, reticleCanvas.y + reticleSize);
-      // Circle
-      ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleSize / 2, 0, Math.PI * 2);
-      ctx.stroke();
+      if (reticleMode === 'simple') {
+        // Simple crosshair reticle
+        const reticleSize = 20;
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Crosshair
+        ctx.moveTo(reticleCanvas.x - reticleSize, reticleCanvas.y);
+        ctx.lineTo(reticleCanvas.x + reticleSize, reticleCanvas.y);
+        ctx.moveTo(reticleCanvas.x, reticleCanvas.y - reticleSize);
+        ctx.lineTo(reticleCanvas.x, reticleCanvas.y + reticleSize);
+        // Circle
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleSize / 2, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (reticleMode === 'mil' && level) {
+        // MIL reticle with tick marks
+        const milSpacingPixels = getMilSpacingPixels(
+          level.distanceM,
+          1,
+          WORLD_WIDTH,
+          canvasSize.width,
+          magnification
+        );
+
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = '#ff0000';
+
+        // Draw center dot
+        ctx.beginPath();
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw horizontal MIL ticks (left and right from center)
+        [-1, 1].forEach((direction) => {
+          for (let i = 1; i <= 10; i++) {
+            const xPos = reticleCanvas.x + (i * milSpacingPixels * direction);
+            const isMajorTick = i % 5 === 0;
+            const tickLength = isMajorTick ? 15 : 8;
+
+            ctx.beginPath();
+            ctx.moveTo(xPos, reticleCanvas.y - tickLength / 2);
+            ctx.lineTo(xPos, reticleCanvas.y + tickLength / 2);
+            ctx.stroke();
+
+            // Draw number labels for major ticks
+            if (isMajorTick && i <= 10) {
+              ctx.font = '10px sans-serif';
+              ctx.textAlign = 'center';
+              const labelY = reticleCanvas.y + (direction === 1 ? 25 : -10);
+              ctx.fillText(i.toString() + 'M', xPos, labelY);
+            }
+          }
+        });
+
+        // Draw vertical MIL ticks (up and down from center)
+        [-1, 1].forEach((direction) => {
+          for (let i = 1; i <= 10; i++) {
+            const yPos = reticleCanvas.y + (i * milSpacingPixels * direction);
+            const isMajorTick = i % 5 === 0;
+            const tickLength = isMajorTick ? 15 : 8;
+
+            ctx.beginPath();
+            ctx.moveTo(reticleCanvas.x - tickLength / 2, yPos);
+            ctx.lineTo(reticleCanvas.x + tickLength / 2, yPos);
+            ctx.stroke();
+
+            // Draw number labels for major ticks
+            if (isMajorTick && i <= 10) {
+              ctx.font = '10px sans-serif';
+              ctx.textAlign = 'left';
+              const labelX = reticleCanvas.x + 15;
+              ctx.fillText(i.toString() + 'M', labelX, yPos + 3);
+            }
+          }
+        });
+
+        // Draw thin crosshair lines to edges
+        ctx.beginPath();
+        ctx.moveTo(0, reticleCanvas.y);
+        ctx.lineTo(canvasSize.width, reticleCanvas.y);
+        ctx.moveTo(reticleCanvas.x, 0);
+        ctx.lineTo(reticleCanvas.x, canvasSize.height);
+        ctx.stroke();
+      }
 
       requestAnimationFrame(draw);
     };
 
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [canvasSize, impacts, targetConfig, recticlePosition, level]);
+  }, [canvasSize, impacts, targetConfig, recticlePosition, level, magnification, reticleMode]);
 
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
@@ -500,6 +580,28 @@ export function Game() {
             Shots: {shotCount}/{level.maxShots}
           </span>
           <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
+        </div>
+        <div className="reticle-controls">
+          <button
+            onClick={() => setReticleMode(reticleMode === 'simple' ? 'mil' : 'simple')}
+            className="control-button"
+            data-testid="reticle-mode-toggle"
+            title="Toggle reticle mode"
+          >
+            {reticleMode === 'simple' ? 'Crosshair' : 'MIL Reticle'}
+          </button>
+          <button
+            onClick={() => {
+              const currentIndex = MAGNIFICATION_LEVELS.indexOf(magnification);
+              const nextIndex = (currentIndex + 1) % MAGNIFICATION_LEVELS.length;
+              setMagnification(MAGNIFICATION_LEVELS[nextIndex]);
+            }}
+            className="control-button"
+            data-testid="magnification-control"
+            title={`Magnification: ${magnification}x`}
+          >
+            {magnification}x
+          </button>
         </div>
       </div>
       

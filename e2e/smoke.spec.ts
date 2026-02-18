@@ -212,6 +212,34 @@ test('deterministic test mode: stable physics with seed', async ({ page }) => {
   expect(score).toBeGreaterThan(0); // Should have scored some points
 });
 
+test('reticle mode toggle and magnification control', async ({ page }) => {
+  // Navigate to a level
+  await page.goto('/game/pistol-windy');
+  await page.getByTestId('start-level').click();
+
+  // Verify default simple crosshair
+  await expect(page.getByTestId('reticle-mode-toggle')).toHaveText('Crosshair');
+  await expect(page.getByTestId('magnification-control')).toHaveText('1x');
+
+  // Toggle to MIL reticle
+  await page.getByTestId('reticle-mode-toggle').click();
+  await expect(page.getByTestId('reticle-mode-toggle')).toHaveText('MIL Reticle');
+
+  // Toggle magnification
+  await page.getByTestId('magnification-control').click();
+  await expect(page.getByTestId('magnification-control')).toHaveText('4x');
+
+  await page.getByTestId('magnification-control').click();
+  await expect(page.getByTestId('magnification-control')).toHaveText('8x');
+
+  await page.getByTestId('magnification-control').click();
+  await expect(page.getByTestId('magnification-control')).toHaveText('1x');
+
+  // Toggle back to simple crosshair
+  await page.getByTestId('reticle-mode-toggle').click();
+  await expect(page.getByTestId('reticle-mode-toggle')).toHaveText('Crosshair');
+});
+
 test('settings: preset selection persists and affects HUD', async ({ page }) => {
   // Navigate to settings
   await page.goto('/');
