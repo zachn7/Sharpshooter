@@ -53,9 +53,8 @@ test('level run flow: complete level and see results', async ({ page }) => {
   await page.waitForURL('**/levels');
   await expect(page.getByTestId('levels-page')).toBeVisible();
 
-  // Select first level (should be unlocked)
-  await page.getByTestId('level-pistol-calm').click();
-  await page.waitForURL('**/game/pistol-calm');
+  // Navigate directly to game page with testMode enabled (disables sway/recoil)
+  await page.goto('/game/pistol-calm?testMode=1');
   await expect(page.getByTestId('game-page')).toBeVisible();
 
   // Should see level briefing
@@ -555,7 +554,7 @@ test('impact offset readout and arcade assist', async ({ page }) => {
 
 test('dispersion: deterministic with seed', async ({ page }) => {
   // Test that the same seed produces the same group size
-  await page.goto('/game/pistol-calm?seed=99999');
+  await page.goto('/game/pistol-calm?seed=99999&testMode=1');
   await page.getByTestId('start-level').click();
   
   // Fire all shots at center
@@ -594,7 +593,7 @@ test('dispersion: scales with weapon precision', async ({ page }) => {
   // Test with training pistol (3.0 MOA)
   await page.goto(`/weapons`);
   await page.getByTestId('weapon-pistol-training').click();
-  await page.goto(`/game/pistol-calm?seed=${baseSeed}`);
+  await page.goto(`/game/pistol-calm?seed=${baseSeed}&testMode=1`);
   await page.getByTestId('start-level').click();
   
   const canvas = page.getByTestId('game-canvas');
@@ -612,7 +611,7 @@ test('dispersion: scales with weapon precision', async ({ page }) => {
   // Test with competition pistol (1.5 MOA - more precise)
   await page.goto('/weapons');
   await page.getByTestId('weapon-pistol-competition').click();
-  await page.goto(`/game/pistol-calm?seed=${baseSeed}`);
+  await page.goto(`/game/pistol-calm?seed=${baseSeed}&testMode=1`);
   await page.getByTestId('start-level').click();
   
   if (box) {

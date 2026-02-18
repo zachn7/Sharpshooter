@@ -18,6 +18,14 @@ import {
   calculateGroupSize,
   metersToMils as dispersionMetersToMils,
 } from '../physics/dispersion';
+import {
+  calculateSwayOffset,
+  calculateRecoilImpulse,
+  updateRecoilDecay,
+  combineOffsets,
+  isTestModeEnabled,
+  type RecoilState,
+} from '../physics/sway';
 
 interface Impact {
   x: number;
@@ -48,6 +56,9 @@ interface GameProps {
 export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameProps = {}) {
   const { levelId } = useParams<{ levelId?: string }>();
   const [searchParams] = useSearchParams();
+  
+  // Check for test mode (disables sway/recoil for deterministic E2E)
+  const isTestMode = isTestModeEnabled(searchParams);
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -58,6 +69,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
   const [groupSizeMeters, setGroupSizeMeters] = useState(0);
+  
+  // Sway and recoil state
+  const [recoilState, setRecoilState] = useState<RecoilState | null>(null);
   
   // Reticle state
   const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
@@ -152,6 +166,35 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       level.distanceM
     );
 
+    // Calculate sway offset (continuous hand movement)
+    // Only apply if not in test mode (for deterministic E2E testing)
+    const swayOffset = isTestMode 
+      ? { y: 0, z: 0 } 
+      : calculateSwayOffset(
+          performance.now() / 1000, // Convert to seconds
+          settings.realismPreset,
+          weapon.type,
+          magnification
+        );
+
+    // Calculate current recoil offset (if any)
+    // Only apply if not in test mode
+    let recoilOffset = { y: 0, z: 0 };
+    if (!isTestMode && recoilState) {
+      recoilOffset = { y: recoilState.offsetY, z: recoilState.offsetZ };
+    }
+
+    // Combine sway and recoil offsets
+    const totalOffset = combineOffsets(swayOffset, recoilOffset);
+
+    // Convert offsets from MILs to meters at target distance
+    const offsetY_Meters = (totalOffset.y * level.distanceM) / 1000;
+    const offsetZ_Meters = (totalOffset.z * level.distanceM) / 1000;
+
+    // Apply combined offset to aim
+    const finalAimY_M = adjustedAim.aimY_M + offsetY_Meters;
+    const finalAimZ_M = adjustedAim.aimZ_M + offsetZ_Meters;
+
     // Run physics simulation with level and weapon parameters
     // Apply realism scaling based on preset
     const scaledDragFactor = weapon.params.dragFactor * dragScale;
@@ -163,8 +206,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         distanceM: level.distanceM,
         muzzleVelocityMps: weapon.params.muzzleVelocityMps,
         dragFactor: scaledDragFactor,
-        aimY_M: adjustedAim.aimY_M,
-        aimZ_M: adjustedAim.aimZ_M,
+        aimY_M: finalAimY_M,
+        aimZ_M: finalAimZ_M,
         dtS: 0.002,
       },
       {
@@ -218,6 +261,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const newShotCount = shotCount - 1;
     setShotCount(newShotCount);
     
+    // Trigger recoil impulse if not in test mode
+    if (!isTestMode && gameState === 'running') {
+      const impulse = calculateRecoilImpulse(settings.realismPreset, weapon.type);
+      setRecoilState(impulse);
+    }
+    
     // Check if level is complete
     if (newShotCount === 0) {
       const finalScore = newImpacts.reduce((sum, i) => sum + i.score, 0);
@@ -240,7 +289,24 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         updateLevelProgress(level.id, finalScore, level.starThresholds);
       }
     }
-  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale, turretState, isZeroRange]);
+  }, [
+    recticlePosition,
+    shotCount,
+    level,
+    weapon,
+    impacts,
+    targetConfig,
+    gameState,
+    testSeed,
+    dragScale,
+    windScale,
+    turretState,
+    isZeroRange,
+    isTestMode,
+    settings.realismPreset,
+    magnification,
+    recoilState,
+  ]);
 
   // Start level handler
   const handleStartLevel = useCallback(() => {
@@ -327,6 +393,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setTotalScore(0);
     setEarnedStars(0);
     setGroupSizeMeters(0);
+    setRecoilState(null);
     setGameState('running');
   }, [maxShots]);
 
@@ -337,6 +404,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setTotalScore(0);
     setEarnedStars(0);
     setGroupSizeMeters(0);
+    setRecoilState(null);
     setGameState('briefing');
   }, [maxShots]);
 
@@ -359,6 +427,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       setTotalScore(0);
       setEarnedStars(0);
       setGroupSizeMeters(0);
+      setRecoilState(null);
       setGameState('briefing');
       navigate(`/game/${next.id}`);
     }
@@ -369,7 +438,39 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     navigate('/levels');
   }, [navigate]);
 
+  // Update recoil decay over time
+  useEffect(() => {
+    if (gameState !== 'running') return;
 
+    let lastTime = performance.now();
+
+    const updateLoop = () => {
+      const now = performance.now();
+      const dtS = (now - lastTime) / 1000; // Convert to seconds
+      lastTime = now;
+
+      // Update recoil decay using functional state update
+      setRecoilState(prevRecoil => {
+        if (!prevRecoil) return null;
+        
+        const decayed = updateRecoilDecay(prevRecoil, dtS);
+        const newRecoilState = {
+          offsetY: decayed.y,
+          offsetZ: decayed.z,
+          decayRate: prevRecoil.decayRate,
+        };
+
+        // Check if recoil has fully decayed (very small values)
+        if (Math.abs(newRecoilState.offsetY) < 0.001 && Math.abs(newRecoilState.offsetZ) < 0.001) {
+          return null;
+        }
+        return newRecoilState;
+      });
+    };
+
+    const intervalId = setInterval(updateLoop, 16); // ~60 FPS
+    return () => clearInterval(intervalId);
+  }, [gameState]);
 
   // Drawing loop
   useEffect(() => {
