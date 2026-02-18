@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore } from '../utils/scoring';
@@ -29,7 +30,12 @@ type ReticleMode = 'simple' | 'mil';
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
 
-export function Game() {
+interface GameProps {
+  isZeroRange?: boolean;
+  shotLimitMode?: ZeroRangeShotLimitMode;
+}
+
+export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameProps = {}) {
   const { levelId } = useParams<{ levelId?: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -63,7 +69,12 @@ export function Game() {
   // Load level data
   const levelIdSafe = levelId || DEFAULT_LEVEL_ID;
   const level = getLevelById(levelIdSafe);
-  const maxShots = level?.maxShots ?? 3;
+  const levelMaxShots = level?.maxShots ?? 3;
+  
+  // For Zero Range, use the shot limit mode setting
+  const maxShots = isZeroRange
+    ? (shotLimitMode === 'three' ? 3 : Number.MAX_SAFE_INTEGER)
+    : levelMaxShots;
   const [shotCount, setShotCount] = useState(maxShots);
   
   // Load weapon data
@@ -187,10 +198,12 @@ export function Game() {
       setEarnedStars(stars);
       setGameState('results');
       
-      // Save progress
-      updateLevelProgress(level.id, finalScore, level.starThresholds);
+      // Save progress only for regular levels, not Zero Range
+      if (!isZeroRange) {
+        updateLevelProgress(level.id, finalScore, level.starThresholds);
+      }
     }
-  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale, turretState]);
+  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale, turretState, isZeroRange]);
 
   // Start level handler
   const handleStartLevel = useCallback(() => {
@@ -594,12 +607,14 @@ export function Game() {
                 <span className="score-value" data-testid="total-score">{totalScore}</span>
               </div>
               
-              <div className="stars-display">
-                <span className="score-label">Stars Earned</span>
-                <span className="stars-value" data-testid="stars-earned">
-                  {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
-                </span>
-              </div>
+              {!isZeroRange && (
+                <div className="stars-display">
+                  <span className="score-label">Stars Earned</span>
+                  <span className="stars-value" data-testid="stars-earned">
+                    {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
+                  </span>
+                </div>
+              )}
             </div>
             
             <div className="results-summary">
@@ -673,7 +688,9 @@ export function Game() {
         <h2>{level.name}</h2>
         <div className="game-stats">
           <span className="stat" data-testid="shot-count">
-            Shots: {shotCount}/{level.maxShots}
+            {isZeroRange && shotLimitMode === 'unlimited'
+              ? 'Shots: ∞'
+              : `Shots: ${shotCount}/${level.maxShots}`}
           </span>
           <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
         </div>

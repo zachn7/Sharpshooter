@@ -407,6 +407,84 @@ test('zeroing profile: save and return to zero', async ({ page }) => {
   await expect(page.getByTestId('windage-value')).toHaveText('+0.2');
 });
 
+test('zero range: shot limit mode toggle persists', async ({ page }) => {
+  // Start fresh
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+
+  // Go to zero range
+  await page.goto('/zero-range');
+  await expect(page.getByTestId('zero-range-page')).toBeVisible();
+  await expect(page.getByTestId('zero-range-controls')).toBeVisible();
+
+  // Default should be unlimited mode
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (∞)');
+  await expect(page.getByTestId('zero-shot-limit-toggle')).toHaveText('Switch to 3-Shot Mode');
+
+  // Verify shot count shows infinity
+  const shotCount = page.getByTestId('shot-count');
+  await expect(shotCount).toContainText('Shots: ∞');
+
+  // Toggle to 3-shot mode
+  await page.getByTestId('zero-shot-limit-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Should now show 3-shot mode
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (3)');
+  await expect(page.getByTestId('zero-shot-limit-toggle')).toHaveText('Switch to Unlimited Mode');
+
+  // Verify shot count shows remaining shots
+  await expect(shotCount).toContainText('Shots: 3/');
+
+  // Fire a shot to verify counter decrements
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  await expect(shotCount).toContainText('Shots: 2/5');
+
+  // Toggle back to unlimited mode (should still have fired the shot)
+  await page.getByTestId('zero-shot-limit-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Should show infinity again
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (∞)');
+  await expect(shotCount).toContainText('Shots: ∞');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  await expect(page.getByTestId('zero-range-page')).toBeVisible();
+
+  // Should still be in unlimited mode after refresh
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (∞)');
+  await expect(shotCount).toContainText('Shots: ∞');
+
+  // Toggle to 3-shot mode again
+  await page.getByTestId('zero-shot-limit-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Fire all 3 shots
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // After 3 shots should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+
+  // Results screen should NOT show stars (zero range doesn't save progress)
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  // Stars-earned element should NOT be present in zero range results
+  const starsEarned = page.getByTestId('stars-earned');
+  const isVisible = await starsEarned.count();
+  expect(isVisible).toBe(0); // No stars in zero range
+});
+
 test('impact offset readout and arcade assist', async ({ page }) => {
   // Start fresh
   await page.goto('/');
