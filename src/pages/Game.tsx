@@ -6,8 +6,10 @@ import { createStandardTarget, calculateRingScore } from '../utils/scoring';
 import { simulateShotToDistance } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling } from '../storage';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, type TurretState } from '../storage';
+import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
+import { TutorialOverlay } from '../components/TutorialOverlay';
 
 interface Impact {
   x: number;
@@ -16,6 +18,9 @@ interface Impact {
   timestamp: number;
   windUsedMps: number;
   index: number;
+  // Offset from target center in mils (for aiming correction)
+  elevationMils: number; // Positive = shot is high
+  windageMils: number;  // Positive = shot is right
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -41,6 +46,10 @@ export function Game() {
   const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
   const [magnification, setMagnification] = useState<MagnificationLevel>(1);
   
+  // Turret state (loaded from storage per weapon)
+  const weaponId = getSelectedWeaponId() || DEFAULT_WEAPON_ID;
+  const [turretState, setTurretState] = useState<TurretState>(() => getTurretState(weaponId));
+  
   const settings = useState(() => getGameSettings())[0];
   const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
@@ -58,7 +67,6 @@ export function Game() {
   const [shotCount, setShotCount] = useState(maxShots);
   
   // Load weapon data
-  const weaponId = getSelectedWeaponId() || DEFAULT_WEAPON_ID;
   const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
   
   // Target configuration based on level's targetScale
@@ -113,6 +121,15 @@ export function Game() {
     const aimX_M = (recticlePosition.x - WORLD_WIDTH / 2);
     const aimY_M = -(recticlePosition.y - WORLD_HEIGHT / 2);
 
+    // Apply turret offset to aim
+    // Elevation: positive = aim higher (up), Windage: positive = aim right
+    const adjustedAim = applyTurretOffset(
+      aimY_M,
+      aimX_M,
+      turretState,
+      level.distanceM
+    );
+
     // Run physics simulation with level and weapon parameters
     // Apply realism scaling based on preset
     const scaledDragFactor = weapon.params.dragFactor * dragScale;
@@ -124,8 +141,8 @@ export function Game() {
         distanceM: level.distanceM,
         muzzleVelocityMps: weapon.params.muzzleVelocityMps,
         dragFactor: scaledDragFactor,
-        aimY_M,
-        aimZ_M: aimX_M,
+        aimY_M: adjustedAim.aimY_M,
+        aimZ_M: adjustedAim.aimZ_M,
         dtS: 0.002,
       },
       {
@@ -141,6 +158,10 @@ export function Game() {
     const impactX = WORLD_WIDTH / 2 + result.impactZ_M;
     const impactY = WORLD_HEIGHT / 2 - result.impactY_M;
 
+    // Compute offset from target center in mils
+    const elevationMils = metersToMils(level.distanceM, result.impactY_M);
+    const windageMils = metersToMils(level.distanceM, result.impactZ_M);
+
     const impact: Impact = {
       x: impactX,
       y: impactY,
@@ -148,6 +169,8 @@ export function Game() {
       timestamp: Date.now(),
       windUsedMps: result.windUsedMps,
       index: impacts.length + 1,
+      elevationMils,
+      windageMils,
     };
 
     const newImpacts = [...impacts, impact];
@@ -167,12 +190,85 @@ export function Game() {
       // Save progress
       updateLevelProgress(level.id, finalScore, level.starThresholds);
     }
-  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale]);
+  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale, turretState]);
 
   // Start level handler
   const handleStartLevel = useCallback(() => {
     setGameState('running');
   }, []);
+
+  // Turret adjustment handlers
+  const handleElevationAdjust = useCallback((direction: 1 | -1) => {
+    const newElevation = nextClickValue(turretState.elevationMils, direction, 0.1);
+    const newTurretState = { ...turretState, elevationMils: newElevation };
+    setTurretState(newTurretState);
+    updateTurretState(weaponId, newTurretState);
+  }, [turretState, weaponId]);
+
+  const handleWindageAdjust = useCallback((direction: 1 | -1) => {
+    const newWindage = nextClickValue(turretState.windageMils, direction, 0.1);
+    const newTurretState = { ...turretState, windageMils: newWindage };
+    setTurretState(newTurretState);
+    updateTurretState(weaponId, newTurretState);
+  }, [turretState, weaponId]);
+
+  const handleResetTurret = useCallback(() => {
+    const newTurretState = { elevationMils: 0.0, windageMils: 0.0 };
+    setTurretState(newTurretState);
+    updateTurretState(weaponId, newTurretState);
+  }, [weaponId]);
+
+  const handleSaveZero = useCallback(() => {
+    if (!level) return;
+    const profile = {
+      zeroDistanceM: level.distanceM,
+      zeroElevationMils: turretState.elevationMils,
+      zeroWindageMils: turretState.windageMils,
+    };
+    saveZeroProfile(weaponId, profile);
+  }, [level, turretState, weaponId]);
+
+  const handleReturnToZero = useCallback(() => {
+    const profile = getZeroProfile(weaponId);
+    if (profile) {
+      const newTurretState = {
+        elevationMils: profile.zeroElevationMils,
+        windageMils: profile.zeroWindageMils,
+      };
+      setTurretState(newTurretState);
+      updateTurretState(weaponId, newTurretState);
+    }
+  }, [weaponId]);
+
+  const handleApplyCorrection = useCallback(() => {
+    // Get last shot's offset
+    const lastImpact = impacts[impacts.length - 1];
+    if (!lastImpact || !level) return;
+
+    // Calculate correction needed (opposite of offset)
+    const correction = computeAdjustmentForOffset(
+      lastImpact.elevationMils * level.distanceM * 0.001, // Convert mils back to meters
+      lastImpact.windageMils * level.distanceM * 0.001,
+      level.distanceM
+    );
+
+    // Apply correction quantized to 0.1 mil clicks
+    const newElevation = quantizeAdjustmentToClicks(
+      turretState.elevationMils + correction.elevationMils,
+      0.1
+    );
+    const newWindage = quantizeAdjustmentToClicks(
+      turretState.windageMils + correction.windageMils,
+      0.1
+    );
+
+    const newTurretState = {
+      elevationMils: newElevation,
+      windageMils: newWindage,
+    };
+    setTurretState(newTurretState);
+    updateTurretState(weaponId, newTurretState);
+  }, [impacts, level, turretState, weaponId]);
 
   // Reset level handler
   const handleReset = useCallback(() => {
@@ -624,11 +720,139 @@ export function Game() {
         </div>
       )}
       
+      {/* Turret Dialing UI */}
+      {level && settings.showHud && (
+        <div className="turret-hud" data-testid="turret-hud">
+          <div className="turret-display">
+            <div className="turret-header">
+              <span>Turret</span>
+              <button
+                onClick={handleResetTurret}
+                className="reset-turret-button"
+                data-testid="reset-turret"
+                title="Reset turret to zero"
+              >
+                Reset
+              </button>
+            </div>
+            
+            {/* Elevation Controls */}
+            <div className="turret-control-group">
+              <span className="turret-label">Elevation</span>
+              <div className="turret-dial-controls">
+                <button
+                  onClick={() => handleElevationAdjust(-1)}
+                  className="dial-button"
+                  data-testid="elevation-down"
+                  title="Elevation Down (-)"
+                >
+                  −
+                </button>
+                <span className="dial-value" data-testid="elevation-value">
+                  {turretState.elevationMils >= 0 ? '+' : ''}{turretState.elevationMils.toFixed(1)}
+                </span>
+                <button
+                  onClick={() => handleElevationAdjust(1)}
+                  className="dial-button"
+                  data-testid="elevation-up"
+                  title="Elevation Up (+)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            
+            {/* Windage Controls */}
+            <div className="turret-control-group">
+              <span className="turret-label">Windage</span>
+              <div className="turret-dial-controls">
+                <button
+                  onClick={() => handleWindageAdjust(-1)}
+                  className="dial-button"
+                  data-testid="windage-left"
+                  title="Windage Left (-)"
+                >
+                  −
+                </button>
+                <span className="dial-value" data-testid="windage-value">
+                  {turretState.windageMils >= 0 ? '+' : ''}{turretState.windageMils.toFixed(1)}
+                </span>
+                <button
+                  onClick={() => handleWindageAdjust(1)}
+                  className="dial-button"
+                  data-testid="windage-right"
+                  title="Windage Right (+)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            
+            {/* Zero Profile Actions */}
+            <div className="turret-actions">
+              <button
+                onClick={handleSaveZero}
+                className="zero-action-button save-zero"
+                data-testid="save-zero"
+                title="Save current turret settings as zero profile"
+              >
+                Save Zero
+              </button>
+              <button
+                onClick={handleReturnToZero}
+                className="zero-action-button return-zero"
+                data-testid="return-to-zero"
+                title="Return to saved zero profile"
+              >
+                Return to Zero
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="level-info-bar" data-testid="level-info-bar">
         <span>Weapon: {weapon.name}</span>
         <span>{level.distanceM}m</span>
         <span>Range: {level.difficulty}</span>
       </div>
+      
+      {/* Impact Offset Panel */}
+      {impacts.length > 0 && settings.showHud && (
+        <div className="impact-offset-panel" data-testid="impact-offset-panel">
+          <div className="impact-offset-header">
+            <span>Impact Offset</span>
+            {impacts.length > 0 && (
+              <span className="last-shot-label">(Last Shot)</span>
+            )}
+          </div>
+          <div className="impact-offset-values">
+            <div className="offset-row">
+              <span className="offset-label">Elevation:</span>
+              <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`}>
+                {impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL
+              </span>
+            </div>
+            <div className="offset-row">
+              <span className="offset-label">Windage:</span>
+              <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`}>
+                {impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].windageMils.toFixed(1)} MIL
+              </span>
+            </div>
+          </div>
+          {/* Apply Correction button - only available in Arcade mode */}
+          {settings.realismPreset === 'arcade' && (
+            <button
+              onClick={handleApplyCorrection}
+              className="apply-correction-button"
+              data-testid="apply-correction"
+              title="Apply correction to turret (Arcade only)"
+            >
+              Apply Correction
+            </button>
+          )}
+        </div>
+      )}
       
       <div className="game-container" ref={containerRef}>
         <canvas
@@ -671,6 +895,15 @@ export function Game() {
         </button>
         <span className="instructions">Move mouse/touch to aim, click/tap to fire</span>
       </div>
+
+      {/* Tutorial Overlay - shows on first play of tutorial levels */}
+      {level && (
+        <TutorialOverlay
+          key={level.id}
+          levelId={level.id}
+          onDismiss={() => {}}
+        />
+      )}
     </div>
   );
 }

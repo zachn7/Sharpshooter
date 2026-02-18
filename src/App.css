@@ -381,6 +381,27 @@ body {
   cursor: not-allowed;
 }
 
+.zero-link-button {
+  display: block;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  background: #0f3460;
+  color: #e0e0e0;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.zero-link-button:hover {
+  background: #1a4b7a;
+  transform: translateY(-2px);
+}
+
+.zero-link-button:active {
+  transform: translateY(0);
+}
+
 /* Game Page */
 .game-page {
   display: flex;
@@ -583,6 +604,144 @@ body {
   margin-top: 0.25rem;
 }
 
+/* Turret HUD */
+.turret-hud {
+  background: rgba(15, 52, 96, 0.9);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.turret-display {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.turret-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.turret-header span {
+  color: #e0e0e0;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.reset-turret-button {
+  padding: 0.3rem 0.8rem;
+  background: #e94560;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.reset-turret-button:hover {
+  background: #ff6b6b;
+}
+
+.turret-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.turret-label {
+  color: #a0a0a0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.turret-dial-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.dial-button {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  background: #0f3460;
+  color: #e0e0e0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.dial-button:hover {
+  background: #1a4b7a;
+  transform: scale(1.05);
+}
+
+.dial-button:active {
+  transform: scale(0.95);
+}
+
+.dial-value {
+  flex: 1;
+  text-align: center;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  font-size: 1rem;
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.turret-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.zero-action-button {
+  flex: 1;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.zero-action-button.save-zero {
+  background: #4caf50;
+}
+
+.zero-action-button.save-zero:hover {
+  background: #66bb6a;
+  transform: translateY(-2px);
+}
+
+.zero-action-button.return-zero {
+  background: #ff9800;
+}
+
+.zero-action-button.return-zero:hover {
+  background: #ffa726;
+  transform: translateY(-2px);
+}
+
+.zero-action-button:active {
+  transform: translateY(0);
+}
+
 /* Shot History */
 .shot-history {
   padding: 1rem;
@@ -640,6 +799,95 @@ body {
 
 .shot-wind.neutral {
   color: #aaa;
+}
+
+/* Impact Offset Panel */
+.impact-offset-panel {
+  padding: 1rem;
+  background: #0f3460;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.impact-offset-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.impact-offset-header span {
+  color: #e94560;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.last-shot-label {
+  color: #aaa;
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+
+.impact-offset-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.offset-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: #16213e;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.offset-label {
+  color: #a0a0a0;
+  font-weight: 500;
+}
+
+.offset-value {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.offset-value.positive {
+  color: #ff6b4a;
+}
+
+.offset-value.negative {
+  color: #4a9eff;
+}
+
+.offset-value.zero {
+  color: #aaa;
+}
+
+.apply-correction-button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.apply-correction-button:hover {
+  background: #66bb6a;
+  transform: translateY(-2px);
+}
+
+.apply-correction-button:active {
+  transform: translateY(0);
 }
 
 /* Level Briefing */
@@ -852,4 +1100,112 @@ body {
 
 .cta-button:hover {
   background: #1e4d8c;
+}
+
+/* Tutorial Overlay */
+.tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.tutorial-content {
+  background: #16213e;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  color: white;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: tutorialFadeIn 0.3s ease-out;
+}
+
+@keyframes tutorialFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tutorial-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.tutorial-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #e94560;
+}
+
+.tutorial-close-button {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.tutorial-close-button:hover {
+  color: #fff;
+}
+
+.tutorial-body {
+  margin-bottom: 2rem;
+}
+
+.tutorial-body p {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #e0e0e0;
+}
+
+.tutorial-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tutorial-progress {
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.tutorial-next-button {
+  background: #e94560;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.tutorial-next-button:hover {
+  background: #ff6b6b;
+  transform: translateY(-2px);
+}
+
+.tutorial-next-button:active {
+  transform: translateY(0);
 }

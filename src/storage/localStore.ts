@@ -1,9 +1,23 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 4;
+
+// Turret state (imported type)
+export interface TurretState {
+  elevationMils: number;
+  windageMils: number;
+}
+
+// Zeroing profile for a weapon
+export interface ZeroProfile {
+  zeroDistanceM: number;      // Distance at zero (e.g., 25, 50, 100, 200)
+  zeroElevationMils: number;   // Elevation dial setting at zero
+  zeroWindageMils: number;     // Windage dial setting at zero
+}
 
 // Storage keys
 const STORAGE_KEY = 'sharpshooter_save';
 const VERSION_KEY = 'sharpshooter_schema_version';
+const TUTORIALS_KEY = 'sharpshooter_tutorials_seen';
 
 // Level progress record
 export interface LevelProgress {
@@ -31,6 +45,8 @@ export interface GameSave {
   levelProgress: Record<string, LevelProgress>;
   unlockedWeapons: string[];
   settings: GameSettings;
+  turretStates: Record<string, TurretState>; // Per-weapon turret state
+  zeroProfiles: Record<string, ZeroProfile>; // Per-weapon zero profiles
   createdAt: number;
   updatedAt: number;
 }
@@ -54,6 +70,24 @@ const MIGRATIONS: Migration[] = [
         showMilOffset: false,
         showHud: true,
       },
+    };
+  },
+  // v2 -> v3: Add turretStates field with empty defaults
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 3,
+      turretStates: save.turretStates || {},
+    };
+  },
+  // v3 -> v4: Add zeroProfiles field with empty defaults
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 4,
+      zeroProfiles: save.zeroProfiles || {},
     };
   },
 ];
@@ -99,6 +133,9 @@ function validateGameSave(data: unknown): data is GameSave {
     typeof save.selectedWeaponId === 'string' &&
     typeof save.levelProgress === 'object' &&
     Array.isArray(save.unlockedWeapons) &&
+    typeof save.settings === 'object' &&
+    typeof save.turretStates === 'object' &&
+    typeof save.zeroProfiles === 'object' &&
     typeof save.createdAt === 'number' &&
     typeof save.updatedAt === 'number'
   );
@@ -136,6 +173,8 @@ function createDefaultSave(): GameSave {
       showMilOffset: false,
       showHud: true,
     },
+    turretStates: {},
+    zeroProfiles: {},
     createdAt: now,
     updatedAt: now,
   };
@@ -176,6 +215,81 @@ export function getRealismScaling(preset: RealismPreset): { dragScale: number; w
     default:
       return { dragScale: 1.0, windScale: 1.0 }; // Baseline
   }
+}
+
+/**
+ * Get turret state for a specific weapon
+ */
+export function getTurretState(weaponId: string): TurretState {
+  const save = getOrCreateGameSave();
+  return save.turretStates[weaponId] || {
+    elevationMils: 0.0,
+    windageMils: 0.0,
+  };
+}
+
+/**
+ * Update turret state for a specific weapon
+ */
+export function updateTurretState(weaponId: string, turretState: TurretState): GameSave {
+  const save = getOrCreateGameSave();
+  save.turretStates[weaponId] = turretState;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Reset turret state for a specific weapon
+ */
+export function resetTurretStateForWeapon(weaponId: string): GameSave {
+  const save = getOrCreateGameSave();
+  save.turretStates[weaponId] = {
+    elevationMils: 0.0,
+    windageMils: 0.0,
+  };
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Get zero profile for a weapon
+ */
+export function getZeroProfile(weaponId: string): ZeroProfile | null {
+  const save = getOrCreateGameSave();
+  return save.zeroProfiles[weaponId] || null;
+}
+
+/**
+ * Save zero profile for a weapon
+ */
+export function saveZeroProfile(weaponId: string, profile: ZeroProfile): GameSave {
+  const save = getOrCreateGameSave();
+  save.zeroProfiles[weaponId] = profile;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Delete zero profile for a weapon
+ */
+export function deleteZeroProfile(weaponId: string): GameSave {
+  const save = getOrCreateGameSave();
+  delete save.zeroProfiles[weaponId];
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
+}
+
+/**
+ * Get default zero distance for a weapon
+ * Returns 0 if no profile exists
+ */
+export function getZeroDistance(weaponId: string): number {
+  const profile = getZeroProfile(weaponId);
+  return profile ? profile.zeroDistanceM : 0;
 }
 
 /**
@@ -363,4 +477,45 @@ export function isLevelUnlocked(levelId: string, allLevelIds: string[]): boolean
  */
 export function getUnlockedLevels(allLevelIds: string[]): string[] {
   return allLevelIds.filter((levelId) => isLevelUnlocked(levelId, allLevelIds));
+}
+
+/**
+ * Get tutorials seen from localStorage
+ * @returns Set of tutorial IDs that have been seen
+ */
+export function getTutorialsSeen(): Set<string> {
+  try {
+    const raw = storage.getItem(TUTORIALS_KEY);
+    if (!raw) return new Set();
+    const data = JSON.parse(raw) as string[];
+    return new Set(data);
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Mark a tutorial as seen
+ * @param tutorialId - The tutorial ID to mark as seen
+ */
+export function markTutorialSeen(tutorialId: string): void {
+  const seen = getTutorialsSeen();
+  seen.add(tutorialId);
+  storage.setItem(TUTORIALS_KEY, JSON.stringify(Array.from(seen)));
+}
+
+/**
+ * Check if a tutorial has been seen
+ * @param tutorialId - The tutorial ID to check
+ * @returns true if tutorial has been seen
+ */
+export function hasTutorialBeenSeen(tutorialId: string): boolean {
+  return getTutorialsSeen().has(tutorialId);
+}
+
+/**
+ * Clear tutorials seen (for testing/reset)
+ */
+export function clearTutorialsSeen(): void {
+  storage.removeItem(TUTORIALS_KEY);
 }

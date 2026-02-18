@@ -212,6 +212,45 @@ test('deterministic test mode: stable physics with seed', async ({ page }) => {
   expect(score).toBeGreaterThan(0); // Should have scored some points
 });
 
+test('turret dialing controls adjust elevation and windage', async ({ page }) => {
+  // Navigate to a level
+  await page.goto('/game/pistol-windy');
+  await page.getByTestId('start-level').click();
+
+  // Verify turret HUD is visible
+  await expect(page.getByTestId('turret-hud')).toBeVisible();
+
+  // Verify initial values (zeroed)
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.0');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.0');
+
+  // Adjust elevation up
+  await page.getByTestId('elevation-up').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.1');
+
+  // Adjust windage right
+  await page.getByTestId('windage-right').click();
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.1');
+
+  // Adjust multiple times
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-up').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+
+  // Adjust down/left
+  await page.getByTestId('elevation-down').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.2');
+
+  await page.getByTestId('windage-left').click();
+  await page.getByTestId('windage-left').click();
+  await expect(page.getByTestId('windage-value')).toHaveText('-0.1');
+
+  // Reset turret
+  await page.getByTestId('reset-turret').click();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.0');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.0');
+});
+
 test('reticle mode toggle and magnification control', async ({ page }) => {
   // Navigate to a level
   await page.goto('/game/pistol-windy');
@@ -320,4 +359,111 @@ test('level unlock progression: next level unlocks on star', async ({ page }) =>
   const pistolWindyAfter = page.getByTestId('level-pistol-windy');
   const windyTextAfter = await pistolWindyAfter.textContent();
   expect(windyTextAfter).not.toContain('🔒'); // Should not have lock icon
+});
+
+test('zeroing profile: save and return to zero', async ({ page }) => {
+  // Start fresh
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+
+  // Go to game
+  await page.goto('/game/pistol-calm');
+  await page.getByTestId('start-level').click();
+
+  // Verify turret HUD is visible and zeroed
+  await expect(page.getByTestId('turret-hud')).toBeVisible();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.0');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.0');
+
+  // Adjust turret to some values
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('windage-right').click();
+  await page.getByTestId('windage-right').click();
+
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.2');
+
+  // Save zero profile
+  await page.getByTestId('save-zero').click();
+  await page.waitForTimeout(100);
+
+  // Adjust turret to different values
+  await page.getByTestId('elevation-up').click();
+  await page.getByTestId('elevation-down').click();
+  await page.getByTestId('windage-left').click();
+
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.1');
+
+  // Return to zero - should restore saved values
+  await page.getByTestId('return-to-zero').click();
+  await page.waitForTimeout(100);
+
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.3');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.2');
+});
+
+test('impact offset readout and arcade assist', async ({ page }) => {
+  // Start fresh
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+
+  // Set Arcade preset in settings
+  await page.getByTestId('settings-button').click();
+  await page.waitForURL('**/settings');
+  await page.getByTestId('preset-arcade').click();
+  await page.waitForTimeout(100);
+
+  // Go to game with deterministic seed
+  await page.goto('/game/pistol-windy?seed=999');
+  await page.getByTestId('start-level').click();
+
+  // Verify turret HUD is visible and zeroed
+  await expect(page.getByTestId('turret-hud')).toBeVisible();
+  await expect(page.getByTestId('elevation-value')).toHaveText('+0.0');
+  await expect(page.getByTestId('windage-value')).toHaveText('+0.0');
+
+  // Fire a shot slightly off-center to create an offset
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    // Aim slightly below center (this will create a negative elevation offset)
+    await canvas.click({ position: { x: box.width / 2, y: box.height * 0.55 } });
+  }
+
+  // Impact offset panel should be visible
+  await expect(page.getByTestId('impact-offset-panel')).toBeVisible();
+
+  // Check that offset values are displayed
+  const offsetPanel = page.getByTestId('impact-offset-panel');
+  const offsetText = await offsetPanel.textContent();
+  expect(offsetText).toContain('Impact Offset');
+  expect(offsetText).toContain('Elevation:');
+  expect(offsetText).toContain('Windage:');
+  expect(offsetText).toContain('MIL');
+
+  // Apply Correction button should be visible in Arcade mode
+  await expect(page.getByTestId('apply-correction')).toBeVisible();
+
+  // Save original turret values
+  const originalElevation = await page.getByTestId('elevation-value').textContent();
+  const originalWindage = await page.getByTestId('windage-value').textContent();
+
+  // Click Apply Correction
+  await page.getByTestId('apply-correction').click();
+  await page.waitForTimeout(100);
+
+  // Turret values should have changed (applying the inverse of the offset)
+  const newElevation = await page.getByTestId('elevation-value').textContent();
+  const newWindage = await page.getByTestId('windage-value').textContent();
+  
+  // Values should be different from original unless shot was dead center
+  const hasChanged = newElevation !== originalElevation || newWindage !== originalWindage;
+  expect(hasChanged).toBe(true);
 });
