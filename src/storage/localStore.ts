@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 10;
+export const CURRENT_SCHEMA_VERSION = 11;
 
 // Daily Challenge key
 const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
@@ -60,6 +60,12 @@ export interface AudioSettings {
   reducedAudio: boolean; // Quieter sounds
 }
 
+// VFX accessibility settings
+export interface VFXSettings {
+  reducedMotion: boolean; // Disable trails, flash, screen shake
+  reducedFlash: boolean; // Disable muzzle flash specifically
+}
+
 // Game settings
 export interface GameSettings {
   realismPreset: RealismPreset;
@@ -71,6 +77,7 @@ export interface GameSettings {
   expertSpinDriftEnabled: boolean; // Enable spin drift simulation (Expert only, off by default)
   expertCoriolisEnabled: boolean; // Enable Coriolis effect simulation (Expert only, off by default)
   audio: AudioSettings; // Audio settings
+  vfx: VFXSettings; // VFX accessibility settings
 }
 
 // Complete game save data
@@ -113,6 +120,10 @@ const MIGRATIONS: Migration[] = [
           masterVolume: 0.5,
           isMuted: false,
           reducedAudio: false,
+        },
+        vfx: {
+          reducedMotion: false,
+          reducedFlash: false,
         },
       },
     };
@@ -201,6 +212,21 @@ const MIGRATIONS: Migration[] = [
           masterVolume: 0.5,
           isMuted: false,
           reducedAudio: false,
+        },
+      },
+    };
+  },
+  // v10 -> v11: Add VFX accessibility settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 11,
+      settings: {
+        ...save.settings,
+        vfx: save.settings.vfx ?? {
+          reducedMotion: false,
+          reducedFlash: false,
         },
       },
     };
@@ -296,6 +322,10 @@ function createDefaultSave(): GameSave {
         masterVolume: 0.5,
         isMuted: false,
         reducedAudio: false,
+      },
+      vfx: {
+        reducedMotion: false,
+        reducedFlash: false,
       },
     },
     turretStates: {},

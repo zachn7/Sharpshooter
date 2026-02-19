@@ -9,10 +9,20 @@ import {
 
 // Mock window.AudioContext
 class MockAudioContext {
-  state: AudioContextState = 'running';
-  destination: Record<string, unknown> = {};
+  state: 'running' | 'suspended' = 'running';
+  destination: unknown;
   sampleRate = 48000;
   suspended = false;
+
+  // Stub methods to satisfy type checking
+  close = vi.fn();
+  createMediaElementSource = vi.fn();
+  createMediaStreamSource = vi.fn();
+  createMediaStreamDestination = vi.fn();
+  decodeAudioData = vi.fn();
+  baseLatency = 0;
+  outputLatency = 0;
+  prototype = {} as Record<string, unknown>;
 
   createGain() {
     return {
@@ -79,7 +89,9 @@ extendWindow();
 
 function extendWindow() {
   if (!(window as { AudioContext?: typeof AudioContext }).AudioContext) {
+    // @ts-expect-error - Intentionally replacing AudioContext with mock
     (window as { AudioContext?: typeof AudioContext, webkitAudioContext?: typeof AudioContext }).AudioContext = MockAudioContext;
+    // @ts-expect-error - Intentionally replacing webkitAudioContext with mock
     (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext = MockAudioContext;
   }
 }
@@ -90,17 +102,20 @@ describe('AudioManager', () => {
     AudioManager.setTestMode(false);
 
     // Mock window.AudioContext
-    const win = window as { AudioContext: typeof AudioContext, webkitAudioContext: typeof AudioContext };
-    originalAudioContext = win.AudioContext;
-    win.AudioContext = MockAudioContext;
-    win.webkitAudioContext = MockAudioContext;
+    // @ts-expect-error - Intentionally replacing AudioContext with mock
+    originalAudioContext = window.AudioContext;
+    // @ts-expect-error - Intentionally replacing AudioContext with mock
+    window.AudioContext = MockAudioContext;
+    // @ts-expect-error - Intentionally replacing webkitAudioContext with mock
+    window.webkitAudioContext = MockAudioContext;
   });
 
   afterEach(() => {
     // Restore original AudioContext
-    const win = window as { AudioContext: typeof AudioContext, webkitAudioContext: typeof AudioContext };
-    win.AudioContext = originalAudioContext || MockAudioContext;
-    win.webkitAudioContext = originalAudioContext || MockAudioContext;
+    // @ts-expect-error - Restoring original AudioContext
+    window.AudioContext = originalAudioContext || MockAudioContext;
+    // @ts-expect-error - Restoring original webkitAudioContext
+    window.webkitAudioContext = originalAudioContext || MockAudioContext;
   });
 
   describe('test mode', () => {

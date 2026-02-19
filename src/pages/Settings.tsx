@@ -83,6 +83,18 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleVfxToggleChange = (key: 'reducedMotion' | 'reducedFlash') => {
+    if (!settings) return;
+    const currentValue = settings.vfx[key];
+    const updated = updateGameSettings({
+      vfx: {
+        ...settings.vfx,
+        [key]: !currentValue,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
   const handleZeroDistanceChange = async (distance: number) => {
     setZeroDistance(distance as ZeroDistanceOption);
     
@@ -334,6 +346,50 @@ export function Settings() {
                 aria-pressed={settings.audio.reducedAudio}
               >
                 {settings.audio.reducedAudio ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* VFX Accessibility Section */}
+        <div className="settings-section" data-testid="vfx-section">
+          <h3>Visual Effects</h3>
+          <p className="setting-description">
+            Customize visual effects and animations for accessibility.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reduced Motion</span>
+                <span className="setting-sublabel">
+                  Disable trails, flash, and screen shake
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.vfx.reducedMotion ? 'on' : 'off'}`}
+                onClick={() => handleVfxToggleChange('reducedMotion')}
+                data-testid="toggle-reduced-motion"
+                aria-pressed={settings.vfx.reducedMotion}
+              >
+                {settings.vfx.reducedMotion ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reduced Flash</span>
+                <span className="setting-sublabel">
+                  Disable muzzle flash effects
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.vfx.reducedFlash ? 'on' : 'off'}`}
+                onClick={() => handleVfxToggleChange('reducedFlash')}
+                disabled={settings.vfx.reducedMotion}
+                data-testid="toggle-reduced-flash"
+                aria-pressed={settings.vfx.reducedFlash}
+              >
+                {settings.vfx.reducedFlash ? 'ON' : 'OFF'}
               </button>
             </div>
           </div>
