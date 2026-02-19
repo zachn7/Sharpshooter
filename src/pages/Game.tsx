@@ -1,9 +1,9 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
-import { createStandardTarget, calculateRingScore } from '../utils/scoring';
+import { createStandardTarget, calculateRingScore, findHitPlate } from '../utils/scoring';
 import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
@@ -42,6 +42,8 @@ interface Impact {
   // Dispersion offsets from weapon precision (in meters)
   dispersionY: number; // Vertical dispersion (up positive)
   dispersionZ: number; // Horizontal dispersion (right positive)
+  // Plate hit information (for plates mode)
+  plateId?: string;    // ID of the plate that was hit (if any)
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -108,6 +110,52 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     : levelMaxShots;
   const [shotCount, setShotCount] = useState(maxShots);
   
+  // Timer state (for timed challenges)
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const timerActive = level?.timerSeconds !== undefined && level.timerSeconds > 0;
+  
+  // Timer effect
+  useEffect(() => {
+    // Reset timer when game state changes or level changes
+    if (gameState === 'briefing' || (!level?.timerSeconds)) {
+      setTimeRemaining(null);
+      return;
+    }
+    
+    // Don't run countdown if timer is not active
+    if (!timerActive) {
+      return;
+    }
+    
+    // Start timer when level begins
+    if (timeRemaining === null && gameState === 'running' && level?.timerSeconds) {
+      setTimeRemaining(level.timerSeconds);
+    }
+    
+    // Don't run countdown if timer has ended
+    if (timeRemaining === 0) {
+      return;
+    }
+    
+    // Countdown timer
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev === null || prev <= 0) {
+          return 0;
+        }
+        return prev - 0.1; // Update every 100ms for smooth display
+      });
+    }, 100);
+    
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, level?.timerSeconds, timerActive]);
+  
+  // Plates hit tracking (for plates mode)
+  const [plateHits, setPlateHits] = useState<Record<string, number>>({});
+  const plates = useMemo(() => level?.targets || [], [level?.targets]);
+  const targetMode = level?.targetMode || 'bullseye';
+  
   // Load weapon data
   const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
   
@@ -165,6 +213,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Pointer down handler (fire shot)
   const handlePointerDown = useCallback(() => {
     if (shotCount <= 0 || !level || !weapon || gameState !== 'running') return;
+    
+    // Check timer - block firing if time is up
+    if (timeRemaining === 0) return;
 
     // Convert reticle world position to physics aim coordinates (meters from target center)
     const aimX_M = (recticlePosition.x - WORLD_WIDTH / 2);
@@ -257,10 +308,35 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const elevationMils = metersToMils(level.distanceM, finalImpactY);
     const windageMils = metersToMils(level.distanceM, finalImpactZ);
 
+    // Calculate score based on target mode
+    let score: number;
+    let plateId: string | undefined;
+    
+    if (targetMode === 'plates' && plates.length > 0) {
+      // Plates mode: check which plate was hit
+      const plateResult = findHitPlate({ y_M: finalImpactY, z_M: finalImpactZ }, plates);
+      score = plateResult.points;
+      plateId = plateResult.plate?.id;
+      
+      // Update plate hit count
+      if (plateId) {
+        // Capture plateId in a const to avoid TypeScript closure capture issues
+        const hitPlateId = plateId;
+        setPlateHits(prev => {
+          const hits = { ...prev };
+          hits[hitPlateId] = (hits[hitPlateId] || 0) + 1;
+          return hits;
+        });
+      }
+    } else {
+      // Bullseye mode: standard ring scoring
+      score = calculateRingScore({ x: impactX, y: impactY }, targetConfig);
+    }
+
     const impact: Impact = {
       x: impactX,
       y: impactY,
-      score: calculateRingScore({ x: impactX, y: impactY }, targetConfig),
+      score,
       timestamp: Date.now(),
       windUsedMps: result.windUsedMps,
       index: impacts.length + 1,
@@ -268,6 +344,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       windageMils,
       dispersionY: dispersion.dY,
       dispersionZ: dispersion.dZ,
+      plateId,
     };
 
     const newImpacts = [...impacts, impact];
@@ -321,6 +398,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     recoilState,
     effectiveAmmo,
     computedAirDensity,
+    plates,
+    targetMode,
+    timeRemaining,
   ]);
 
   // Start level handler
@@ -526,22 +606,69 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         );
       }
 
-      // Draw target rings (scaled by level.targetScale)
-      targetConfig.rings.forEach((ring) => {
-        const center = worldToCanvas(
-          { x: targetConfig.centerX, y: targetConfig.centerY },
-          viewportConfig
-        );
-        const radiusPixels = ring.radius * (canvasSize.width / WORLD_WIDTH) * (level?.targetScale || 1);
+      // Draw targets based on target mode
+      if (targetMode === 'plates' && plates.length > 0) {
+        // Draw individual plate targets
+        plates.forEach((plate) => {
+          const center = worldToCanvas(
+            { x: WORLD_WIDTH / 2 + plate.centerZ_M, y: WORLD_HEIGHT / 2 - plate.centerY_M },
+            viewportConfig
+          );
+          const radiusPixels = plate.radiusM * (canvasSize.width / WORLD_WIDTH);
 
-        // Alternate colors for rings
-        const ringIndex = targetConfig.rings.findIndex((r) => r.radius === ring.radius);
-        ctx.strokeStyle = ringIndex % 2 === 0 ? '#ffffff' : '#e0e0e0';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(center.x, center.y, radiusPixels, 0, Math.PI * 2);
-        ctx.stroke();
-      });
+          // Draw plate circle
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, radiusPixels, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Fill with semi-transparent red if hit
+          const hitCount = plateHits[plate.id] || 0;
+          if (hitCount > 0) {
+            ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+            ctx.fill();
+          }
+
+          // Draw plate label
+          if (plate.label) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(plate.label, center.x, center.y);
+          }
+
+          // Draw points value
+          ctx.fillStyle = '#ffff00';
+          ctx.font = '12px sans-serif';
+          ctx.fillText(`${plate.points} pts`, center.x, center.y + radiusPixels + 15);
+
+          // Draw hit count if hit
+          if (hitCount > 0) {
+            ctx.fillStyle = '#ff4444';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText(`${hitCount}x`, center.x, center.y - radiusPixels - 10);
+          }
+        });
+      } else {
+        // Draw bullseye target rings (scaled by level.targetScale)
+        targetConfig.rings.forEach((ring) => {
+          const center = worldToCanvas(
+            { x: targetConfig.centerX, y: targetConfig.centerY },
+            viewportConfig
+          );
+          const radiusPixels = ring.radius * (canvasSize.width / WORLD_WIDTH) * (level?.targetScale || 1);
+
+          // Alternate colors for rings
+          const ringIndex = targetConfig.rings.findIndex((r) => r.radius === ring.radius);
+          ctx.strokeStyle = ringIndex % 2 === 0 ? '#ffffff' : '#e0e0e0';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, radiusPixels, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+      }
 
       // Draw impacts
       impacts.forEach((impact) => {
@@ -845,6 +972,18 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               : `Shots: ${shotCount}/${level.maxShots}`}
           </span>
           <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
+          {timeRemaining !== null && (
+            <span className="stat" data-testid="timer">
+              Time: <span className={timeRemaining <= 5 ? 'timer-warning' : ''}>{
+                timeRemaining > 0 ? `${Math.ceil(timeRemaining)}s` : '0s'
+              }</span>
+            </span>
+          )}
+          {targetMode === 'plates' && plates.length > 0 && (
+            <span className="stat" data-testid="plates-mode">
+              Mode: Plates
+            </span>
+          )}
         </div>
         <div className="reticle-controls">
           <button
@@ -1012,6 +1151,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         )}
         <span>{level.distanceM}m</span>
         <span>Range: {level.difficulty}</span>
+        {targetMode === 'plates' && plates.length > 0 && (
+          <span data-testid="plate-hit-count">
+            Plate Hits: {Object.values(plateHits).reduce((sum, count) => sum + count, 0)}/{impacts.filter(i => i.plateId).length}
+          </span>
+        )}
       </div>
       
       {/* Impact Offset Panel */}
@@ -1061,6 +1205,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerDown}
         />
+        
+        {/* Time's Up Banner */}
+        {timeRemaining === 0 && (
+          <div className="time-up-banner" data-testid="time-up-banner">
+            <h2>Time's Up!</h2>
+            <p>Shooting blocked - press Reset to try again</p>
+          </div>
+        )}
       </div>
       
       {/* Shot History */}

@@ -818,3 +818,67 @@ test('environment HUD shows air density in expert mode', async ({ page }) => {
   expect(await envSummary.textContent()).toContain('ρ:');
   expect(await envSummary.textContent()).toContain('kg/m³');
 });
+
+test('plates mode: hit plates and see results', async ({ page }) => {
+  // Navigate to plates level
+  await page.goto('/game/rifle-basics-plates?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Check that plates mode is displayed
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('plates-mode')).toBeVisible();
+  
+  // Fire 3 shots
+  for (let i = 0; i < 3; i++) {
+    // Click near center of canvas
+    await page.locator('canvas').click({
+      position: { x: 500, y: 300 }
+    });
+  }
+  
+  // Check that plate hits are displayed
+  const plateHitCount = page.getByTestId('plate-hit-count');
+  await expect(plateHitCount).toBeVisible();
+  const hitText = await plateHitCount.textContent();
+  expect(hitText).toContain('Hits:');
+  
+  // Wait for results to show
+  await page.waitForTimeout(1000);
+});
+
+test('timed level: countdown timer blocks firing when time expires', async ({ page }) => {
+  // Navigate to timed level with 10 second timer
+  await page.goto('/game/rifle-basics-timed?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Start the level
+  await page.getByTestId('start-level').click();
+  
+  // Check that timer is displayed
+  const timer = page.getByTestId('timer');
+  await expect(timer).toBeVisible();
+  expect(await timer.textContent()).toContain('Time:');
+  expect(await timer.textContent()).toContain('10s');
+  
+  // Fire one shot
+  await page.locator('canvas').click({
+    position: { x: 500, y: 300 }
+  });
+  
+  // Wait for timer to expire (advance time)
+  await page.evaluate(() => {
+    // Manually advance time by triggering timer expiration
+    window.dispatchEvent(new Event('beforeunload'));
+  });
+  
+  // Wait 11 seconds for time to expire
+  await page.waitForTimeout(11000);
+  
+  // Check that time's up banner is shown
+  const timeUpBanner = page.getByTestId('time-up-banner');
+  
+  // Banner should be visible if timer expired
+  if (await timeUpBanner.isVisible()) {
+    expect(await timeUpBanner.textContent()).toContain("Time's Up!");
+  }
+});

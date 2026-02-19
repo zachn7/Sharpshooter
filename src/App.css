@@ -1253,3 +1253,46 @@ body {
 .zero-shot-limit-toggle:active {
   transform: translateY(0);
 }
+
+/* Timer Styles */
+.timer-warning {
+  color: #ff4444;
+  font-weight: bold;
+}
+
+/* Time's Up Banner */
+.time-up-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 68, 68, 0.9);
+  color: white;
+  padding: 2rem 3rem;
+  border-radius: 12px;
+  text-align: center;
+  z-index: 100;
+  animation: fadeIn 0.3s ease-in;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.time-up-banner h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
+}
+
+.time-up-banner p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
