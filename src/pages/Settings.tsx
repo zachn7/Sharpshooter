@@ -83,7 +83,7 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
-  const handleVfxToggleChange = (key: 'reducedMotion' | 'reducedFlash') => {
+  const handleVfxToggleChange = (key: 'reducedMotion' | 'reducedFlash' | 'recordShotPath') => {
     if (!settings) return;
     const currentValue = settings.vfx[key];
     const updated = updateGameSettings({
@@ -390,6 +390,24 @@ export function Settings() {
                 aria-pressed={settings.vfx.reducedFlash}
               >
                 {settings.vfx.reducedFlash ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Record Shot Path</span>
+                <span className="setting-sublabel">
+                  Save shot trajectories for replay
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.vfx.recordShotPath ? 'on' : 'off'}`}
+                onClick={() => handleVfxToggleChange('recordShotPath')}
+                disabled={settings.vfx.reducedMotion}
+                data-testid="toggle-record-shot-path"
+                aria-pressed={settings.vfx.recordShotPath}
+              >
+                {settings.vfx.recordShotPath ? 'ON' : 'OFF'}
               </button>
             </div>
           </div>

@@ -12,7 +12,12 @@ import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismSc
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
+import { RangeCard } from '../components/RangeCard';
+import { ReplayViewer } from '../components/ReplayViewer';
 import { AudioManager, initAudioOnInteraction, isTestMode as audioIsTestMode } from '../audio';
+import { exportCanvasAsPng } from '../utils/canvasExport';
+import { assembleRangeCard } from '../utils/rangeCard';
+import type { ShotTelemetry, PathPoint } from '../types';
 import {
   stringHash,
   combineSeed,
@@ -133,6 +138,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const containerRef = useRef<HTMLDivElement>(null);
   const [recticlePosition, setReticlePosition] = useState({ x: 0.5, y: 0.5 });
   const [impacts, setImpacts] = useState<Impact[]>([]);
+  const [shotTelemetry, setShotTelemetry] = useState<ShotTelemetry[]>([]);
+  const [showReplay, setShowReplay] = useState(false);
+  const [levelStartedAt, setLevelStartedAt] = useState(Date.now());
   const [gameState, setGameState] = useState<GameState>('briefing');
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
@@ -288,6 +296,24 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     [canvasSize]
   );
 
+  // Convert physics path (Vec3[]) to telemetry path (PathPoint[])
+  // Physics uses: x=downrange, y=up, z=right
+  // Telemetry uses: x=right, y=up, t=time
+  const convertPhysicsPath = useCallback((physicsPath: { x: number; y: number; z: number }[]): PathPoint[] => {
+    // Sample path to max 20 points for performance
+    const maxPoints = 20;
+    const step = Math.ceil(physicsPath.length / maxPoints);
+    
+    return physicsPath
+      .filter((_, i) => i % step === 0 || i === physicsPath.length - 1)
+      .slice(0, maxPoints)
+      .map((p, idx) => ({
+        x: p.z, // Physics Z (right) becomes telemetry X
+        y: p.y, // Physics Y (up) becomes telemetry Y
+        t: idx * 0.1, // Approximate time (not precise, good enough for replay)
+      }));
+  }, []);
+
   // Pointer down handler (fire shot)
   const handlePointerDown = useCallback(async () => {
     if (shotCount <= 0 || !level || !weapon || gameState !== 'running') return;
@@ -360,6 +386,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         aimY_M: finalAimY_M,
         aimZ_M: finalAimZ_M,
         dtS: 0.002,
+        recordPath: settings.vfx.recordShotPath, // Record path if setting enabled
       },
       {
         windMps: scaledWindMps,
@@ -467,7 +494,23 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setImpacts(newImpacts);
     const newShotCount = shotCount - 1;
     setShotCount(newShotCount);
-    
+
+    // Record shot telemetry
+    const telemetry: ShotTelemetry = {
+      shotNumber: impacts.length + 1,
+      windUsedMps: result.windUsedMps,
+      windDirectionDeg: level.windDirectionDeg || 0,
+      elevationMils,
+      windageMils,
+      timeOfFlightS: result.timeOfFlightS,
+      distanceM: level.distanceM,
+      impactX: finalImpactZ, // Physics Z = X in world coords
+      impactY: finalImpactY, // Physics Y = Y in world coords (but inverted for canvas)
+      score,
+      path: result.path ? convertPhysicsPath(result.path) : undefined,
+    };
+    setShotTelemetry(prev => [...prev, telemetry]);
+
     // Trigger recoil impulse if not in test mode (use aggregated params)
     if (!isTestMode && gameState === 'running') {
       const impulse = calculateRecoilImpulse(settings.realismPreset, weapon.type, finalParams.recoilImpulseMils);
@@ -537,6 +580,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     weaponId,
     settings.expertSpinDriftEnabled,
     settings.expertCoriolisEnabled,
+    settings.vfx.recordShotPath,
+    convertPhysicsPath,
   ]);
 
   // Start level handler
@@ -546,8 +591,28 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       await initAudioOnInteraction();
       AudioManager.playSound('click');
     }
+    setLevelStartedAt(Date.now());
     setGameState('running');
   }, []);
+
+  // Export result as PNG
+  const handleExportPng = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    try {
+      await exportCanvasAsPng(
+        canvas,
+        `sharpshooter-${levelId}-${Date.now()}`,
+        '#1a1a2e' // Dark blue background
+      );
+      if (!audioIsTestMode()) {
+        AudioManager.playSound('click');
+      }
+    } catch (error) {
+      console.error('Failed to export PNG:', error);
+    }
+  }, [canvasRef, levelId]);
 
   // Turret adjustment handlers
   const handleElevationAdjust = useCallback((direction: 1 | -1) => {
@@ -648,6 +713,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       AudioManager.playSound('click');
     }
     setImpacts([]);
+    setShotTelemetry([]); // Reset telemetry on retry
     setShotCount(maxShots);
     setTotalScore(0);
     setEarnedStars(0);
@@ -1065,7 +1131,58 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 </p>
               )}
             </div>
-            
+
+            {/* Range Card */}
+            {shotTelemetry.length > 0 && (
+              <RangeCard
+                rangeCard={assembleRangeCard(
+                  level.id,
+                  level.name,
+                  level.distanceM,
+                  weaponId,
+                  shotTelemetry,
+                  levelStartedAt,
+                  Date.now()
+                )}
+              />
+            )}
+
+            {/* Replay Viewer Controls */}
+            {shotTelemetry.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowReplay(!showReplay)}
+                  className="results-button replay-toggle-button"
+                  data-testid="replay-open"
+                >
+                  {showReplay ? '▼' : '▶'} {showReplay ? 'Hide' : 'Show'} Replay
+                </button>
+                
+                {showReplay && (
+                  <ReplayViewer
+                    shots={shotTelemetry}
+                    canvasRef={canvasRef}
+                    metersToPixelsRatio={canvasSize.width / WORLD_WIDTH}
+                    centerX={canvasSize.width / 2}
+                    centerY={canvasSize.height / 2}
+                    visible={true}
+                    onToggle={() => setShowReplay(false)}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Export Button */}
+            {impacts.length > 0 && (
+              <button
+                onClick={handleExportPng}
+                className="results-button export-png-button"
+                data-testid="export-png"
+              >
+                📷 Export PNG
+              </button>
+            )}
+
             <div className="results-actions">
               <button
                 onClick={handleRetry}

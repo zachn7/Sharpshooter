@@ -88,11 +88,16 @@ let originalAudioContext: typeof AudioContext | undefined;
 extendWindow();
 
 function extendWindow() {
-  if (!(window as { AudioContext?: typeof AudioContext }).AudioContext) {
-    // @ts-expect-error - Intentionally replacing AudioContext with mock
-    (window as { AudioContext?: typeof AudioContext, webkitAudioContext?: typeof AudioContext }).AudioContext = MockAudioContext;
-    // @ts-expect-error - Intentionally replacing webkitAudioContext with mock
-    (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext = MockAudioContext;
+  // Type assertion needed to replace window properties for testing
+  type WindowWithAudioContext = Window & {
+    AudioContext?: typeof AudioContext;
+    webkitAudioContext?: typeof AudioContext;
+  };
+  const win = window as WindowWithAudioContext;
+
+  if (!win.AudioContext) {
+    win.AudioContext = MockAudioContext as unknown as typeof AudioContext;
+    win.webkitAudioContext = MockAudioContext as unknown as typeof AudioContext;
   }
 }
 
@@ -101,21 +106,26 @@ describe('AudioManager', () => {
     // Reset AudioManager state
     AudioManager.setTestMode(false);
 
-    // Mock window.AudioContext
-    // @ts-expect-error - Intentionally replacing AudioContext with mock
-    originalAudioContext = window.AudioContext;
-    // @ts-expect-error - Intentionally replacing AudioContext with mock
-    window.AudioContext = MockAudioContext;
-    // @ts-expect-error - Intentionally replacing webkitAudioContext with mock
-    window.webkitAudioContext = MockAudioContext;
+    // Mock window.AudioContext using proper type assertion
+    type WindowWithAudioContext = Window & {
+      AudioContext?: typeof AudioContext;
+      webkitAudioContext?: typeof AudioContext;
+    };
+    const win = window as WindowWithAudioContext;
+    originalAudioContext = win.AudioContext;
+    win.AudioContext = MockAudioContext as unknown as typeof AudioContext;
+    win.webkitAudioContext = MockAudioContext as unknown as typeof AudioContext;
   });
 
   afterEach(() => {
-    // Restore original AudioContext
-    // @ts-expect-error - Restoring original AudioContext
-    window.AudioContext = originalAudioContext || MockAudioContext;
-    // @ts-expect-error - Restoring original webkitAudioContext
-    window.webkitAudioContext = originalAudioContext || MockAudioContext;
+    // Restore original AudioContext using proper type assertion
+    type WindowWithAudioContext = Window & {
+      AudioContext?: typeof AudioContext;
+      webkitAudioContext?: typeof AudioContext;
+    };
+    const win = window as WindowWithAudioContext;
+    win.AudioContext = originalAudioContext || MockAudioContext as unknown as typeof AudioContext;
+    win.webkitAudioContext = originalAudioContext || MockAudioContext as unknown as typeof AudioContext;
   });
 
   describe('test mode', () => {

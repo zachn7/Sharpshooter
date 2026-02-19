@@ -1348,3 +1348,135 @@ body {
     transform: translate(-50%, -50%) scale(1);
   }
 }
+
+/* Range Card Styles */
+.range-card {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  color: #e8e8e8;
+}
+
+.range-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.range-card-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #e94560;
+}
+
+.range-card-meta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: #a0a0a0;
+}
+
+.range-card-summary {
+  background: #0f3460;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.range-card-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.range-card-table th,
+.range-card-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #1f4068;
+}
+
+.range-card-table th {
+  font-weight: 600;
+  color: #e94560;
+  font-size: 0.85rem;
+}
+
+.range-card-table tbody tr:hover {
+  background: #1a1a2e;
+}
+
+.range-card-table .bullseye {
+  color: #ffd700;
+  font-weight: bold;
+}
+
+.no-shots {
+  text-align: center;
+  color: #a0a0a0;
+  padding: 1rem;
+}
+
+/* Replay Viewer Styles */
+.replay-viewer {
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.replay-viewer-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.replay-toggle {
+  background: #e94560;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.replay-toggle:hover {
+  background: #ff6b6b;
+}
+
+.replay-toggle.active {
+  background: #0f3460;
+}
+
+.traces-count {
+  font-size: 0.85rem;
+  color: #a0a0a0;
+}
+
+.no-traces,
+.traces-info {
+  font-size: 0.9rem;
+  color: #e8e8e8;
+  padding: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.no-traces {
+  color: #a0a0a0;
+  font-style: italic;
+}
+
+.traces-info {
+  color: #4ecdc4;
+  background: #1a1a2e;
+  border-radius: 4px;
+}
+}

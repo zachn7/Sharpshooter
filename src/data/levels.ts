@@ -37,6 +37,7 @@ export interface Level {
   // Environmental parameters
   env?: LevelEnvironment;      // Optional environment preset
   windMps: number;             // Base crosswind speed (m/s, + = left-to-right)
+  windDirectionDeg?: number;   // Wind direction (0-360°, 0=from right, 90=from top)
   gustMps: number;             // Gust variation range (+/-)
   airDensityKgM3: number;      // Air density (default 1.225 at sea level)
   gravityMps2: number;         // Gravity (default 9.80665)

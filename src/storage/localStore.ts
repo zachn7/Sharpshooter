@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SCHEMA_VERSION = 12;
 
 // Daily Challenge key
 const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
@@ -64,6 +64,7 @@ export interface AudioSettings {
 export interface VFXSettings {
   reducedMotion: boolean; // Disable trails, flash, screen shake
   reducedFlash: boolean; // Disable muzzle flash specifically
+  recordShotPath: boolean; // Record shot path for replay (off by default for performance)
 }
 
 // Game settings
@@ -124,6 +125,7 @@ const MIGRATIONS: Migration[] = [
         vfx: {
           reducedMotion: false,
           reducedFlash: false,
+          recordShotPath: false,
         },
       },
     };
@@ -227,6 +229,22 @@ const MIGRATIONS: Migration[] = [
         vfx: save.settings.vfx ?? {
           reducedMotion: false,
           reducedFlash: false,
+          recordShotPath: false,
+        },
+      },
+    };
+  },
+  // v11 -> v12: Add recordShotPath setting
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 12,
+      settings: {
+        ...save.settings,
+        vfx: {
+          ...save.settings.vfx,
+          recordShotPath: save.settings.vfx?.recordShotPath ?? false,
         },
       },
     };
@@ -326,6 +344,7 @@ function createDefaultSave(): GameSave {
       vfx: {
         reducedMotion: false,
         reducedFlash: false,
+        recordShotPath: false,
       },
     },
     turretStates: {},
