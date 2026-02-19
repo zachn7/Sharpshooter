@@ -1,5 +1,27 @@
 export { simulateShotToDistance, type Vec3, type BallisticsEnv, type BallisticsShot, type ShotResult } from './ballistics';
 
+export { computeFinalShotParams, type FinalShotParams } from './ammo';
+
+export { 
+  computeAirDensity, 
+  formatEnvironmentSummary, 
+  getDensityIndex, 
+  type AtmosphereParams,
+  DEFAULT_ENVIRONMENT,
+  ENVIRONMENT_PRESETS,
+  getEnvironmentPreset
+} from './atmosphere';
+
+export {
+  calculateExpertEffects,
+  calculateSpinDrift,
+  calculateCoriolis,
+  hasExpertExtras,
+  getExpertExtrasDescription,
+  type ExpertEffectsResult,
+  type ExpertEffectsParams,
+} from './expertEffects';
+
 /**
  * Sign conventions for the physics engine are documented in './conventions.ts'
  * All coordinate systems follow:

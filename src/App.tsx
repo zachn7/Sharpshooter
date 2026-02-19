@@ -6,6 +6,7 @@ import { Levels } from './pages/Levels';
 import { Settings } from './pages/Settings';
 import { Game } from './pages/Game';
 import { ZeroRange } from './pages/ZeroRange';
+import { DailyChallenge } from './pages/DailyChallenge';
 
 function InnerApp() {
   return (
@@ -39,6 +40,14 @@ function InnerApp() {
         element={
           <Layout>
             <Settings />
+          </Layout>
+        }
+      />
+      <Route
+        path="/daily"
+        element={
+          <Layout>
+            <DailyChallenge />
           </Layout>
         }
       />

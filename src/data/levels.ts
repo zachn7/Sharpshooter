@@ -1,6 +1,25 @@
 // Level difficulty tiers
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
+// Environment preset for level
+export interface LevelEnvironment {
+  temperatureC: number;        // Temperature in Celsius (default 15°C)
+  altitudeM: number;           // Altitude in meters (default 0m = sea level)
+}
+
+// Target mode type
+export type TargetMode = 'bullseye' | 'plates';
+
+// Individual plate target for 'plates' mode
+export interface PlateTarget {
+  id: string;                 // Unique identifier for the plate
+  centerY_M: number;          // Y position in world coordinates
+  centerZ_M: number;          // Z position (depth) in world coordinates
+  radiusM: number;            // Radius in meters
+  points: number;             // Points for hitting this plate
+  label?: string;             // Optional label (e.g., "A1", "B2")
+}
+
 // Level configuration
 export interface Level {
   id: string;
@@ -16,17 +35,25 @@ export interface Level {
   distanceM: number;           // Target distance in meters
   
   // Environmental parameters
+  env?: LevelEnvironment;      // Optional environment preset
   windMps: number;             // Base crosswind speed (m/s, + = left-to-right)
+  windDirectionDeg?: number;   // Wind direction (0-360°, 0=from right, 90=from top)
   gustMps: number;             // Gust variation range (+/-)
   airDensityKgM3: number;      // Air density (default 1.225 at sea level)
   gravityMps2: number;         // Gravity (default 9.80665)
   
+  // Advanced sim parameters (for Expert extras)
+  headingDegrees?: number;     // Shooting direction (0-360°, 0=North, 90=East) - for Coriolis
+  latitudeDegrees?: number;    // Shooting latitude (°, default 45°) - for Coriolis
+  
   // Target configuration
-  targetScale: number;         // Target size multiplier (1.0 = standard)
+  targetMode?: TargetMode;     // Target mode: 'bullseye' or 'plates' (default 'bullseye')
+  targets?: PlateTarget[];     // Individual targets for 'plates' mode
+  targetScale: number;         // Target size multiplier for 'bullseye' mode (1.0 = standard)
   
   // Gameplay parameters
   maxShots: number;            // Number of shots allowed
-  timeLimitS?: number;         // Optional time limit in seconds
+  timerSeconds?: number;       // Optional countdown timer in seconds (after this, firing is blocked)
   
   // Star thresholds (cumulative score required)
   starThresholds: {
@@ -70,7 +97,8 @@ export const LEVEL_PACKS: LevelPack[] = [
     levels: [
       'rifle-basics-1', 'rifle-basics-2', 'rifle-basics-3',
       'rifle-basics-4', 'rifle-basics-5', 'rifle-basics-6',
-      'rifle-basics-7', 'rifle-basics-8', 'rifle-basics-9', 'rifle-basics-10'
+      'rifle-basics-7', 'rifle-basics-8', 'rifle-basics-9', 'rifle-basics-10',
+      'rifle-basics-plates', 'rifle-basics-timed'
     ],
     weaponType: 'rifle',
   },
@@ -108,6 +136,7 @@ export const LEVELS: Level[] = [
     difficulty: 'easy',
     requiredWeaponType: 'pistol',
     distanceM: 25,
+    env: { temperatureC: 15, altitudeM: 0 },
     windMps: 0,
     gustMps: 0,
     airDensityKgM3: 1.225,
@@ -204,6 +233,50 @@ export const LEVELS: Level[] = [
     targetScale: 1.0,
     maxShots: 3,
     starThresholds: { one: 10, two: 20, three: 30 },
+    unlocked: true,
+  },
+  {
+    id: 'rifle-basics-plates',
+    packId: 'rifle-basics',
+    name: 'Plate Practice',
+    description: 'Hit as many plates as you can! Each plate is worth points.',
+    difficulty: 'medium',
+    requiredWeaponType: 'rifle',
+    distanceM: 100,
+    targetMode: 'plates',
+    targets: [
+      { id: 'p1', centerY_M: 0, centerZ_M: -0.2, radiusM: 0.1, points: 5, label: 'A1' },
+      { id: 'p2', centerY_M: 0, centerZ_M: 0, radiusM: 0.1, points: 5, label: 'A2' },
+      { id: 'p3', centerY_M: 0, centerZ_M: 0.2, radiusM: 0.1, points: 5, label: 'A3' },
+      { id: 'p4', centerY_M: 0.15, centerZ_M: -0.2, radiusM: 0.08, points: 8, label: 'B1' },
+      { id: 'p5', centerY_M: 0.15, centerZ_M: 0.2, radiusM: 0.08, points: 8, label: 'B3' },
+      { id: 'p6', centerY_M: 0.3, centerZ_M: 0, radiusM: 0.06, points: 10, label: 'C2' },
+    ],
+    windMps: 3,
+    gustMps: 1,
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 1.0,
+    maxShots: 5,
+    starThresholds: { one: 15, two: 25, three: 35 },
+    unlocked: true,
+  },
+  {
+    id: 'rifle-basics-timed',
+    packId: 'rifle-basics',
+    name: 'Speed Shooting',
+    description: 'Hit the bullseye as quickly as possible! 10 second time limit.',
+    difficulty: 'medium',
+    requiredWeaponType: 'rifle',
+    distanceM: 100,
+    windMps: 2,
+    gustMps: 0.5,
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 1.0,
+    maxShots: 3,
+    timerSeconds: 10,
+    starThresholds: { one: 15, two: 25, three: 30 },
     unlocked: true,
   },
   {
@@ -405,6 +478,7 @@ export const LEVELS: Level[] = [
     difficulty: 'medium',
     requiredWeaponType: 'sniper',
     distanceM: 300,
+    env: { temperatureC: 10, altitudeM: 2000 }, // Mountain shooting
     windMps: 2,
     gustMps: 0,
     airDensityKgM3: 1.225,
@@ -458,6 +532,7 @@ export const LEVELS: Level[] = [
     difficulty: 'expert',
     requiredWeaponType: 'any',
     distanceM: 250,
+    env: { temperatureC: -15, altitudeM: 1500 }, // Cold, high altitude
     windMps: 12,
     gustMps: 6,
     airDensityKgM3: 1.225,

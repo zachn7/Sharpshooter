@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sharpshooter - Offline</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background: #1a1a2e;
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 600px;
+      text-align: center;
+    }
+    
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: #ff4444;
+    }
+    
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    p {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      color: #cccccc;
+      margin-bottom: 2rem;
+    }
+    
+    .btn {
+      display: inline-block;
+      padding: 12px 32px;
+      background: #4a9eff;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+    
+    .btn:hover {
+      background: #3a8eef;
+    }
+    
+    .instructions {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      text-align: left;
+    }
+    
+    .instructions h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      color: #4a9eff;
+    }
+    
+    .instructions ul {
+      list-style-position: inside;
+      color: #aaaaaa;
+    }
+    
+    .instructions li {
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">🎯</div>
+    <h1>You're Offline</h1>
+    <p>
+      Sharpshooter requires an internet connection to load the game. 
+      Please check your connection and try again.
+    </p>
+    <a href="/" class="btn">Retry</a>
+    
+    <div class="instructions">
+      <h2>What you can do:</h2>
+      <ul>
+        <li>Check your internet connection</li>
+        <li>Refresh the page</li>
+        <li>If you've installed Sharpshooter as an app, offline play will be available after your first online visit</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

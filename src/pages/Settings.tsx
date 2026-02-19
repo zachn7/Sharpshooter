@@ -60,6 +60,41 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleAudioVolumeChange = (value: number) => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      audio: {
+        ...settings.audio,
+        masterVolume: value,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleAudioToggleChange = (key: 'isMuted' | 'reducedAudio') => {
+    if (!settings) return;
+    const currentValue = settings.audio[key];
+    const updated = updateGameSettings({
+      audio: {
+        ...settings.audio,
+        [key]: !currentValue,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleVfxToggleChange = (key: 'reducedMotion' | 'reducedFlash' | 'recordShotPath') => {
+    if (!settings) return;
+    const currentValue = settings.vfx[key];
+    const updated = updateGameSettings({
+      vfx: {
+        ...settings.vfx,
+        [key]: !currentValue,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
   const handleZeroDistanceChange = async (distance: number) => {
     setZeroDistance(distance as ZeroDistanceOption);
     
@@ -208,6 +243,171 @@ export function Settings() {
                 aria-pressed={settings.showNumericWind}
               >
                 {settings.showNumericWind ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Expert Sim Extras Section */}
+        {settings.realismPreset === 'expert' && (
+          <div className="settings-section" data-testid="expert-extras-section">
+            <h3>Expert Sim Extras</h3>
+            <p className="setting-description">
+              Advanced simulation effects for additional challenge. These are gameplay approximations, not real-world guidance.
+            </p>
+            <div className="settings-list">
+              <div className="setting-item">
+                <div className="setting-info">
+                  <span className="setting-label">Spin Drift</span>
+                  <span className="setting-sublabel">
+                    Sim extras: Add rightward bullet curve from rotation
+                  </span>
+                </div>
+                <button
+                  className={`toggle-button ${settings.expertSpinDriftEnabled ? 'on' : 'off'}`}
+                  onClick={() => handleToggleChange('expertSpinDriftEnabled')}
+                  data-testid="toggle-expert-spin-drift"
+                  aria-pressed={settings.expertSpinDriftEnabled}
+                >
+                  {settings.expertSpinDriftEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-info">
+                  <span className="setting-label">Coriolis Effect</span>
+                  <span className="setting-sublabel">
+                    Sim extras: Add Earth rotation-based deflections
+                  </span>
+                </div>
+                <button
+                  className={`toggle-button ${settings.expertCoriolisEnabled ? 'on' : 'off'}`}
+                  onClick={() => handleToggleChange('expertCoriolisEnabled')}
+                  data-testid="toggle-expert-coriolis"
+                  aria-pressed={settings.expertCoriolisEnabled}
+                >
+                  {settings.expertCoriolisEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Audio Settings Section */}
+        <div className="settings-section" data-testid="audio-section">
+          <h3>Audio</h3>
+          <p className="setting-description">
+            Customize sound effects volume and preferences.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Master Volume</span>
+                <span className="setting-sublabel">All sound effects</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={settings.audio.masterVolume}
+                onChange={(e) => handleAudioVolumeChange(Number(e.target.value))}
+                disabled={settings.audio.isMuted}
+                className="volume-slider"
+                data-testid="master-volume"
+                aria-label="Master volume"
+              />
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Mute</span>
+                <span className="setting-sublabel">Disable all sounds</span>
+              </div>
+              <button
+                className={`toggle-button ${settings.audio.isMuted ? 'on' : 'off'}`}
+                onClick={() => handleAudioToggleChange('isMuted')}
+                data-testid="toggle-audio-mute"
+                aria-pressed={settings.audio.isMuted}
+              >
+                {settings.audio.isMuted ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reduced Audio</span>
+                <span className="setting-sublabel">Quieter sound effects</span>
+              </div>
+              <button
+                className={`toggle-button ${settings.audio.reducedAudio ? 'on' : 'off'}`}
+                onClick={() => handleAudioToggleChange('reducedAudio')}
+                data-testid="toggle-reduced-audio"
+                aria-pressed={settings.audio.reducedAudio}
+              >
+                {settings.audio.reducedAudio ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* VFX Accessibility Section */}
+        <div className="settings-section" data-testid="vfx-section">
+          <h3>Visual Effects</h3>
+          <p className="setting-description">
+            Customize visual effects and animations for accessibility.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reduced Motion</span>
+                <span className="setting-sublabel">
+                  Disable trails, flash, and screen shake
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.vfx.reducedMotion ? 'on' : 'off'}`}
+                onClick={() => handleVfxToggleChange('reducedMotion')}
+                data-testid="toggle-reduced-motion"
+                aria-pressed={settings.vfx.reducedMotion}
+              >
+                {settings.vfx.reducedMotion ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reduced Flash</span>
+                <span className="setting-sublabel">
+                  Disable muzzle flash effects
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.vfx.reducedFlash ? 'on' : 'off'}`}
+                onClick={() => handleVfxToggleChange('reducedFlash')}
+                disabled={settings.vfx.reducedMotion}
+                data-testid="toggle-reduced-flash"
+                aria-pressed={settings.vfx.reducedFlash}
+              >
+                {settings.vfx.reducedFlash ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Record Shot Path</span>
+                <span className="setting-sublabel">
+                  Save shot trajectories for replay
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.vfx.recordShotPath ? 'on' : 'off'}`}
+                onClick={() => handleVfxToggleChange('recordShotPath')}
+                disabled={settings.vfx.reducedMotion}
+                data-testid="toggle-record-shot-path"
+                aria-pressed={settings.vfx.recordShotPath}
+              >
+                {settings.vfx.recordShotPath ? 'ON' : 'OFF'}
               </button>
             </div>
           </div>

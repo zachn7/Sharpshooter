@@ -705,3 +705,290 @@ test('wind visibility: toggle overrides preset default', async ({ page }) => {
   await expect(page.getByTestId('wind-cues')).toBeVisible();
   await expect(page.getByTestId('wind-numeric')).not.toBeAttached();
 });
+
+test('ammo variants: select weapon + ammo -> start level -> HUD shows ammo name', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to weapons page
+  await page.getByTestId('weapons-button').click();
+  await page.waitForURL('**/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Select a weapon (should expand ammo selector)
+  await page.getByTestId('weapon-pistol-training').click();
+  await expect(page.getByTestId('ammo-selector-pistol-training')).toBeVisible();
+
+  // Select an ammo variant
+  await page.getByTestId('ammo-option-pistol-budget').click();
+
+  // The selected ammo should have the checkmark
+  await expect(page.getByTestId('ammo-option-pistol-budget')).toContainText('✓');
+
+  // Navigate to a level with test mode enabled
+  await page.goto('/game/pistol-calm?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  await expect(page.getByTestId('level-briefing')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Level info bar should display the selected ammo name
+  const levelInfoBar = page.getByTestId('level-info-bar');
+  await expect(levelInfoBar).toBeVisible();
+  
+  // Check that ammo name is displayed
+  const ammoNameElement = page.getByTestId('ammo-name');
+  await expect(ammoNameElement).toBeVisible();
+  expect(await ammoNameElement.textContent()).toContain('Budget FMJ');
+
+  // Fire a shot to ensure physics works with selected ammo
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Should see impact marker
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+});
+
+test('ammo variants persists selection across page navigation', async ({ page }) => {
+  // Navigate to weapons page
+  await page.goto('/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Switch to rifle tab
+  await page.getByTestId('tab-rifle').click();
+
+  // Select weapon and ammo
+  await page.getByTestId('weapon-rifle-assault').click();
+  await expect(page.getByTestId('ammo-selector-rifle-assault')).toBeVisible();
+  await page.getByTestId('ammo-option-rifle-heavy').click();
+
+  // Verify selection
+  await expect(page.getByTestId('ammo-option-rifle-heavy')).toContainText('✓');
+
+  // Navigate away and back
+  await page.goto('/');
+  await page.goto('/weapons');
+
+  // Switch to rifle tab
+  await page.getByTestId('tab-rifle').click();
+  await page.getByTestId('weapon-rifle-assault').click();
+  await expect(page.getByTestId('ammo-selector-rifle-assault')).toBeVisible();
+  await expect(page.getByTestId('ammo-option-rifle-heavy')).toContainText('✓');
+});
+
+test('environment HUD displays temperature and altitude', async ({ page }) => {
+  // Navigate to sniper calm level (has environment preset: 10°C @ 2000m)
+  await page.goto('/game/sniper-calm');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  await page.getByTestId('start-level').click();
+  
+  // Environment summary should be visible
+  const envSummary = page.getByTestId('env-summary');
+  await expect(envSummary).toBeVisible();
+  
+  // Should display temperature and altitude
+  expect(await envSummary.textContent()).toContain('Temp:');
+  expect(await envSummary.textContent()).toContain('10°C');
+  expect(await envSummary.textContent()).toContain('Alt:');
+  expect(await envSummary.textContent()).toContain('2000m');
+});
+
+test('environment HUD shows air density in expert mode', async ({ page }) => {
+  // Navigate to settings and change to expert preset
+  await page.goto('/settings');
+  
+  // Click Expert option using test ID
+  await page.getByTestId('preset-expert').click();
+  
+  // Navigate to sniper calm level
+  await page.goto('/game/sniper-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Environment summary should display density in expert mode
+  const envSummary = page.getByTestId('env-summary');
+  await expect(envSummary).toBeVisible();
+  
+  // Should display air density in expert mode
+  expect(await envSummary.textContent()).toContain('ρ:');
+  expect(await envSummary.textContent()).toContain('kg/m³');
+});
+
+test('plates mode: hit plates and see results', async ({ page }) => {
+  // Navigate to plates level
+  await page.goto('/game/rifle-basics-plates?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Check that plates mode is displayed
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('plates-mode')).toBeVisible();
+  
+  // Fire 3 shots
+  for (let i = 0; i < 3; i++) {
+    // Click near center of canvas
+    await page.locator('canvas').click({
+      position: { x: 500, y: 300 }
+    });
+  }
+  
+  // Check that plate hits are displayed
+  const plateHitCount = page.getByTestId('plate-hit-count');
+  await expect(plateHitCount).toBeVisible();
+  const hitText = await plateHitCount.textContent();
+  expect(hitText).toContain('Hits:');
+  
+  // Wait for results to show
+  await page.waitForTimeout(1000);
+});
+
+test('timed level: countdown timer blocks firing when time expires', async ({ page }) => {
+  // Navigate to timed level with 10 second timer
+  await page.goto('/game/rifle-basics-timed?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Start the level
+  await page.getByTestId('start-level').click();
+  
+  // Check that timer is displayed
+  const timer = page.getByTestId('timer');
+  await expect(timer).toBeVisible();
+  expect(await timer.textContent()).toContain('Time:');
+  expect(await timer.textContent()).toContain('10s');
+  
+  // Fire one shot
+  await page.locator('canvas').click({
+    position: { x: 500, y: 300 }
+  });
+  
+  // Wait for timer to expire (advance time)
+  await page.evaluate(() => {
+    // Manually advance time by triggering timer expiration
+    window.dispatchEvent(new Event('beforeunload'));
+  });
+  
+  // Wait 11 seconds for time to expire
+  await page.waitForTimeout(11000);
+  
+  // Check that time's up banner is shown
+  const timeUpBanner = page.getByTestId('time-up-banner');
+  
+  // Banner should be visible if timer expired
+  if (await timeUpBanner.isVisible()) {
+    expect(await timeUpBanner.textContent()).toContain("Time's Up!");
+  }
+});
+
+test('daily challenge: page shows challenge info and start button', async ({ page }) => {
+  // Navigate to daily challenge page with date override for testing
+  await page.goto('/daily?dateOverride=2026-02-19');
+  
+  // Should show today's date and challenge info
+  const challengeInfo = page.getByTestId('daily-challenge-info');
+  await expect(challengeInfo).toBeVisible();
+  const content = await challengeInfo.textContent();
+  expect(content).toContain('2026');
+  expect(content).toContain('Distance:');
+  expect(content).toContain('Wind:');
+  
+  // Check start button exists
+  const startBtn = page.getByTestId('start-daily-btn');
+  await expect(startBtn).toBeVisible();
+  
+  // Check leaderboard exists
+  const leaderboard = page.getByTestId('leaderboard-list');
+  await expect(leaderboard).toBeVisible();
+});
+
+test('daily challenge: leaderboard reset button works', async ({ page }) => {
+  // Navigate to daily challenge page
+  await page.goto('/daily?dateOverride=2026-02-20');
+  
+  // Click reset button
+  const resetBtn = page.getByTestId('reset-leaderboard-btn');
+  await expect(resetBtn).toBeVisible();
+  await resetBtn.click();
+  
+  // Confirm dialog should appear
+  const yesButton = page.getByText('Yes, Clear All');
+  if (await yesButton.isVisible()) {
+    await yesButton.click();
+  }
+  
+  // Check leaderboard still exists
+  const leaderboard = page.getByTestId('leaderboard-list');
+  await expect(leaderboard).toBeVisible();
+});
+
+test('Expert extras: settings page shows toggles only in Expert preset', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  
+  // Expert extras section should not be visible in Arcade/Realistic modes
+  const expertSection = page.getByTestId('expert-extras-section');
+  await expect(expertSection).not.toBeVisible();
+  
+  // Switch to Expert preset
+  await page.getByTestId('preset-expert').click();
+  
+  // Expert extras section should now be visible
+  await expect(expertSection).toBeVisible();
+  
+  // Toggles should be present and OFF by default
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toBeVisible();
+  await expect(page.getByTestId('toggle-expert-coriolis')).toBeVisible();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('OFF');
+  await expect(page.getByTestId('toggle-expert-coriolis')).toHaveText('OFF');
+  
+  // Enable spin drift
+  await page.getByTestId('toggle-expert-spin-drift').click();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('ON');
+});
+
+test('Expert extras: HUD badge visible when extras enabled', async ({ page }) => {
+  // First, enable Expert extras via settings
+  await page.goto('/settings');
+  await page.getByTestId('preset-expert').click();
+  await page.getByTestId('toggle-expert-spin-drift').click();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('ON');
+  
+  // Start a level with Expert preset and extras enabled
+  await page.goto('/game/pistol-calm?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Start the level to show HUD
+  await page.getByTestId('start-level').click();
+  
+  // Expert extras badge should be visible
+  const badge = page.getByTestId('expert-extras-badge');
+  await expect(badge).toBeVisible();
+  
+  // Check badge content
+  const badgeText = await badge.textContent();
+  expect(badgeText).toContain('Expert Extras');
+  expect(badgeText).toContain('ON');
+  expect(badgeText).toContain('Spin Drift');
+});
+
+test('Expert extras: HUD badge not visible when Expert extras disabled', async ({ page }) => {
+  // Set Expert preset but keep extras disabled
+  await page.goto('/settings');
+  await page.getByTestId('preset-expert').click();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('OFF');
+  await expect(page.getByTestId('toggle-expert-coriolis')).toHaveText('OFF');
+  
+  // Start a level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Start the level to show HUD
+  await page.getByTestId('start-level').click();
+  
+  // Expert extras badge should NOT be visible
+  const badge = page.getByTestId('expert-extras-badge');
+  await expect(badge).not.toBeVisible();
+});

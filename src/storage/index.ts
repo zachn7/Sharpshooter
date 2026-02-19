@@ -24,10 +24,20 @@ export {
   getZeroDistance,
   getZeroRangeShotLimitMode,
   setZeroRangeShotLimitMode,
+  getSelectedAmmoId,
+  setSelectedAmmoId,
   getTutorialsSeen,
   markTutorialSeen,
   hasTutorialBeenSeen,
   clearTutorialsSeen,
+  seedFromDate,
+  getTodayDate,
+  getDailyChallengeResult,
+  saveDailyChallengeResult,
+  getDailyChallengeResults,
+  clearDailyChallengeResults,
+  getDailyChallengeBestScore,
+  getDailyChallengeStreak,
   CURRENT_SCHEMA_VERSION,
 } from './localStore';
-export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState, ZeroProfile, ZeroRangeShotLimitMode } from './localStore';
+export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState, ZeroProfile, ZeroRangeShotLimitMode, DailyChallengeResult, DailyChallengeStore } from './localStore';

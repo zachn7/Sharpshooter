@@ -1,16 +1,23 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
-import { createStandardTarget, calculateRingScore } from '../utils/scoring';
-import { simulateShotToDistance } from '../physics';
+import { createStandardTarget, calculateRingScore, findHitPlate } from '../utils/scoring';
+import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT, calculateExpertEffects, hasExpertExtras, type ExpertEffectsParams } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
-import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, type TurretState } from '../storage';
+import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
+import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
+import { RangeCard } from '../components/RangeCard';
+import { ReplayViewer } from '../components/ReplayViewer';
+import { AudioManager, initAudioOnInteraction, isTestMode as audioIsTestMode } from '../audio';
+import { exportCanvasAsPng } from '../utils/canvasExport';
+import { assembleRangeCard } from '../utils/rangeCard';
+import type { ShotTelemetry, PathPoint } from '../types';
 import {
   stringHash,
   combineSeed,
@@ -41,6 +48,8 @@ interface Impact {
   // Dispersion offsets from weapon precision (in meters)
   dispersionY: number; // Vertical dispersion (up positive)
   dispersionZ: number; // Horizontal dispersion (right positive)
+  // Plate hit information (for plates mode)
+  plateId?: string;    // ID of the plate that was hit (if any)
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -48,6 +57,70 @@ type ReticleMode = 'simple' | 'mil';
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
+
+/**
+ * Generate a deterministic level config from seed for daily challenge
+ */
+function generateDailyLevelFromSeed(seed: number): Level {
+  // Simple pseudo-random number generator for determinism
+  const rng = (state: number) => {
+    const stateInt = Math.floor(state * 2147483647.0) % 2147483647;
+    const newState = (stateInt * 16807) % 2147483647;
+    return {
+      value: (newState - 1) / 2147483646.0,
+      newState,
+    };
+  };
+  
+  let state = seed % 2147483647;
+  
+  const r1 = rng(state);
+  state = r1.newState;
+  const r2 = rng(state);
+  state = r2.newState;
+  const r3 = rng(state);
+  state = r3.newState;
+  const r4 = rng(state);
+  state = r4.newState;
+  const r5 = rng(state);
+  state = r5.newState;
+  const r6 = rng(state);
+  
+  const distanceM = 50 + Math.floor(Math.pow(r1.value, 0.5) * 250);
+  const wind = (r2.value * 20 - 10) * (r3.value > 0.5 ? 1 : 0);
+  const windMps = Math.round(wind * 10) / 10;
+  const gustMps = windMps !== 0 ? Math.round(r4.value * 50) / 10 : 0;
+  const temperatureC = Math.round(r5.value * 55 - 20);
+  const altitudeM = Math.floor(r6.value * 3000);
+  const targetMode = r6.value < 0.3 ? 'plates' : 'bullseye';
+  
+  // Base star thresholds (will be calculated dynamically)
+  const baseScore = 30; // Expect max score from 3 shots (10 each)
+  
+  return {
+    id: 'daily-challenge',
+    packId: 'daily',
+    name: 'Daily Challenge',
+    description: 'Today\'s unique shooting challenge!',
+    difficulty: 'medium',
+    requiredWeaponType: 'any',
+    distanceM,
+    env: { temperatureC, altitudeM },
+    windMps,
+    gustMps,
+    airDensityKgM3: 1.225, // Will be computed
+    gravityMps2: 9.80665,
+    targetMode,
+    targetScale: 1.0,
+    maxShots: 3,
+    starThresholds: {
+      one: Math.floor(baseScore * 0.5),
+      two: Math.floor(baseScore * 0.75),
+      three: baseScore,
+    },
+    unlocked: true,
+  };
+}
 
 interface GameProps {
   isZeroRange?: boolean;
@@ -65,6 +138,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const containerRef = useRef<HTMLDivElement>(null);
   const [recticlePosition, setReticlePosition] = useState({ x: 0.5, y: 0.5 });
   const [impacts, setImpacts] = useState<Impact[]>([]);
+  const [shotTelemetry, setShotTelemetry] = useState<ShotTelemetry[]>([]);
+  const [showReplay, setShowReplay] = useState(false);
+  const [levelStartedAt, setLevelStartedAt] = useState(Date.now());
   const [gameState, setGameState] = useState<GameState>('briefing');
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
@@ -94,8 +170,25 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   
   // Load level data
   const levelIdSafe = levelId || DEFAULT_LEVEL_ID;
-  const level = getLevelById(levelIdSafe);
+  
+  // Check for daily challenge
+  const dateOverride = searchParams.get('dateOverride') || undefined;
+  const isDailyChallenge = levelIdSafe === 'daily-challenge';
+  
+  let level: Level | undefined;
+  if (isDailyChallenge) {
+    const seedParam = searchParams.get('seed');
+    const seed = seedParam ? parseInt(seedParam, 10) : seedFromDate(getTodayDate(dateOverride));
+    level = generateDailyLevelFromSeed(seed);
+  } else {
+    level = getLevelById(levelIdSafe);
+  }
+  
   const levelMaxShots = level?.maxShots ?? 3;
+  
+  // Compute environment data from level env preset or use defaults
+  const levelEnv = level?.env || DEFAULT_ENVIRONMENT;
+  const computedAirDensity = level ? computeAirDensity(levelEnv) : 1.225;
   
   // For Zero Range, use the shot limit mode setting
   const maxShots = isZeroRange
@@ -103,8 +196,61 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     : levelMaxShots;
   const [shotCount, setShotCount] = useState(maxShots);
   
+  // Timer state (for timed challenges)
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const timerActive = level?.timerSeconds !== undefined && level.timerSeconds > 0;
+  
+  // Timer effect
+  useEffect(() => {
+    // Reset timer when game state changes or level changes
+    if (gameState === 'briefing' || (!level?.timerSeconds)) {
+      setTimeRemaining(null);
+      return;
+    }
+    
+    // Don't run countdown if timer is not active
+    if (!timerActive) {
+      return;
+    }
+    
+    // Start timer when level begins
+    if (timeRemaining === null && gameState === 'running' && level?.timerSeconds) {
+      setTimeRemaining(level.timerSeconds);
+    }
+    
+    // Don't run countdown if timer has ended
+    if (timeRemaining === 0) {
+      return;
+    }
+    
+    // Countdown timer
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev === null || prev <= 0) {
+          return 0;
+        }
+        return prev - 0.1; // Update every 100ms for smooth display
+      });
+    }, 100);
+    
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, level?.timerSeconds, timerActive]);
+  
+  // Plates hit tracking (for plates mode)
+  const [plateHits, setPlateHits] = useState<Record<string, number>>({});
+  const plates = useMemo(() => level?.targets || [], [level?.targets]);
+  const targetMode = level?.targetMode || 'bullseye';
+  
   // Load weapon data
   const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
+  
+  // Load selected ammo for weapon
+  const selectedAmmoId = getSelectedAmmoId(weaponId);
+  const selectedAmmo = selectedAmmoId ? getAmmoById(selectedAmmoId) : null;
+  
+  // If no ammo selected, try to get match grade for weapon type as fallback
+  const effectiveAmmo = selectedAmmo || (weapon ? getAmmoByWeaponType(weapon.type).find(a => a.name.includes('Match')) || null : null);
   
   // Target configuration based on level's targetScale
   const targetConfig = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
@@ -150,9 +296,38 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     [canvasSize]
   );
 
+  // Convert physics path (Vec3[]) to telemetry path (PathPoint[])
+  // Physics uses: x=downrange, y=up, z=right
+  // Telemetry uses: x=right, y=up, t=time
+  const convertPhysicsPath = useCallback((physicsPath: { x: number; y: number; z: number }[]): PathPoint[] => {
+    // Sample path to max 20 points for performance
+    const maxPoints = 20;
+    const step = Math.ceil(physicsPath.length / maxPoints);
+    
+    return physicsPath
+      .filter((_, i) => i % step === 0 || i === physicsPath.length - 1)
+      .slice(0, maxPoints)
+      .map((p, idx) => ({
+        x: p.z, // Physics Z (right) becomes telemetry X
+        y: p.y, // Physics Y (up) becomes telemetry Y
+        t: idx * 0.1, // Approximate time (not precise, good enough for replay)
+      }));
+  }, []);
+
   // Pointer down handler (fire shot)
-  const handlePointerDown = useCallback(() => {
+  const handlePointerDown = useCallback(async () => {
     if (shotCount <= 0 || !level || !weapon || gameState !== 'running') return;
+    
+    // Check timer - block firing if time is up
+    if (timeRemaining === 0) return;
+
+    // Initialize audio on first user interaction
+    if (!audioIsTestMode()) {
+      await initAudioOnInteraction();
+    }
+
+    // Play shot sound
+    AudioManager.playSound('shot');
 
     // Convert reticle world position to physics aim coordinates (meters from target center)
     const aimX_M = (recticlePosition.x - WORLD_WIDTH / 2);
@@ -196,45 +371,67 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const finalAimY_M = adjustedAim.aimY_M + offsetY_Meters;
     const finalAimZ_M = adjustedAim.aimZ_M + offsetZ_Meters;
 
-    // Run physics simulation with level and weapon parameters
-    // Apply realism scaling based on preset
-    const scaledDragFactor = weapon.params.dragFactor * dragScale;
+    // Compute final shot parameters (weapon + ammo + realism preset)
+    const finalParams = computeFinalShotParams(weapon, effectiveAmmo, settings.realismPreset);
+    
+    // Run physics simulation with aggregated parameters
     const scaledWindMps = level.windMps * windScale;
     const scaledGustMps = level.gustMps * windScale;
     
     const result = simulateShotToDistance(
       {
         distanceM: level.distanceM,
-        muzzleVelocityMps: weapon.params.muzzleVelocityMps,
-        dragFactor: scaledDragFactor,
+        muzzleVelocityMps: finalParams.muzzleVelocityMps,
+        dragFactor: finalParams.dragFactor,
         aimY_M: finalAimY_M,
         aimZ_M: finalAimZ_M,
         dtS: 0.002,
+        recordPath: settings.vfx.recordShotPath, // Record path if setting enabled
       },
       {
         windMps: scaledWindMps,
         gustMps: scaledGustMps,
-        airDensityKgM3: level.airDensityKgM3,
+        airDensityKgM3: computedAirDensity, // Use computed air density from env
         gravityMps2: level.gravityMps2,
         seed: testSeed + shotCount, // Each shot gets a different deterministic seed
       }
     );
 
-    // Apply weapon precision dispersion
-    // Generate base seed from level ID for determinism
-    const baseSeed = stringHash(level.id + weapon.id);
+    // Apply Expert Sim Extras (Spin Drift + Coriolis)
+    // These are gameplay approximations applied AFTER basic ballistics
+    // but BEFORE dispersion, as they affect the center of aim
+    let expertEffectY = 0;
+    let expertEffectZ = 0;
+    if (hasExpertExtras()) {
+      const expertParams: ExpertEffectsParams = {
+        timeOfFlightS: result.timeOfFlightS,
+        headingDegrees: level.headingDegrees || 0, // Default to North
+        latitudeDegrees: level.latitudeDegrees || 45, // Default to mid-latitude
+      };
+      const expertEffects = calculateExpertEffects(
+        expertParams,
+        settings.expertSpinDriftEnabled,
+        settings.expertCoriolisEnabled
+      );
+      expertEffectY = expertEffects.dY_M;
+      expertEffectZ = expertEffects.dZ_M;
+    }
+
+    // Apply weapon precision dispersion (from aggregated params)
+    // Generate base seed from level ID + weapon + ammo for determinism
+    const baseSeed = stringHash(level.id + weapon.id + (effectiveAmmo?.id || ''));
     // Combine with test seed and shot number for per-shot randomness
     const shotSeed = combineSeed(baseSeed + testSeed, impacts.length);
     const dispersion = sampleRadialOffset(
       level.distanceM,
-      weapon.params.precisionMoaAt100,
+      (finalParams.dispersionGroupSizeM / 91.44) * 60, // Convert meters back to MOA
       shotSeed
     );
 
-    // Apply dispersion AFTER ballistic calculation
-    // Wind/drag affects center of aim, dispersion adds scatter around that point
-    const finalImpactY = result.impactY_M + dispersion.dY; // Apply vertical dispersion
-    const finalImpactZ = result.impactZ_M + dispersion.dZ; // Apply horizontal dispersion
+    // Apply dispersion and expert effects AFTER ballistic calculation
+    // Wind/drag + expert effects affect center of aim, dispersion adds scatter around that point
+    const finalImpactY = result.impactY_M + expertEffectY + dispersion.dY; // Apply expert effects and vertical dispersion
+    const finalImpactZ = result.impactZ_M + expertEffectZ + dispersion.dZ; // Apply expert effects and horizontal dispersion
 
     // Convert physics impact back to world coordinates
     const impactX = WORLD_WIDTH / 2 + finalImpactZ;
@@ -244,10 +441,45 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const elevationMils = metersToMils(level.distanceM, finalImpactY);
     const windageMils = metersToMils(level.distanceM, finalImpactZ);
 
+    // Calculate score based on target mode
+    let score: number;
+    let plateId: string | undefined;
+    
+    if (targetMode === 'plates' && plates.length > 0) {
+      // Plates mode: check which plate was hit
+      const plateResult = findHitPlate({ y_M: finalImpactY, z_M: finalImpactZ }, plates);
+      score = plateResult.points;
+      plateId = plateResult.plate?.id;
+      
+      // Update plate hit count
+      if (plateId) {
+        // Capture plateId in a const to avoid TypeScript closure capture issues
+        const hitPlateId = plateId;
+        setPlateHits(prev => {
+          const hits = { ...prev };
+          hits[hitPlateId] = (hits[hitPlateId] || 0) + 1;
+          return hits;
+        });
+      }
+    } else {
+      // Bullseye mode: standard ring scoring
+      score = calculateRingScore({ x: impactX, y: impactY }, targetConfig);
+
+      // Play bullseye sound for perfect shots (10 points)
+      if (!audioIsTestMode() && score === 10) {
+        AudioManager.playSound('bullseye');
+      }
+    }
+
+    // Play hit sound for successful shots (score > 0 and not a bullseye which already has its own sound)
+    if (!audioIsTestMode() && score > 0 && score !== 10) {
+      AudioManager.playSound('hit');
+    }
+
     const impact: Impact = {
       x: impactX,
       y: impactY,
-      score: calculateRingScore({ x: impactX, y: impactY }, targetConfig),
+      score,
       timestamp: Date.now(),
       windUsedMps: result.windUsedMps,
       index: impacts.length + 1,
@@ -255,16 +487,33 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       windageMils,
       dispersionY: dispersion.dY,
       dispersionZ: dispersion.dZ,
+      plateId,
     };
 
     const newImpacts = [...impacts, impact];
     setImpacts(newImpacts);
     const newShotCount = shotCount - 1;
     setShotCount(newShotCount);
-    
-    // Trigger recoil impulse if not in test mode
+
+    // Record shot telemetry
+    const telemetry: ShotTelemetry = {
+      shotNumber: impacts.length + 1,
+      windUsedMps: result.windUsedMps,
+      windDirectionDeg: level.windDirectionDeg || 0,
+      elevationMils,
+      windageMils,
+      timeOfFlightS: result.timeOfFlightS,
+      distanceM: level.distanceM,
+      impactX: finalImpactZ, // Physics Z = X in world coords
+      impactY: finalImpactY, // Physics Y = Y in world coords (but inverted for canvas)
+      score,
+      path: result.path ? convertPhysicsPath(result.path) : undefined,
+    };
+    setShotTelemetry(prev => [...prev, telemetry]);
+
+    // Trigger recoil impulse if not in test mode (use aggregated params)
     if (!isTestMode && gameState === 'running') {
-      const impulse = calculateRecoilImpulse(settings.realismPreset, weapon.type);
+      const impulse = calculateRecoilImpulse(settings.realismPreset, weapon.type, finalParams.recoilImpulseMils);
       setRecoilState(impulse);
     }
     
@@ -285,9 +534,24 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       setGroupSizeMeters(groupSize);
       setGameState('results');
       
-      // Save progress only for regular levels, not Zero Range
-      if (!isZeroRange) {
-        updateLevelProgress(level.id, finalScore, level.starThresholds);
+      // Save progress for regular levels
+      if (!isZeroRange && level) {
+        if (isDailyChallenge) {
+          // Save daily challenge result
+          const today = getTodayDate(dateOverride);
+          saveDailyChallengeResult({
+            date: today,
+            score: finalScore,
+            stars: stars as 0 | 1 | 2 | 3,
+            groupSizeMeters: groupSize,
+            weaponId,
+            ammoId: getSelectedAmmoId(weaponId),
+            completedAt: Date.now(),
+          });
+        } else {
+          // Save regular level progress
+          updateLevelProgress(level.id, finalScore, level.starThresholds);
+        }
       }
     }
   }, [
@@ -299,7 +563,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     targetConfig,
     gameState,
     testSeed,
-    dragScale,
     windScale,
     turretState,
     isZeroRange,
@@ -307,15 +570,55 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     settings.realismPreset,
     magnification,
     recoilState,
+    effectiveAmmo,
+    computedAirDensity,
+    plates,
+    targetMode,
+    timeRemaining,
+    dateOverride,
+    isDailyChallenge,
+    weaponId,
+    settings.expertSpinDriftEnabled,
+    settings.expertCoriolisEnabled,
+    settings.vfx.recordShotPath,
+    convertPhysicsPath,
   ]);
 
   // Start level handler
-  const handleStartLevel = useCallback(() => {
+  const handleStartLevel = useCallback(async () => {
+    // Initialize audio on button click (user gesture)
+    if (!audioIsTestMode()) {
+      await initAudioOnInteraction();
+      AudioManager.playSound('click');
+    }
+    setLevelStartedAt(Date.now());
     setGameState('running');
   }, []);
 
+  // Export result as PNG
+  const handleExportPng = useCallback(async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    try {
+      await exportCanvasAsPng(
+        canvas,
+        `sharpshooter-${levelId}-${Date.now()}`,
+        '#1a1a2e' // Dark blue background
+      );
+      if (!audioIsTestMode()) {
+        AudioManager.playSound('click');
+      }
+    } catch (error) {
+      console.error('Failed to export PNG:', error);
+    }
+  }, [canvasRef, levelId]);
+
   // Turret adjustment handlers
   const handleElevationAdjust = useCallback((direction: 1 | -1) => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const newElevation = nextClickValue(turretState.elevationMils, direction, 0.1);
     const newTurretState = { ...turretState, elevationMils: newElevation };
     setTurretState(newTurretState);
@@ -323,6 +626,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }, [turretState, weaponId]);
 
   const handleWindageAdjust = useCallback((direction: 1 | -1) => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const newWindage = nextClickValue(turretState.windageMils, direction, 0.1);
     const newTurretState = { ...turretState, windageMils: newWindage };
     setTurretState(newTurretState);
@@ -330,6 +636,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }, [turretState, weaponId]);
 
   const handleResetTurret = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const newTurretState = { elevationMils: 0.0, windageMils: 0.0 };
     setTurretState(newTurretState);
     updateTurretState(weaponId, newTurretState);
@@ -400,7 +709,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   // Retry level handler
   const handleRetry = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     setImpacts([]);
+    setShotTelemetry([]); // Reset telemetry on retry
     setShotCount(maxShots);
     setTotalScore(0);
     setEarnedStars(0);
@@ -421,6 +734,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   // Next level handler
   const handleNextLevel = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const next = getNextLevel();
     if (next) {
       setImpacts([]);
@@ -436,6 +752,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   // Back to levels handler
   const handleBack = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     navigate('/levels');
   }, [navigate]);
 
@@ -481,7 +800,13 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const draw = () => {
+    // Track start time for frame-rate independent animations
+    const startTime = performance.now();
+
+    const draw = (timestamp: number) => {
+      // Calculate time in seconds for animations (frame-rate independent)
+      const timeS = (timestamp - startTime) / 1000;
+      
       // Clear canvas
       ctx.fillStyle = '#1a1a2e';
       ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
@@ -498,7 +823,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         // Get the wind used for the most recent shot, or use baseline/gust for visual cues
         // Use baseline wind for visual indicator, scaled by realism preset
         const visualWind = level.windMps * windScale;
-        const timeS = performance.now() / 1000;
         
         drawWindCues(
           ctx,
@@ -512,22 +836,69 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         );
       }
 
-      // Draw target rings (scaled by level.targetScale)
-      targetConfig.rings.forEach((ring) => {
-        const center = worldToCanvas(
-          { x: targetConfig.centerX, y: targetConfig.centerY },
-          viewportConfig
-        );
-        const radiusPixels = ring.radius * (canvasSize.width / WORLD_WIDTH) * (level?.targetScale || 1);
+      // Draw targets based on target mode
+      if (targetMode === 'plates' && plates.length > 0) {
+        // Draw individual plate targets
+        plates.forEach((plate) => {
+          const center = worldToCanvas(
+            { x: WORLD_WIDTH / 2 + plate.centerZ_M, y: WORLD_HEIGHT / 2 - plate.centerY_M },
+            viewportConfig
+          );
+          const radiusPixels = plate.radiusM * (canvasSize.width / WORLD_WIDTH);
 
-        // Alternate colors for rings
-        const ringIndex = targetConfig.rings.findIndex((r) => r.radius === ring.radius);
-        ctx.strokeStyle = ringIndex % 2 === 0 ? '#ffffff' : '#e0e0e0';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(center.x, center.y, radiusPixels, 0, Math.PI * 2);
-        ctx.stroke();
-      });
+          // Draw plate circle
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, radiusPixels, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Fill with semi-transparent red if hit
+          const hitCount = plateHits[plate.id] || 0;
+          if (hitCount > 0) {
+            ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+            ctx.fill();
+          }
+
+          // Draw plate label
+          if (plate.label) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(plate.label, center.x, center.y);
+          }
+
+          // Draw points value
+          ctx.fillStyle = '#ffff00';
+          ctx.font = '12px sans-serif';
+          ctx.fillText(`${plate.points} pts`, center.x, center.y + radiusPixels + 15);
+
+          // Draw hit count if hit
+          if (hitCount > 0) {
+            ctx.fillStyle = '#ff4444';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText(`${hitCount}x`, center.x, center.y - radiusPixels - 10);
+          }
+        });
+      } else {
+        // Draw bullseye target rings (scaled by level.targetScale)
+        targetConfig.rings.forEach((ring) => {
+          const center = worldToCanvas(
+            { x: targetConfig.centerX, y: targetConfig.centerY },
+            viewportConfig
+          );
+          const radiusPixels = ring.radius * (canvasSize.width / WORLD_WIDTH) * (level?.targetScale || 1);
+
+          // Alternate colors for rings
+          const ringIndex = targetConfig.rings.findIndex((r) => r.radius === ring.radius);
+          ctx.strokeStyle = ringIndex % 2 === 0 ? '#ffffff' : '#e0e0e0';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, radiusPixels, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+      }
 
       // Draw impacts
       impacts.forEach((impact) => {
@@ -642,6 +1013,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       requestAnimationFrame(draw);
     };
 
+    // Start the animation loop with initial timestamp
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -759,7 +1131,58 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 </p>
               )}
             </div>
-            
+
+            {/* Range Card */}
+            {shotTelemetry.length > 0 && (
+              <RangeCard
+                rangeCard={assembleRangeCard(
+                  level.id,
+                  level.name,
+                  level.distanceM,
+                  weaponId,
+                  shotTelemetry,
+                  levelStartedAt,
+                  Date.now()
+                )}
+              />
+            )}
+
+            {/* Replay Viewer Controls */}
+            {shotTelemetry.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowReplay(!showReplay)}
+                  className="results-button replay-toggle-button"
+                  data-testid="replay-open"
+                >
+                  {showReplay ? '▼' : '▶'} {showReplay ? 'Hide' : 'Show'} Replay
+                </button>
+                
+                {showReplay && (
+                  <ReplayViewer
+                    shots={shotTelemetry}
+                    canvasRef={canvasRef}
+                    metersToPixelsRatio={canvasSize.width / WORLD_WIDTH}
+                    centerX={canvasSize.width / 2}
+                    centerY={canvasSize.height / 2}
+                    visible={true}
+                    onToggle={() => setShowReplay(false)}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Export Button */}
+            {impacts.length > 0 && (
+              <button
+                onClick={handleExportPng}
+                className="results-button export-png-button"
+                data-testid="export-png"
+              >
+                📷 Export PNG
+              </button>
+            )}
+
             <div className="results-actions">
               <button
                 onClick={handleRetry}
@@ -831,6 +1254,18 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               : `Shots: ${shotCount}/${level.maxShots}`}
           </span>
           <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
+          {timeRemaining !== null && (
+            <span className="stat" data-testid="timer">
+              Time: <span className={timeRemaining <= 5 ? 'timer-warning' : ''}>{
+                timeRemaining > 0 ? `${Math.ceil(timeRemaining)}s` : '0s'
+              }</span>
+            </span>
+          )}
+          {targetMode === 'plates' && plates.length > 0 && (
+            <span className="stat" data-testid="plates-mode">
+              Mode: Plates
+            </span>
+          )}
         </div>
         <div className="reticle-controls">
           <button
@@ -878,6 +1313,47 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
             </div>
           </div>
+          {/* Environment HUD - shows temperature and altitude */}
+          <div className="env-hud" data-testid="env-summary">
+            <div className="env-header">
+              <span>Environment</span>
+            </div>
+            <div className="env-details">
+              {settings.showNumericWind || settings.realismPreset !== 'arcade' ? (
+                <>
+                  <span className="env-temp">Temp: <strong>{levelEnv.temperatureC}°C</strong></span>
+                  <span className="env-alt">Alt: <strong>{levelEnv.altitudeM}m</strong></span>
+                  {settings.realismPreset !== 'arcade' && (
+                    <span className="env-density">ρ: {computedAirDensity.toFixed(3)} kg/m³</span>
+                  )}
+                </>
+              ) : (
+                <span className="env-visual">Std conditions</span>
+              )}
+            </div>
+          </div>
+          
+          {/* Expert Extras Badge - shown when any expert extra is enabled */}
+          {settings.realismPreset === 'expert' && (settings.expertSpinDriftEnabled || settings.expertCoriolisEnabled) && (
+            <div className="expert-extras-badge" data-testid="expert-extras-badge" title="Expert Sim Extras enabled: gameplay approximations for additional challenge">
+              <div className="expert-extras-header">
+                <span>🎯 Expert Extras</span>
+                <span className="expert-extras-status">ON</span>
+              </div>
+              <div className="expert-extras-list">
+                {settings.expertSpinDriftEnabled && (
+                  <span className="expert-extra-item" title="Sim extras: Rightward bullet curve from rotation">
+                    Spin Drift
+                  </span>
+                )}
+                {settings.expertCoriolisEnabled && (
+                  <span className="expert-extra-item" title="Sim extras: Earth rotation-based deflections">
+                    Coriolis
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
       
@@ -974,8 +1450,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       
       <div className="level-info-bar" data-testid="level-info-bar">
         <span>Weapon: {weapon.name}</span>
+        {effectiveAmmo && (
+          <span data-testid="ammo-name">Ammo: {effectiveAmmo.name}</span>
+        )}
         <span>{level.distanceM}m</span>
         <span>Range: {level.difficulty}</span>
+        {targetMode === 'plates' && plates.length > 0 && (
+          <span data-testid="plate-hit-count">
+            Plate Hits: {Object.values(plateHits).reduce((sum, count) => sum + count, 0)}/{impacts.filter(i => i.plateId).length}
+          </span>
+        )}
       </div>
       
       {/* Impact Offset Panel */}
@@ -1025,6 +1509,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerDown}
         />
+        
+        {/* Time's Up Banner */}
+        {timeRemaining === 0 && (
+          <div className="time-up-banner" data-testid="time-up-banner">
+            <h2>Time's Up!</h2>
+            <p>Shooting blocked - press Reset to try again</p>
+          </div>
+        )}
       </div>
       
       {/* Shot History */}

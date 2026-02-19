@@ -10,6 +10,9 @@ export function MainMenu() {
           <Link to="/play" className="menu-button" data-testid="start-button">
             Start Game
           </Link>
+          <Link to="/daily" className="menu-button" data-testid="daily-button">
+            Daily Challenge
+          </Link>
           <Link to="/weapons" className="menu-button" data-testid="weapons-button">
             Weapons
           </Link>
