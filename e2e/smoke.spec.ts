@@ -882,3 +882,44 @@ test('timed level: countdown timer blocks firing when time expires', async ({ pa
     expect(await timeUpBanner.textContent()).toContain("Time's Up!");
   }
 });
+
+test('daily challenge: page shows challenge info and start button', async ({ page }) => {
+  // Navigate to daily challenge page with date override for testing
+  await page.goto('/daily?dateOverride=2026-02-19');
+  
+  // Should show today's date and challenge info
+  const challengeInfo = page.getByTestId('daily-challenge-info');
+  await expect(challengeInfo).toBeVisible();
+  const content = await challengeInfo.textContent();
+  expect(content).toContain('2026');
+  expect(content).toContain('Distance:');
+  expect(content).toContain('Wind:');
+  
+  // Check start button exists
+  const startBtn = page.getByTestId('start-daily-btn');
+  await expect(startBtn).toBeVisible();
+  
+  // Check leaderboard exists
+  const leaderboard = page.getByTestId('leaderboard-list');
+  await expect(leaderboard).toBeVisible();
+});
+
+test('daily challenge: leaderboard reset button works', async ({ page }) => {
+  // Navigate to daily challenge page
+  await page.goto('/daily?dateOverride=2026-02-20');
+  
+  // Click reset button
+  const resetBtn = page.getByTestId('reset-leaderboard-btn');
+  await expect(resetBtn).toBeVisible();
+  await resetBtn.click();
+  
+  // Confirm dialog should appear
+  const yesButton = page.getByText('Yes, Clear All');
+  if (await yesButton.isVisible()) {
+    await yesButton.click();
+  }
+  
+  // Check leaderboard still exists
+  const leaderboard = page.getByTestId('leaderboard-list');
+  await expect(leaderboard).toBeVisible();
+});

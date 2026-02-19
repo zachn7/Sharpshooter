@@ -175,7 +175,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(7); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(8); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -380,7 +380,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '3');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(7); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(8); // Migrates all the way to latest version
       expect(loaded?.turretStates).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -563,7 +563,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '4');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(7); // Migrates to version 7
+      expect(loaded?.version).toBe(8); // Migrates to version 8
       expect(loaded?.zeroProfiles).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });

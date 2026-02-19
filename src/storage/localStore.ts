@@ -1,5 +1,25 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
+
+// Daily Challenge key
+const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
+
+// Daily Challenge result record
+export interface DailyChallengeResult {
+  date: string;            // YYYY-MM-DD format
+  score: number;
+  stars: 0 | 1 | 2 | 3;
+  groupSizeMeters: number; // Precision metric
+  weaponId: string;
+  ammoId: string | null;
+  completedAt: number;     // Timestamp when completed
+}
+
+// Daily Challenge storage
+export interface DailyChallengeStore {
+  results: DailyChallengeResult[]; // List of completed challenges
+  lastPlayed: string | null;       // Last played date (YYYY-MM-DD)
+}
 
 // Turret state (imported type)
 export interface TurretState {
@@ -127,6 +147,14 @@ const MIGRATIONS: Migration[] = [
       ...save,
       version: 7,
       selectedAmmoId: save.selectedAmmoId || {},
+    };
+  },
+  // v7 -> v8: No schema changes needed for daily challenge (separate storage)
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 8,
     };
   },
 ];
@@ -602,4 +630,163 @@ export function setSelectedAmmoId(weaponId: string, ammoId: string): GameSave {
   save.updatedAt = Date.now();
   saveGameSave(save);
   return save;
+}
+
+/**
+ * Generate a deterministic seed from a date string (YYYY-MM-DD)
+ * @param dateStr - Date in YYYY-MM-DD format
+ * @returns Numeric seed for deterministic random generation
+ */
+export function seedFromDate(dateStr: string): number {
+  // Simple string hash for determinism
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    const char = dateStr.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Get today's date string in YYYY-MM-DD format (local timezone)
+ * @param overrideDate - Optional override date string for testing
+ * @returns Today's date string
+ */
+export function getTodayDate(overrideDate?: string): string {
+  if (overrideDate) {
+    return overrideDate;
+  }
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Get daily challenge storage data
+ * @returns Daily challenge store or null if not found
+ */
+export function getDailyChallengeStore(): DailyChallengeStore | null {
+  try {
+    const raw = storage.getItem(DAILY_CHALLENGE_KEY);
+    if (!raw) return null;
+    
+    const data = JSON.parse(raw) as DailyChallengeStore;
+    
+    // Basic validation
+    if (!data.results || !Array.isArray(data.results)) {
+      return null;
+    }
+    
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save daily challenge result
+ * @param result - The result to save
+ */
+export function saveDailyChallengeResult(result: DailyChallengeResult): void {
+  const existing = getDailyChallengeStore() || { results: [], lastPlayed: null };
+  
+  // Remove any existing result for this date (will be replaced with new best)
+  existing.results = existing.results.filter(r => r.date !== result.date);
+  
+  // Add new result
+  existing.results.push(result);
+  existing.lastPlayed = result.date;
+  
+  // Sort by date descending (newest first)
+  existing.results.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  // Keep only last 30 results to prevent storage bloat
+  if (existing.results.length > 30) {
+    existing.results = existing.results.slice(0, 30);
+  }
+  
+  storage.setItem(DAILY_CHALLENGE_KEY, JSON.stringify(existing));
+}
+
+/**
+ * Get best result for a specific date
+ * @param date - Date string in YYYY-MM-DD format
+ * @returns Best result or null if not completed
+ */
+export function getDailyChallengeResult(date: string): DailyChallengeResult | null {
+  const store = getDailyChallengeStore();
+  if (!store) return null;
+  
+  return store.results.find(r => r.date === date) || null;
+}
+
+/**
+ * Get all daily challenge results
+ * @returns Array of all results, sorted by date (newest first)
+ */
+export function getDailyChallengeResults(): DailyChallengeResult[] {
+  const store = getDailyChallengeStore();
+  return store?.results || [];
+}
+
+/**
+ * Clear all daily challenge results
+ */
+export function clearDailyChallengeResults(): void {
+  storage.removeItem(DAILY_CHALLENGE_KEY);
+}
+
+/**
+ * Get personal best score from daily challenge results
+ * @returns Best score, or 0 if no results
+ */
+export function getDailyChallengeBestScore(): number {
+  const results = getDailyChallengeResults();
+  if (results.length === 0) return 0;
+  
+  return Math.max(...results.map(r => r.score));
+}
+
+/**
+ * Get streak count (consecutive days played)
+ * @returns Number of consecutive days played
+ */
+export function getDailyChallengeStreak(): number {
+  const results = getDailyChallengeResults();
+  if (results.length === 0) return 0;
+  
+  const dates = results.map(r => r.date).sort((a, b) => {
+    return new Date(b).getTime() - new Date(a).getTime(); // Newest first
+  });
+  
+  const today = getTodayDate();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+  
+  // Check if played today or yesterday to start streak
+  if (dates[0] !== today && dates[0] !== yesterdayStr) {
+    return 0;
+  }
+  
+  let streak = 1;
+  let currentDate = dates[0];
+  
+  for (let i = 1; i < dates.length; i++) {
+    const prevDay = new Date(currentDate);
+    prevDay.setDate(prevDay.getDate() - 1);
+    const prevDayStr = `${prevDay.getFullYear()}-${String(prevDay.getMonth() + 1).padStart(2, '0')}-${String(prevDay.getDate()).padStart(2, '0')}`;
+    
+    if (dates[i] === prevDayStr) {
+      streak++;
+      currentDate = prevDayStr;
+    } else {
+      break;
+    }
+  }
+  
+  return streak;
 }

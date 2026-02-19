@@ -7,8 +7,8 @@ import { createStandardTarget, calculateRingScore, findHitPlate } from '../utils
 import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
-import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, type TurretState } from '../storage';
+import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
@@ -51,6 +51,70 @@ type ReticleMode = 'simple' | 'mil';
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
+
+/**
+ * Generate a deterministic level config from seed for daily challenge
+ */
+function generateDailyLevelFromSeed(seed: number): Level {
+  // Simple pseudo-random number generator for determinism
+  const rng = (state: number) => {
+    const stateInt = Math.floor(state * 2147483647.0) % 2147483647;
+    const newState = (stateInt * 16807) % 2147483647;
+    return {
+      value: (newState - 1) / 2147483646.0,
+      newState,
+    };
+  };
+  
+  let state = seed % 2147483647;
+  
+  const r1 = rng(state);
+  state = r1.newState;
+  const r2 = rng(state);
+  state = r2.newState;
+  const r3 = rng(state);
+  state = r3.newState;
+  const r4 = rng(state);
+  state = r4.newState;
+  const r5 = rng(state);
+  state = r5.newState;
+  const r6 = rng(state);
+  
+  const distanceM = 50 + Math.floor(Math.pow(r1.value, 0.5) * 250);
+  const wind = (r2.value * 20 - 10) * (r3.value > 0.5 ? 1 : 0);
+  const windMps = Math.round(wind * 10) / 10;
+  const gustMps = windMps !== 0 ? Math.round(r4.value * 50) / 10 : 0;
+  const temperatureC = Math.round(r5.value * 55 - 20);
+  const altitudeM = Math.floor(r6.value * 3000);
+  const targetMode = r6.value < 0.3 ? 'plates' : 'bullseye';
+  
+  // Base star thresholds (will be calculated dynamically)
+  const baseScore = 30; // Expect max score from 3 shots (10 each)
+  
+  return {
+    id: 'daily-challenge',
+    packId: 'daily',
+    name: 'Daily Challenge',
+    description: 'Today\'s unique shooting challenge!',
+    difficulty: 'medium',
+    requiredWeaponType: 'any',
+    distanceM,
+    env: { temperatureC, altitudeM },
+    windMps,
+    gustMps,
+    airDensityKgM3: 1.225, // Will be computed
+    gravityMps2: 9.80665,
+    targetMode,
+    targetScale: 1.0,
+    maxShots: 3,
+    starThresholds: {
+      one: Math.floor(baseScore * 0.5),
+      two: Math.floor(baseScore * 0.75),
+      three: baseScore,
+    },
+    unlocked: true,
+  };
+}
 
 interface GameProps {
   isZeroRange?: boolean;
@@ -97,7 +161,20 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   
   // Load level data
   const levelIdSafe = levelId || DEFAULT_LEVEL_ID;
-  const level = getLevelById(levelIdSafe);
+  
+  // Check for daily challenge
+  const dateOverride = searchParams.get('dateOverride') || undefined;
+  const isDailyChallenge = levelIdSafe === 'daily-challenge';
+  
+  let level: Level | undefined;
+  if (isDailyChallenge) {
+    const seedParam = searchParams.get('seed');
+    const seed = seedParam ? parseInt(seedParam, 10) : seedFromDate(getTodayDate(dateOverride));
+    level = generateDailyLevelFromSeed(seed);
+  } else {
+    level = getLevelById(levelIdSafe);
+  }
+  
   const levelMaxShots = level?.maxShots ?? 3;
   
   // Compute environment data from level env preset or use defaults
@@ -375,9 +452,24 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       setGroupSizeMeters(groupSize);
       setGameState('results');
       
-      // Save progress only for regular levels, not Zero Range
-      if (!isZeroRange) {
-        updateLevelProgress(level.id, finalScore, level.starThresholds);
+      // Save progress for regular levels
+      if (!isZeroRange && level) {
+        if (isDailyChallenge) {
+          // Save daily challenge result
+          const today = getTodayDate(dateOverride);
+          saveDailyChallengeResult({
+            date: today,
+            score: finalScore,
+            stars: stars as 0 | 1 | 2 | 3,
+            groupSizeMeters: groupSize,
+            weaponId,
+            ammoId: getSelectedAmmoId(weaponId),
+            completedAt: Date.now(),
+          });
+        } else {
+          // Save regular level progress
+          updateLevelProgress(level.id, finalScore, level.starThresholds);
+        }
       }
     }
   }, [
@@ -401,6 +493,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     plates,
     targetMode,
     timeRemaining,
+    dateOverride,
+    isDailyChallenge,
+    weaponId,
   ]);
 
   // Start level handler
