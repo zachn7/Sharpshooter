@@ -41,6 +41,10 @@ export interface Level {
   airDensityKgM3: number;      // Air density (default 1.225 at sea level)
   gravityMps2: number;         // Gravity (default 9.80665)
   
+  // Advanced sim parameters (for Expert extras)
+  headingDegrees?: number;     // Shooting direction (0-360°, 0=North, 90=East) - for Coriolis
+  latitudeDegrees?: number;    // Shooting latitude (°, default 45°) - for Coriolis
+  
   // Target configuration
   targetMode?: TargetMode;     // Target mode: 'bullseye' or 'plates' (default 'bullseye')
   targets?: PlateTarget[];     // Individual targets for 'plates' mode

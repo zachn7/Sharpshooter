@@ -604,6 +604,58 @@ body {
   margin-top: 0.25rem;
 }
 
+/* Expert Extras Badge */
+.expert-extras-badge {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #6a1b9a 0%, #4a148c 100%);
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  box-shadow: 0 2px 8px rgba(106, 27, 154, 0.3);
+}
+
+.expert-extras-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+.expert-extras-status {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.expert-extras-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.expert-extra-item {
+  background: rgba(255, 255, 255, 0.15);
+  color: #e1bee7;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: help;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.expert-extra-item:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 /* Turret HUD */
 .turret-hud {
   background: rgba(15, 52, 96, 0.9);

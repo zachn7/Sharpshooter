@@ -923,3 +923,72 @@ test('daily challenge: leaderboard reset button works', async ({ page }) => {
   const leaderboard = page.getByTestId('leaderboard-list');
   await expect(leaderboard).toBeVisible();
 });
+
+test('Expert extras: settings page shows toggles only in Expert preset', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  
+  // Expert extras section should not be visible in Arcade/Realistic modes
+  const expertSection = page.getByTestId('expert-extras-section');
+  await expect(expertSection).not.toBeVisible();
+  
+  // Switch to Expert preset
+  await page.getByTestId('preset-expert').click();
+  
+  // Expert extras section should now be visible
+  await expect(expertSection).toBeVisible();
+  
+  // Toggles should be present and OFF by default
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toBeVisible();
+  await expect(page.getByTestId('toggle-expert-coriolis')).toBeVisible();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('OFF');
+  await expect(page.getByTestId('toggle-expert-coriolis')).toHaveText('OFF');
+  
+  // Enable spin drift
+  await page.getByTestId('toggle-expert-spin-drift').click();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('ON');
+});
+
+test('Expert extras: HUD badge visible when extras enabled', async ({ page }) => {
+  // First, enable Expert extras via settings
+  await page.goto('/settings');
+  await page.getByTestId('preset-expert').click();
+  await page.getByTestId('toggle-expert-spin-drift').click();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('ON');
+  
+  // Start a level with Expert preset and extras enabled
+  await page.goto('/game/pistol-calm?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Start the level to show HUD
+  await page.getByTestId('start-level').click();
+  
+  // Expert extras badge should be visible
+  const badge = page.getByTestId('expert-extras-badge');
+  await expect(badge).toBeVisible();
+  
+  // Check badge content
+  const badgeText = await badge.textContent();
+  expect(badgeText).toContain('Expert Extras');
+  expect(badgeText).toContain('ON');
+  expect(badgeText).toContain('Spin Drift');
+});
+
+test('Expert extras: HUD badge not visible when Expert extras disabled', async ({ page }) => {
+  // Set Expert preset but keep extras disabled
+  await page.goto('/settings');
+  await page.getByTestId('preset-expert').click();
+  await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('OFF');
+  await expect(page.getByTestId('toggle-expert-coriolis')).toHaveText('OFF');
+  
+  // Start a level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  
+  // Start the level to show HUD
+  await page.getByTestId('start-level').click();
+  
+  // Expert extras badge should NOT be visible
+  const badge = page.getByTestId('expert-extras-badge');
+  await expect(badge).not.toBeVisible();
+});

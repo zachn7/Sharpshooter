@@ -4,7 +4,7 @@ import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore, findHitPlate } from '../utils/scoring';
-import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT } from '../physics';
+import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT, calculateExpertEffects, hasExpertExtras, type ExpertEffectsParams } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
@@ -361,6 +361,26 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       }
     );
 
+    // Apply Expert Sim Extras (Spin Drift + Coriolis)
+    // These are gameplay approximations applied AFTER basic ballistics
+    // but BEFORE dispersion, as they affect the center of aim
+    let expertEffectY = 0;
+    let expertEffectZ = 0;
+    if (hasExpertExtras()) {
+      const expertParams: ExpertEffectsParams = {
+        timeOfFlightS: result.timeOfFlightS,
+        headingDegrees: level.headingDegrees || 0, // Default to North
+        latitudeDegrees: level.latitudeDegrees || 45, // Default to mid-latitude
+      };
+      const expertEffects = calculateExpertEffects(
+        expertParams,
+        settings.expertSpinDriftEnabled,
+        settings.expertCoriolisEnabled
+      );
+      expertEffectY = expertEffects.dY_M;
+      expertEffectZ = expertEffects.dZ_M;
+    }
+
     // Apply weapon precision dispersion (from aggregated params)
     // Generate base seed from level ID + weapon + ammo for determinism
     const baseSeed = stringHash(level.id + weapon.id + (effectiveAmmo?.id || ''));
@@ -372,10 +392,10 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       shotSeed
     );
 
-    // Apply dispersion AFTER ballistic calculation
-    // Wind/drag affects center of aim, dispersion adds scatter around that point
-    const finalImpactY = result.impactY_M + dispersion.dY; // Apply vertical dispersion
-    const finalImpactZ = result.impactZ_M + dispersion.dZ; // Apply horizontal dispersion
+    // Apply dispersion and expert effects AFTER ballistic calculation
+    // Wind/drag + expert effects affect center of aim, dispersion adds scatter around that point
+    const finalImpactY = result.impactY_M + expertEffectY + dispersion.dY; // Apply expert effects and vertical dispersion
+    const finalImpactZ = result.impactZ_M + expertEffectZ + dispersion.dZ; // Apply expert effects and horizontal dispersion
 
     // Convert physics impact back to world coordinates
     const impactX = WORLD_WIDTH / 2 + finalImpactZ;
@@ -496,6 +516,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     dateOverride,
     isDailyChallenge,
     weaponId,
+    settings.expertSpinDriftEnabled,
+    settings.expertCoriolisEnabled,
   ]);
 
   // Start level handler
@@ -1145,6 +1167,28 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               )}
             </div>
           </div>
+          
+          {/* Expert Extras Badge - shown when any expert extra is enabled */}
+          {settings.realismPreset === 'expert' && (settings.expertSpinDriftEnabled || settings.expertCoriolisEnabled) && (
+            <div className="expert-extras-badge" data-testid="expert-extras-badge" title="Expert Sim Extras enabled: gameplay approximations for additional challenge">
+              <div className="expert-extras-header">
+                <span>🎯 Expert Extras</span>
+                <span className="expert-extras-status">ON</span>
+              </div>
+              <div className="expert-extras-list">
+                {settings.expertSpinDriftEnabled && (
+                  <span className="expert-extra-item" title="Sim extras: Rightward bullet curve from rotation">
+                    Spin Drift
+                  </span>
+                )}
+                {settings.expertCoriolisEnabled && (
+                  <span className="expert-extra-item" title="Sim extras: Earth rotation-based deflections">
+                    Coriolis
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
       

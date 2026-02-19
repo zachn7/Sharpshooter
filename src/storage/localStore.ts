@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 // Daily Challenge key
 const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
@@ -61,6 +61,8 @@ export interface GameSettings {
   showHud: boolean;
   showNumericWind: boolean; // Show numeric wind values (arcade default true, others false)
   zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
+  expertSpinDriftEnabled: boolean; // Enable spin drift simulation (Expert only, off by default)
+  expertCoriolisEnabled: boolean; // Enable Coriolis effect simulation (Expert only, off by default)
 }
 
 // Complete game save data
@@ -95,6 +97,10 @@ const MIGRATIONS: Migration[] = [
         showShotTrace: false,
         showMilOffset: false,
         showHud: true,
+        showNumericWind: false,
+        zeroRangeShotLimitMode: 'unlimited',
+        expertSpinDriftEnabled: false,
+        expertCoriolisEnabled: false,
       },
     };
   },
@@ -155,6 +161,19 @@ const MIGRATIONS: Migration[] = [
     return {
       ...save,
       version: 8,
+    };
+  },
+  // v8 -> v9: Add expert sim extras settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 9,
+      settings: {
+        ...save.settings,
+        expertSpinDriftEnabled: save.settings.expertSpinDriftEnabled ?? false,
+        expertCoriolisEnabled: save.settings.expertCoriolisEnabled ?? false,
+      },
     };
   },
 ];
@@ -242,6 +261,8 @@ function createDefaultSave(): GameSave {
       showHud: true,
       showNumericWind: false, // Default to false for realistic preset
       zeroRangeShotLimitMode: 'unlimited',
+      expertSpinDriftEnabled: false, // Expert extras off by default
+      expertCoriolisEnabled: false, // Expert extras off by default
     },
     turretStates: {},
     zeroProfiles: {},

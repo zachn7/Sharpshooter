@@ -213,6 +213,51 @@ export function Settings() {
           </div>
         </div>
 
+        {/* Expert Sim Extras Section */}
+        {settings.realismPreset === 'expert' && (
+          <div className="settings-section" data-testid="expert-extras-section">
+            <h3>Expert Sim Extras</h3>
+            <p className="setting-description">
+              Advanced simulation effects for additional challenge. These are gameplay approximations, not real-world guidance.
+            </p>
+            <div className="settings-list">
+              <div className="setting-item">
+                <div className="setting-info">
+                  <span className="setting-label">Spin Drift</span>
+                  <span className="setting-sublabel">
+                    Sim extras: Add rightward bullet curve from rotation
+                  </span>
+                </div>
+                <button
+                  className={`toggle-button ${settings.expertSpinDriftEnabled ? 'on' : 'off'}`}
+                  onClick={() => handleToggleChange('expertSpinDriftEnabled')}
+                  data-testid="toggle-expert-spin-drift"
+                  aria-pressed={settings.expertSpinDriftEnabled}
+                >
+                  {settings.expertSpinDriftEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-info">
+                  <span className="setting-label">Coriolis Effect</span>
+                  <span className="setting-sublabel">
+                    Sim extras: Add Earth rotation-based deflections
+                  </span>
+                </div>
+                <button
+                  className={`toggle-button ${settings.expertCoriolisEnabled ? 'on' : 'off'}`}
+                  onClick={() => handleToggleChange('expertCoriolisEnabled')}
+                  data-testid="toggle-expert-coriolis"
+                  aria-pressed={settings.expertCoriolisEnabled}
+                >
+                  {settings.expertCoriolisEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Zero Distance Section */}
         <div className="settings-section" data-testid="zeroing-section">
           <h3>Zero Settings</h3>

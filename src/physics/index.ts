@@ -12,6 +12,16 @@ export {
   getEnvironmentPreset
 } from './atmosphere';
 
+export {
+  calculateExpertEffects,
+  calculateSpinDrift,
+  calculateCoriolis,
+  hasExpertExtras,
+  getExpertExtrasDescription,
+  type ExpertEffectsResult,
+  type ExpertEffectsParams,
+} from './expertEffects';
+
 /**
  * Sign conventions for the physics engine are documented in './conventions.ts'
  * All coordinate systems follow:
