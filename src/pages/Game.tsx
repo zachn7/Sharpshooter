@@ -12,6 +12,7 @@ import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismSc
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
+import { AudioManager, initAudioOnInteraction, isTestMode as audioIsTestMode } from '../audio';
 import {
   stringHash,
   combineSeed,
@@ -288,11 +289,19 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   );
 
   // Pointer down handler (fire shot)
-  const handlePointerDown = useCallback(() => {
+  const handlePointerDown = useCallback(async () => {
     if (shotCount <= 0 || !level || !weapon || gameState !== 'running') return;
     
     // Check timer - block firing if time is up
     if (timeRemaining === 0) return;
+
+    // Initialize audio on first user interaction
+    if (!audioIsTestMode()) {
+      await initAudioOnInteraction();
+    }
+
+    // Play shot sound
+    AudioManager.playSound('shot');
 
     // Convert reticle world position to physics aim coordinates (meters from target center)
     const aimX_M = (recticlePosition.x - WORLD_WIDTH / 2);
@@ -428,6 +437,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     } else {
       // Bullseye mode: standard ring scoring
       score = calculateRingScore({ x: impactX, y: impactY }, targetConfig);
+
+      // Play bullseye sound for perfect shots (10 points)
+      if (!audioIsTestMode() && score === 10) {
+        AudioManager.playSound('bullseye');
+      }
+    }
+
+    // Play hit sound for successful shots (score > 0 and not a bullseye which already has its own sound)
+    if (!audioIsTestMode() && score > 0 && score !== 10) {
+      AudioManager.playSound('hit');
     }
 
     const impact: Impact = {
@@ -521,12 +540,20 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   ]);
 
   // Start level handler
-  const handleStartLevel = useCallback(() => {
+  const handleStartLevel = useCallback(async () => {
+    // Initialize audio on button click (user gesture)
+    if (!audioIsTestMode()) {
+      await initAudioOnInteraction();
+      AudioManager.playSound('click');
+    }
     setGameState('running');
   }, []);
 
   // Turret adjustment handlers
   const handleElevationAdjust = useCallback((direction: 1 | -1) => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const newElevation = nextClickValue(turretState.elevationMils, direction, 0.1);
     const newTurretState = { ...turretState, elevationMils: newElevation };
     setTurretState(newTurretState);
@@ -534,6 +561,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }, [turretState, weaponId]);
 
   const handleWindageAdjust = useCallback((direction: 1 | -1) => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const newWindage = nextClickValue(turretState.windageMils, direction, 0.1);
     const newTurretState = { ...turretState, windageMils: newWindage };
     setTurretState(newTurretState);
@@ -541,6 +571,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }, [turretState, weaponId]);
 
   const handleResetTurret = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const newTurretState = { elevationMils: 0.0, windageMils: 0.0 };
     setTurretState(newTurretState);
     updateTurretState(weaponId, newTurretState);
@@ -611,6 +644,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   // Retry level handler
   const handleRetry = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     setImpacts([]);
     setShotCount(maxShots);
     setTotalScore(0);
@@ -632,6 +668,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   // Next level handler
   const handleNextLevel = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     const next = getNextLevel();
     if (next) {
       setImpacts([]);
@@ -647,6 +686,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   // Back to levels handler
   const handleBack = useCallback(() => {
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
     navigate('/levels');
   }, [navigate]);
 

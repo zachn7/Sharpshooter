@@ -60,6 +60,29 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleAudioVolumeChange = (value: number) => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      audio: {
+        ...settings.audio,
+        masterVolume: value,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleAudioToggleChange = (key: 'isMuted' | 'reducedAudio') => {
+    if (!settings) return;
+    const currentValue = settings.audio[key];
+    const updated = updateGameSettings({
+      audio: {
+        ...settings.audio,
+        [key]: !currentValue,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
   const handleZeroDistanceChange = async (distance: number) => {
     setZeroDistance(distance as ZeroDistanceOption);
     
@@ -257,6 +280,64 @@ export function Settings() {
             </div>
           </div>
         )}
+
+        {/* Audio Settings Section */}
+        <div className="settings-section" data-testid="audio-section">
+          <h3>Audio</h3>
+          <p className="setting-description">
+            Customize sound effects volume and preferences.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Master Volume</span>
+                <span className="setting-sublabel">All sound effects</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={settings.audio.masterVolume}
+                onChange={(e) => handleAudioVolumeChange(Number(e.target.value))}
+                disabled={settings.audio.isMuted}
+                className="volume-slider"
+                data-testid="master-volume"
+                aria-label="Master volume"
+              />
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Mute</span>
+                <span className="setting-sublabel">Disable all sounds</span>
+              </div>
+              <button
+                className={`toggle-button ${settings.audio.isMuted ? 'on' : 'off'}`}
+                onClick={() => handleAudioToggleChange('isMuted')}
+                data-testid="toggle-audio-mute"
+                aria-pressed={settings.audio.isMuted}
+              >
+                {settings.audio.isMuted ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reduced Audio</span>
+                <span className="setting-sublabel">Quieter sound effects</span>
+              </div>
+              <button
+                className={`toggle-button ${settings.audio.reducedAudio ? 'on' : 'off'}`}
+                onClick={() => handleAudioToggleChange('reducedAudio')}
+                data-testid="toggle-reduced-audio"
+                aria-pressed={settings.audio.reducedAudio}
+              >
+                {settings.audio.reducedAudio ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Zero Distance Section */}
         <div className="settings-section" data-testid="zeroing-section">

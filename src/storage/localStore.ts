@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 // Daily Challenge key
 const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
@@ -53,6 +53,13 @@ export type RealismPreset = 'arcade' | 'realistic' | 'expert';
 // Zero Range shot limit mode
 export type ZeroRangeShotLimitMode = 'unlimited' | 'three';
 
+// Audio settings
+export interface AudioSettings {
+  masterVolume: number; // 0.0 to 1.0
+  isMuted: boolean;
+  reducedAudio: boolean; // Quieter sounds
+}
+
 // Game settings
 export interface GameSettings {
   realismPreset: RealismPreset;
@@ -63,6 +70,7 @@ export interface GameSettings {
   zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
   expertSpinDriftEnabled: boolean; // Enable spin drift simulation (Expert only, off by default)
   expertCoriolisEnabled: boolean; // Enable Coriolis effect simulation (Expert only, off by default)
+  audio: AudioSettings; // Audio settings
 }
 
 // Complete game save data
@@ -101,6 +109,11 @@ const MIGRATIONS: Migration[] = [
         zeroRangeShotLimitMode: 'unlimited',
         expertSpinDriftEnabled: false,
         expertCoriolisEnabled: false,
+        audio: {
+          masterVolume: 0.5,
+          isMuted: false,
+          reducedAudio: false,
+        },
       },
     };
   },
@@ -173,6 +186,22 @@ const MIGRATIONS: Migration[] = [
         ...save.settings,
         expertSpinDriftEnabled: save.settings.expertSpinDriftEnabled ?? false,
         expertCoriolisEnabled: save.settings.expertCoriolisEnabled ?? false,
+      },
+    };
+  },
+  // v9 -> v10: Add audio settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 10,
+      settings: {
+        ...save.settings,
+        audio: save.settings.audio ?? {
+          masterVolume: 0.5,
+          isMuted: false,
+          reducedAudio: false,
+        },
       },
     };
   },
@@ -263,6 +292,11 @@ function createDefaultSave(): GameSave {
       zeroRangeShotLimitMode: 'unlimited',
       expertSpinDriftEnabled: false, // Expert extras off by default
       expertCoriolisEnabled: false, // Expert extras off by default
+      audio: {
+        masterVolume: 0.5,
+        isMuted: false,
+        reducedAudio: false,
+      },
     },
     turretStates: {},
     zeroProfiles: {},
