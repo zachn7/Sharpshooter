@@ -12,6 +12,7 @@ export interface WeaponParams {
   dragFactor: number;            // Gameplay-tunable drag coefficient (combined with air density)
   defaultOptic: OpticType;       // Default optic type
   recoilRecoveryMs: number;      // Time to recover from recoil (for future use)
+  precisionMoaAt100: number;     // 3-shot group precision at 100 yards in MOA (lower = more accurate)
 }
 
 // Weapon entry in catalog
@@ -39,6 +40,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.00003,
       defaultOptic: 'iron-sights',
       recoilRecoveryMs: 200,
+      precisionMoaAt100: 3.0,
     },
     unlocked: true,
   },
@@ -54,6 +56,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.000025,
       defaultOptic: 'red-dot',
       recoilRecoveryMs: 150,
+      precisionMoaAt100: 1.5,
     },
     unlocked: true,
   },
@@ -69,6 +72,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.000035,
       defaultOptic: 'iron-sights',
       recoilRecoveryMs: 300,
+      precisionMoaAt100: 4.0,
     },
     unlocked: true,
   },
@@ -86,6 +90,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.00002,
       defaultOptic: 'red-dot',
       recoilRecoveryMs: 100,
+      precisionMoaAt100: 2.5,
     },
     unlocked: true,
   },
@@ -101,6 +106,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.000018,
       defaultOptic: 'scope-4x',
       recoilRecoveryMs: 80,
+      precisionMoaAt100: 2.0,
     },
     unlocked: true,
   },
@@ -116,6 +122,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.00002,
       defaultOptic: 'scope-4x',
       recoilRecoveryMs: 150,
+      precisionMoaAt100: 2.5,
     },
     unlocked: true,
   },
@@ -133,6 +140,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.000019,
       defaultOptic: 'scope-8x',
       recoilRecoveryMs: 200,
+      precisionMoaAt100: 1.5,
     },
     unlocked: true,
   },
@@ -148,6 +156,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.000018,
       defaultOptic: 'scope-12x',
       recoilRecoveryMs: 250,
+      precisionMoaAt100: 1.0,
     },
     unlocked: true,
   },
@@ -163,6 +172,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.000015,
       defaultOptic: 'scope-12x',
       recoilRecoveryMs: 400,
+      precisionMoaAt100: 1.5,
     },
     unlocked: true,
   },
@@ -180,6 +190,7 @@ export const WEAPONS_CATALOG: Weapon[] = [
       dragFactor: 0.00008,
       defaultOptic: 'iron-sights',
       recoilRecoveryMs: 350,
+      precisionMoaAt100: 10.0,
     },
     unlocked: true,
   },

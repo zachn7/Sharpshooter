@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 // Turret state (imported type)
 export interface TurretState {
@@ -30,12 +30,17 @@ export interface LevelProgress {
 // Realism presets
 export type RealismPreset = 'arcade' | 'realistic' | 'expert';
 
+// Zero Range shot limit mode
+export type ZeroRangeShotLimitMode = 'unlimited' | 'three';
+
 // Game settings
 export interface GameSettings {
   realismPreset: RealismPreset;
   showShotTrace: boolean;
   showMilOffset: boolean;
   showHud: boolean;
+  showNumericWind: boolean; // Show numeric wind values (arcade default true, others false)
+  zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
 }
 
 // Complete game save data
@@ -88,6 +93,30 @@ const MIGRATIONS: Migration[] = [
       ...save,
       version: 4,
       zeroProfiles: save.zeroProfiles || {},
+    };
+  },
+  // v4 -> v5: Add zeroRangeShotLimitMode to settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 5,
+      settings: save.settings ? {
+        ...save.settings,
+        zeroRangeShotLimitMode: save.settings.zeroRangeShotLimitMode || 'unlimited',
+      } : save.settings,
+    };
+  },
+  // v5 -> v6: Add showNumericWind to settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 6,
+      settings: save.settings ? {
+        ...save.settings,
+        showNumericWind: save.settings.showNumericWind ?? false, // Default to false
+      } : save.settings,
     };
   },
 ];
@@ -172,6 +201,8 @@ function createDefaultSave(): GameSave {
       showShotTrace: false,
       showMilOffset: false,
       showHud: true,
+      showNumericWind: false, // Default to false for realistic preset
+      zeroRangeShotLimitMode: 'unlimited',
     },
     turretStates: {},
     zeroProfiles: {},
@@ -518,4 +549,21 @@ export function hasTutorialBeenSeen(tutorialId: string): boolean {
  */
 export function clearTutorialsSeen(): void {
   storage.removeItem(TUTORIALS_KEY);
+}
+
+/**
+ * Get zero range shot limit mode
+ * @returns Current shot limit mode for Zero Range
+ */
+export function getZeroRangeShotLimitMode(): ZeroRangeShotLimitMode {
+  const settings = getGameSettings();
+  return settings.zeroRangeShotLimitMode || 'unlimited';
+}
+
+/**
+ * Set zero range shot limit mode
+ * @param mode - New shot limit mode
+ */
+export function setZeroRangeShotLimitMode(mode: ZeroRangeShotLimitMode): void {
+  updateGameSettings({ zeroRangeShotLimitMode: mode });
 }

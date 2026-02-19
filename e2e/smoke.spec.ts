@@ -53,9 +53,8 @@ test('level run flow: complete level and see results', async ({ page }) => {
   await page.waitForURL('**/levels');
   await expect(page.getByTestId('levels-page')).toBeVisible();
 
-  // Select first level (should be unlocked)
-  await page.getByTestId('level-pistol-calm').click();
-  await page.waitForURL('**/game/pistol-calm');
+  // Navigate directly to game page with testMode enabled (disables sway/recoil)
+  await page.goto('/game/pistol-calm?testMode=1');
   await expect(page.getByTestId('game-page')).toBeVisible();
 
   // Should see level briefing
@@ -86,6 +85,13 @@ test('level run flow: complete level and see results', async ({ page }) => {
   await expect(page.getByText('Mission Complete')).toBeVisible();
   await expect(page.getByTestId('total-score')).toBeVisible();
   await expect(page.getByTestId('stars-earned')).toBeVisible();
+
+  // Verify group size is displayed (requires 2+ shots)
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSizeText = await page.getByTestId('group-size').textContent();
+  expect(groupSizeText).toContain('Group Size:');
+  expect(groupSizeText).toContain('cm');
+  expect(groupSizeText).toContain('MILs');
 
   // Verify result elements are present
   await expect(page.getByTestId('retry-button')).toBeVisible();
@@ -407,6 +413,84 @@ test('zeroing profile: save and return to zero', async ({ page }) => {
   await expect(page.getByTestId('windage-value')).toHaveText('+0.2');
 });
 
+test('zero range: shot limit mode toggle persists', async ({ page }) => {
+  // Start fresh
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+
+  // Go to zero range
+  await page.goto('/zero-range');
+  await expect(page.getByTestId('zero-range-page')).toBeVisible();
+  await expect(page.getByTestId('zero-range-controls')).toBeVisible();
+
+  // Default should be unlimited mode
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (∞)');
+  await expect(page.getByTestId('zero-shot-limit-toggle')).toHaveText('Switch to 3-Shot Mode');
+
+  // Verify shot count shows infinity
+  const shotCount = page.getByTestId('shot-count');
+  await expect(shotCount).toContainText('Shots: ∞');
+
+  // Toggle to 3-shot mode
+  await page.getByTestId('zero-shot-limit-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Should now show 3-shot mode
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (3)');
+  await expect(page.getByTestId('zero-shot-limit-toggle')).toHaveText('Switch to Unlimited Mode');
+
+  // Verify shot count shows remaining shots
+  await expect(shotCount).toContainText('Shots: 3/');
+
+  // Fire a shot to verify counter decrements
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  await expect(shotCount).toContainText('Shots: 2/5');
+
+  // Toggle back to unlimited mode (should still have fired the shot)
+  await page.getByTestId('zero-shot-limit-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Should show infinity again
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (∞)');
+  await expect(shotCount).toContainText('Shots: ∞');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  await expect(page.getByTestId('zero-range-page')).toBeVisible();
+
+  // Should still be in unlimited mode after refresh
+  await expect(page.getByTestId('zero-mode-label')).toContainText('Practice (∞)');
+  await expect(shotCount).toContainText('Shots: ∞');
+
+  // Toggle to 3-shot mode again
+  await page.getByTestId('zero-shot-limit-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Fire all 3 shots
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // After 3 shots should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+
+  // Results screen should NOT show stars (zero range doesn't save progress)
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  // Stars-earned element should NOT be present in zero range results
+  const starsEarned = page.getByTestId('stars-earned');
+  const isVisible = await starsEarned.count();
+  expect(isVisible).toBe(0); // No stars in zero range
+});
+
 test('impact offset readout and arcade assist', async ({ page }) => {
   // Start fresh
   await page.goto('/');
@@ -466,4 +550,158 @@ test('impact offset readout and arcade assist', async ({ page }) => {
   // Values should be different from original unless shot was dead center
   const hasChanged = newElevation !== originalElevation || newWindage !== originalWindage;
   expect(hasChanged).toBe(true);
+});
+
+test('dispersion: deterministic with seed', async ({ page }) => {
+  // Test that the same seed produces the same group size
+  await page.goto('/game/pistol-calm?seed=99999&testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Fire all shots at center
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  // Get group size
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSize1 = await page.getByTestId('group-size').textContent();
+  
+  // Go back and try again with the same seed
+  await page.getByTestId('retry-button').click();
+  await page.getByTestId('start-level').click();
+  
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  const groupSize2 = await page.getByTestId('group-size').textContent();
+  
+  // Group sizes should be identical with the same seed
+  expect(groupSize1).toBe(groupSize2);
+});
+
+test('dispersion: scales with weapon precision', async ({ page }) => {
+  // Test that less precise weapons have larger group sizes
+  const baseSeed = 12345;
+  
+  // Test with training pistol (3.0 MOA)
+  await page.goto(`/weapons`);
+  await page.getByTestId('weapon-pistol-training').click();
+  await page.goto(`/game/pistol-calm?seed=${baseSeed}&testMode=1`);
+  await page.getByTestId('start-level').click();
+  
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSizeTrainingText = await page.getByTestId('group-size').textContent();
+  const trainingCm = parseFloat(groupSizeTrainingText?.match(/Group Size: ([\d.]+) cm/)?.[1] || '0');
+  
+  // Test with competition pistol (1.5 MOA - more precise)
+  await page.goto('/weapons');
+  await page.getByTestId('weapon-pistol-competition').click();
+  await page.goto(`/game/pistol-calm?seed=${baseSeed}&testMode=1`);
+  await page.getByTestId('start-level').click();
+  
+  if (box) {
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    }
+  }
+  
+  await expect(page.getByTestId('group-size')).toBeVisible();
+  const groupSizeCompetitionText = await page.getByTestId('group-size').textContent();
+  const competitionCm = parseFloat(groupSizeCompetitionText?.match(/Group Size: ([\d.]+) cm/)?.[1] || '0');
+  
+  // Competition pistol (more precise) should have smaller group
+  expect(competitionCm).toBeLessThan(trainingCm);
+});
+
+test('wind visibility: numeric wind hidden in realistic, visible in arcade', async ({ page }) => {
+  // Go to settings and change to Realistic preset
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+  
+  // Select Realistic preset
+  await page.getByText('Realistic').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // In Realistic mode, numeric wind should be hidden by default
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).not.toBeAttached();
+  
+  // Go back to settings
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  
+  // Change to Arcade preset
+  await page.getByText('Arcade').click();
+  
+  // Navigate to game level again
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // In Arcade mode, numeric wind should be visible by default
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).toBeVisible();
+});
+
+test('wind visibility: toggle overrides preset default', async ({ page }) => {
+  // Go to settings and change to Realistic preset
+  await page.goto('/settings');
+  await page.getByText('Realistic').click();
+  
+  // Enable numeric wind toggle (override default)
+  await page.getByTestId('toggle-show-numeric-wind').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Numeric wind should be visible because toggle overrides preset
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).toBeVisible();
+  
+  // Go back and disable toggle
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  await page.getByTestId('toggle-show-numeric-wind').click();
+  
+  // Change to Arcade preset (default is to show)
+  await page.getByText('Arcade').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Numeric wind should still be visible because toggle allows it
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).toBeVisible();
+  
+  // Disable toggle in Arcade
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  await page.getByTestId('toggle-show-numeric-wind').click();
+  
+  // Navigate to game level
+  await page.goto('/game/pistol-calm?testMode=1');
+  await page.getByTestId('start-level').click();
+  
+  // Now numeric wind should be hidden because toggle is off
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
+  await expect(page.getByTestId('wind-numeric')).not.toBeAttached();
 });

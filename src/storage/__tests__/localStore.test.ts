@@ -21,6 +21,8 @@ import {
   saveZeroProfile,
   deleteZeroProfile,
   getZeroDistance,
+  getZeroRangeShotLimitMode,
+  setZeroRangeShotLimitMode,
   type TurretState,
   type ZeroProfile,
   CURRENT_SCHEMA_VERSION,
@@ -49,6 +51,8 @@ describe('localStore', () => {
           showShotTrace: false,
           showMilOffset: false,
           showHud: true,
+          showNumericWind: false,
+          zeroRangeShotLimitMode: 'unlimited',
         },
         turretStates: {},
         zeroProfiles: {},
@@ -168,8 +172,9 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(4); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(6); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
+      expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
   });
 
@@ -361,6 +366,7 @@ describe('localStore', () => {
           showShotTrace: false,
           showMilOffset: false,
           showHud: true,
+          showNumericWind: false,
         },
         turretStates: {},
         createdAt: Date.now(),
@@ -371,8 +377,9 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '3');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(4); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(6); // Migrates all the way to latest version
       expect(loaded?.turretStates).toEqual({});
+      expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
   });
 
@@ -531,8 +538,8 @@ describe('localStore', () => {
         },
       };
 
-      const v3Save = {
-        version: 3,
+      const v4Save = {
+        version: 4,
         selectedWeaponId: 'pistol-training',
         levelProgress: {},
         unlockedWeapons: ['pistol-training'],
@@ -541,18 +548,21 @@ describe('localStore', () => {
           showShotTrace: false,
           showMilOffset: false,
           showHud: true,
+          showNumericWind: false,
         },
         turretStates: {},
+        zeroProfiles: {},
         createdAt: Date.now(),
         updatedAt: Date.now(),
-      };
+      } as Record<string, unknown>;  // Old version object, not full GameSave
 
-      localStorageMock.setItem('sharpshooter_save', JSON.stringify(v3Save));
-      localStorageMock.setItem('sharpshooter_schema_version', '3');
+      localStorageMock.setItem('sharpshooter_save', JSON.stringify(v4Save));
+      localStorageMock.setItem('sharpshooter_schema_version', '4');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(4);
+      expect(loaded?.version).toBe(6); // Migrates to version 6
       expect(loaded?.zeroProfiles).toEqual({});
+      expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
   });
 
@@ -570,6 +580,54 @@ describe('localStore', () => {
       
       expect(turret.elevationMils).toBe(1.0);
       expect(profile?.zeroElevationMils).toBe(2.0);
+    });
+  });
+
+  describe('zero range shot limit mode', () => {
+    it('returns default unrestricted mode for new save', () => {
+      const mode = getZeroRangeShotLimitMode();
+      expect(mode).toBe('unlimited');
+    });
+
+    it('sets zero range shot limit mode to three', () => {
+      setZeroRangeShotLimitMode('three');
+      const mode = getZeroRangeShotLimitMode();
+      expect(mode).toBe('three');
+    });
+
+    it('sets zero range shot limit mode to unlimited', () => {
+      setZeroRangeShotLimitMode('three');
+      setZeroRangeShotLimitMode('unlimited');
+      const mode = getZeroRangeShotLimitMode();
+      expect(mode).toBe('unlimited');
+    });
+
+    it('persists zero range mode across function calls', () => {
+      setZeroRangeShotLimitMode('three');
+      const mode1 = getZeroRangeShotLimitMode();
+      const mode2 = getZeroRangeShotLimitMode();
+      expect(mode1).toBe('three');
+      expect(mode2).toBe('three');
+    });
+
+    it('zero range mode persists alongside other settings', () => {
+      setZeroRangeShotLimitMode('three');
+      updateGameSettings({ realismPreset: 'expert' });
+
+      const mode = getZeroRangeShotLimitMode();
+      const preset = getGameSettings().realismPreset;
+
+      expect(mode).toBe('three');
+      expect(preset).toBe('expert');
+    });
+
+    it('zero range mode persists after resetting', () => {
+      setZeroRangeShotLimitMode('three');
+      setZeroRangeShotLimitMode('unlimited');
+      setZeroRangeShotLimitMode('three');
+
+      const mode = getZeroRangeShotLimitMode();
+      expect(mode).toBe('three');
     });
   });
 });

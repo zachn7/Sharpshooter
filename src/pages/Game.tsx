@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore } from '../utils/scoring';
@@ -10,6 +11,22 @@ import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismSc
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
+import {
+  stringHash,
+  combineSeed,
+  sampleRadialOffset,
+  calculateGroupSize,
+  metersToMils as dispersionMetersToMils,
+} from '../physics/dispersion';
+import {
+  calculateSwayOffset,
+  calculateRecoilImpulse,
+  updateRecoilDecay,
+  combineOffsets,
+  isTestModeEnabled,
+  type RecoilState,
+} from '../physics/sway';
+import { drawWindCues } from '../physics/windCues';
 
 interface Impact {
   x: number;
@@ -21,6 +38,9 @@ interface Impact {
   // Offset from target center in mils (for aiming correction)
   elevationMils: number; // Positive = shot is high
   windageMils: number;  // Positive = shot is right
+  // Dispersion offsets from weapon precision (in meters)
+  dispersionY: number; // Vertical dispersion (up positive)
+  dispersionZ: number; // Horizontal dispersion (right positive)
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -29,9 +49,17 @@ type ReticleMode = 'simple' | 'mil';
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
 
-export function Game() {
+interface GameProps {
+  isZeroRange?: boolean;
+  shotLimitMode?: ZeroRangeShotLimitMode;
+}
+
+export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameProps = {}) {
   const { levelId } = useParams<{ levelId?: string }>();
   const [searchParams] = useSearchParams();
+  
+  // Check for test mode (disables sway/recoil for deterministic E2E)
+  const isTestMode = isTestModeEnabled(searchParams);
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,6 +69,10 @@ export function Game() {
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
+  const [groupSizeMeters, setGroupSizeMeters] = useState(0);
+  
+  // Sway and recoil state
+  const [recoilState, setRecoilState] = useState<RecoilState | null>(null);
   
   // Reticle state
   const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
@@ -63,7 +95,12 @@ export function Game() {
   // Load level data
   const levelIdSafe = levelId || DEFAULT_LEVEL_ID;
   const level = getLevelById(levelIdSafe);
-  const maxShots = level?.maxShots ?? 3;
+  const levelMaxShots = level?.maxShots ?? 3;
+  
+  // For Zero Range, use the shot limit mode setting
+  const maxShots = isZeroRange
+    ? (shotLimitMode === 'three' ? 3 : Number.MAX_SAFE_INTEGER)
+    : levelMaxShots;
   const [shotCount, setShotCount] = useState(maxShots);
   
   // Load weapon data
@@ -130,6 +167,35 @@ export function Game() {
       level.distanceM
     );
 
+    // Calculate sway offset (continuous hand movement)
+    // Only apply if not in test mode (for deterministic E2E testing)
+    const swayOffset = isTestMode 
+      ? { y: 0, z: 0 } 
+      : calculateSwayOffset(
+          performance.now() / 1000, // Convert to seconds
+          settings.realismPreset,
+          weapon.type,
+          magnification
+        );
+
+    // Calculate current recoil offset (if any)
+    // Only apply if not in test mode
+    let recoilOffset = { y: 0, z: 0 };
+    if (!isTestMode && recoilState) {
+      recoilOffset = { y: recoilState.offsetY, z: recoilState.offsetZ };
+    }
+
+    // Combine sway and recoil offsets
+    const totalOffset = combineOffsets(swayOffset, recoilOffset);
+
+    // Convert offsets from MILs to meters at target distance
+    const offsetY_Meters = (totalOffset.y * level.distanceM) / 1000;
+    const offsetZ_Meters = (totalOffset.z * level.distanceM) / 1000;
+
+    // Apply combined offset to aim
+    const finalAimY_M = adjustedAim.aimY_M + offsetY_Meters;
+    const finalAimZ_M = adjustedAim.aimZ_M + offsetZ_Meters;
+
     // Run physics simulation with level and weapon parameters
     // Apply realism scaling based on preset
     const scaledDragFactor = weapon.params.dragFactor * dragScale;
@@ -141,8 +207,8 @@ export function Game() {
         distanceM: level.distanceM,
         muzzleVelocityMps: weapon.params.muzzleVelocityMps,
         dragFactor: scaledDragFactor,
-        aimY_M: adjustedAim.aimY_M,
-        aimZ_M: adjustedAim.aimZ_M,
+        aimY_M: finalAimY_M,
+        aimZ_M: finalAimZ_M,
         dtS: 0.002,
       },
       {
@@ -154,13 +220,29 @@ export function Game() {
       }
     );
 
+    // Apply weapon precision dispersion
+    // Generate base seed from level ID for determinism
+    const baseSeed = stringHash(level.id + weapon.id);
+    // Combine with test seed and shot number for per-shot randomness
+    const shotSeed = combineSeed(baseSeed + testSeed, impacts.length);
+    const dispersion = sampleRadialOffset(
+      level.distanceM,
+      weapon.params.precisionMoaAt100,
+      shotSeed
+    );
+
+    // Apply dispersion AFTER ballistic calculation
+    // Wind/drag affects center of aim, dispersion adds scatter around that point
+    const finalImpactY = result.impactY_M + dispersion.dY; // Apply vertical dispersion
+    const finalImpactZ = result.impactZ_M + dispersion.dZ; // Apply horizontal dispersion
+
     // Convert physics impact back to world coordinates
-    const impactX = WORLD_WIDTH / 2 + result.impactZ_M;
-    const impactY = WORLD_HEIGHT / 2 - result.impactY_M;
+    const impactX = WORLD_WIDTH / 2 + finalImpactZ;
+    const impactY = WORLD_HEIGHT / 2 - finalImpactY;
 
     // Compute offset from target center in mils
-    const elevationMils = metersToMils(level.distanceM, result.impactY_M);
-    const windageMils = metersToMils(level.distanceM, result.impactZ_M);
+    const elevationMils = metersToMils(level.distanceM, finalImpactY);
+    const windageMils = metersToMils(level.distanceM, finalImpactZ);
 
     const impact: Impact = {
       x: impactX,
@@ -171,6 +253,8 @@ export function Game() {
       index: impacts.length + 1,
       elevationMils,
       windageMils,
+      dispersionY: dispersion.dY,
+      dispersionZ: dispersion.dZ,
     };
 
     const newImpacts = [...impacts, impact];
@@ -178,19 +262,52 @@ export function Game() {
     const newShotCount = shotCount - 1;
     setShotCount(newShotCount);
     
+    // Trigger recoil impulse if not in test mode
+    if (!isTestMode && gameState === 'running') {
+      const impulse = calculateRecoilImpulse(settings.realismPreset, weapon.type);
+      setRecoilState(impulse);
+    }
+    
     // Check if level is complete
     if (newShotCount === 0) {
       const finalScore = newImpacts.reduce((sum, i) => sum + i.score, 0);
       const stars = level ? calculateStars(finalScore, level.starThresholds) : 0;
       
+      // Calculate group size (maximum spread between any two shots)
+      const dispersionOffsets = newImpacts.map(impact => ({
+        dY: impact.dispersionY,
+        dZ: impact.dispersionZ,
+      }));
+      const groupSize = calculateGroupSize(dispersionOffsets);
+      
       setTotalScore(finalScore);
       setEarnedStars(stars);
+      setGroupSizeMeters(groupSize);
       setGameState('results');
       
-      // Save progress
-      updateLevelProgress(level.id, finalScore, level.starThresholds);
+      // Save progress only for regular levels, not Zero Range
+      if (!isZeroRange) {
+        updateLevelProgress(level.id, finalScore, level.starThresholds);
+      }
     }
-  }, [recticlePosition, shotCount, level, weapon, impacts, targetConfig, gameState, testSeed, dragScale, windScale, turretState]);
+  }, [
+    recticlePosition,
+    shotCount,
+    level,
+    weapon,
+    impacts,
+    targetConfig,
+    gameState,
+    testSeed,
+    dragScale,
+    windScale,
+    turretState,
+    isZeroRange,
+    isTestMode,
+    settings.realismPreset,
+    magnification,
+    recoilState,
+  ]);
 
   // Start level handler
   const handleStartLevel = useCallback(() => {
@@ -276,6 +393,8 @@ export function Game() {
     setShotCount(maxShots);
     setTotalScore(0);
     setEarnedStars(0);
+    setGroupSizeMeters(0);
+    setRecoilState(null);
     setGameState('running');
   }, [maxShots]);
 
@@ -285,6 +404,8 @@ export function Game() {
     setShotCount(maxShots);
     setTotalScore(0);
     setEarnedStars(0);
+    setGroupSizeMeters(0);
+    setRecoilState(null);
     setGameState('briefing');
   }, [maxShots]);
 
@@ -306,6 +427,8 @@ export function Game() {
       setShotCount(next.maxShots);
       setTotalScore(0);
       setEarnedStars(0);
+      setGroupSizeMeters(0);
+      setRecoilState(null);
       setGameState('briefing');
       navigate(`/game/${next.id}`);
     }
@@ -316,7 +439,39 @@ export function Game() {
     navigate('/levels');
   }, [navigate]);
 
+  // Update recoil decay over time
+  useEffect(() => {
+    if (gameState !== 'running') return;
 
+    let lastTime = performance.now();
+
+    const updateLoop = () => {
+      const now = performance.now();
+      const dtS = (now - lastTime) / 1000; // Convert to seconds
+      lastTime = now;
+
+      // Update recoil decay using functional state update
+      setRecoilState(prevRecoil => {
+        if (!prevRecoil) return null;
+        
+        const decayed = updateRecoilDecay(prevRecoil, dtS);
+        const newRecoilState = {
+          offsetY: decayed.y,
+          offsetZ: decayed.z,
+          decayRate: prevRecoil.decayRate,
+        };
+
+        // Check if recoil has fully decayed (very small values)
+        if (Math.abs(newRecoilState.offsetY) < 0.001 && Math.abs(newRecoilState.offsetZ) < 0.001) {
+          return null;
+        }
+        return newRecoilState;
+      });
+    };
+
+    const intervalId = setInterval(updateLoop, 16); // ~60 FPS
+    return () => clearInterval(intervalId);
+  }, [gameState]);
 
   // Drawing loop
   useEffect(() => {
@@ -338,49 +493,23 @@ export function Game() {
         canvasHeight: canvasSize.height,
       };
 
-      // Draw wind flags (visual indicator)
-      if (level && (level.windMps !== 0 || level.gustMps > 0)) {
-        const flagY = canvasSize.height * 0.15;
-        const flagScale = Math.min(canvasSize.width, canvasSize.height) / 800;
+      // Draw wind cues (flags and mirage) if there's any wind
+      if (level && (level.windMps !== 0 || level.gustMps > 0) && settings.showHud) {
+        // Get the wind used for the most recent shot, or use baseline/gust for visual cues
+        // Use baseline wind for visual indicator, scaled by realism preset
+        const visualWind = level.windMps * windScale;
+        const timeS = performance.now() / 1000;
         
-        // Draw 2 wind flags
-        [0.15, 0.85].forEach((relX, _idx) => {
-          const flagX = canvasSize.width * relX;
-          
-          // Determine wind direction and strength
-          const baselineWind = level.windMps;
-          const maxWind = Math.abs(baselineWind) + level.gustMps;
-          const windStrength = Math.min(maxWind / 15, 1); // Normalize 0-1 for visual
-          
-          // Flag pole
-          ctx.strokeStyle = '#666';
-          ctx.lineWidth = 2 * flagScale;
-          ctx.beginPath();
-          ctx.moveTo(flagX, canvasSize.height * 0.05);
-          ctx.lineTo(flagX, flagY);
-          ctx.stroke();
-          
-          // Flag size based on wind strength
-          const flagLength = 30 * flagScale * (0.5 + 0.5 * windStrength);
-          const flagHeight = 20 * flagScale;
-          
-          // Flag color based on wind direction (positive=right, negative=left)
-          ctx.fillStyle = baselineWind >= 0 ? '#4a9eff' : '#ff6b4a';
-          ctx.beginPath();
-          ctx.moveTo(flagX, flagY);
-          
-          // Curved flag based on wind direction
-          const windDirection = baselineWind >= 0 ? 1 : -1;
-          const controlX1 = flagX + windDirection * flagLength * 0.5;
-          const controlY1 = flagY - flagHeight * 0.3;
-          const controlX2 = flagX + windDirection * flagLength * 0.7;
-          const controlY2 = flagY + flagHeight * 0.3;
-          const endX = flagX + windDirection * flagLength;
-          
-          ctx.quadraticCurveTo(controlX1, controlY1, endX, controlY2);
-          ctx.quadraticCurveTo(controlX2, flagY + flagHeight * 0.5, flagX, flagY + flagHeight);
-          ctx.fill();
-        });
+        drawWindCues(
+          ctx,
+          visualWind,
+          timeS,
+          canvasSize.width,
+          canvasSize.height,
+          WORLD_WIDTH,
+          WORLD_HEIGHT,
+          true // Show mirage
+        );
       }
 
       // Draw target rings (scaled by level.targetScale)
@@ -515,7 +644,17 @@ export function Game() {
 
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  }, [canvasSize, impacts, targetConfig, recticlePosition, level, magnification, reticleMode]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    canvasSize,
+    impacts,
+    targetConfig,
+    recticlePosition,
+    level,
+    magnification,
+    reticleMode,
+    settings.showHud,
+  ]);
 
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
@@ -544,8 +683,14 @@ export function Game() {
               
               <div className="briefing-section">
                 <h4>Wind Conditions</h4>
-                <p>Baseline: {level.windMps} m/s</p>
-                {level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                {settings.showNumericWind ? (
+                  <>
+                    <p>Baseline: {level.windMps} m/s</p>
+                    {level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                  </>
+                ) : (
+                  <p>Visual indicators only (flags + mirage)</p>
+                )}
               </div>
               
               <div className="briefing-section">
@@ -594,17 +739,25 @@ export function Game() {
                 <span className="score-value" data-testid="total-score">{totalScore}</span>
               </div>
               
-              <div className="stars-display">
-                <span className="score-label">Stars Earned</span>
-                <span className="stars-value" data-testid="stars-earned">
-                  {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
-                </span>
-              </div>
+              {!isZeroRange && (
+                <div className="stars-display">
+                  <span className="score-label">Stars Earned</span>
+                  <span className="stars-value" data-testid="stars-earned">
+                    {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
+                  </span>
+                </div>
+              )}
             </div>
             
             <div className="results-summary">
               <p>Shots fired: {level.maxShots}</p>
               <p>Weapon: {weapon?.name}</p>
+              {impacts.length >= 2 && (
+                <p data-testid="group-size">
+                  Group Size: {(groupSizeMeters * 100).toFixed(1)} cm
+                  ({dispersionMetersToMils(groupSizeMeters, level.distanceM).toFixed(1)} MILs)
+                </p>
+              )}
             </div>
             
             <div className="results-actions">
@@ -673,7 +826,9 @@ export function Game() {
         <h2>{level.name}</h2>
         <div className="game-stats">
           <span className="stat" data-testid="shot-count">
-            Shots: {shotCount}/{level.maxShots}
+            {isZeroRange && shotLimitMode === 'unlimited'
+              ? 'Shots: ∞'
+              : `Shots: ${shotCount}/${level.maxShots}`}
           </span>
           <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
         </div>
@@ -703,7 +858,7 @@ export function Game() {
       
       {/* Wind HUD Panel */}
       {level && settings.showHud && (
-        <div className="wind-hud" data-testid="wind-hud">
+        <div className="wind-hud" data-testid="wind-cues">
           <div className="wind-display">
             <div className="wind-header">
               <span>Wind</span>
@@ -712,8 +867,14 @@ export function Game() {
               </div>
             </div>
             <div className="wind-details">
-              <span className="wind-baseline">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
-              <span className="wind-gust">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+              {settings.showNumericWind ? (
+                <>
+                  <span className="wind-baseline" data-testid="wind-numeric">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
+                  <span className="wind-gust" data-testid="wind-numeric">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+                </>
+              ) : (
+                <span className="wind-visual">Visual cues only</span>
+              )}
               {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
             </div>
           </div>
