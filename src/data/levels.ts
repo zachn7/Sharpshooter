@@ -1,6 +1,12 @@
 // Level difficulty tiers
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
+// Environment preset for level
+export interface LevelEnvironment {
+  temperatureC: number;        // Temperature in Celsius (default 15°C)
+  altitudeM: number;           // Altitude in meters (default 0m = sea level)
+}
+
 // Level configuration
 export interface Level {
   id: string;
@@ -16,6 +22,7 @@ export interface Level {
   distanceM: number;           // Target distance in meters
   
   // Environmental parameters
+  env?: LevelEnvironment;      // Optional environment preset
   windMps: number;             // Base crosswind speed (m/s, + = left-to-right)
   gustMps: number;             // Gust variation range (+/-)
   airDensityKgM3: number;      // Air density (default 1.225 at sea level)
@@ -108,6 +115,7 @@ export const LEVELS: Level[] = [
     difficulty: 'easy',
     requiredWeaponType: 'pistol',
     distanceM: 25,
+    env: { temperatureC: 15, altitudeM: 0 },
     windMps: 0,
     gustMps: 0,
     airDensityKgM3: 1.225,
@@ -405,6 +413,7 @@ export const LEVELS: Level[] = [
     difficulty: 'medium',
     requiredWeaponType: 'sniper',
     distanceM: 300,
+    env: { temperatureC: 10, altitudeM: 2000 }, // Mountain shooting
     windMps: 2,
     gustMps: 0,
     airDensityKgM3: 1.225,
@@ -458,6 +467,7 @@ export const LEVELS: Level[] = [
     difficulty: 'expert',
     requiredWeaponType: 'any',
     distanceM: 250,
+    env: { temperatureC: -15, altitudeM: 1500 }, // Cold, high altitude
     windMps: 12,
     gustMps: 6,
     airDensityKgM3: 1.225,

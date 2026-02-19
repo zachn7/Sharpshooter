@@ -4,7 +4,7 @@ import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore } from '../utils/scoring';
-import { simulateShotToDistance, computeFinalShotParams } from '../physics';
+import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
@@ -97,6 +97,10 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const levelIdSafe = levelId || DEFAULT_LEVEL_ID;
   const level = getLevelById(levelIdSafe);
   const levelMaxShots = level?.maxShots ?? 3;
+  
+  // Compute environment data from level env preset or use defaults
+  const levelEnv = level?.env || DEFAULT_ENVIRONMENT;
+  const computedAirDensity = level ? computeAirDensity(levelEnv) : 1.225;
   
   // For Zero Range, use the shot limit mode setting
   const maxShots = isZeroRange
@@ -223,7 +227,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       {
         windMps: scaledWindMps,
         gustMps: scaledGustMps,
-        airDensityKgM3: level.airDensityKgM3,
+        airDensityKgM3: computedAirDensity, // Use computed air density from env
         gravityMps2: level.gravityMps2,
         seed: testSeed + shotCount, // Each shot gets a different deterministic seed
       }
@@ -316,6 +320,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     magnification,
     recoilState,
     effectiveAmmo,
+    computedAirDensity,
   ]);
 
   // Start level handler
@@ -885,6 +890,25 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 <span className="wind-visual">Visual cues only</span>
               )}
               {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
+            </div>
+          </div>
+          {/* Environment HUD - shows temperature and altitude */}
+          <div className="env-hud" data-testid="env-summary">
+            <div className="env-header">
+              <span>Environment</span>
+            </div>
+            <div className="env-details">
+              {settings.showNumericWind || settings.realismPreset !== 'arcade' ? (
+                <>
+                  <span className="env-temp">Temp: <strong>{levelEnv.temperatureC}°C</strong></span>
+                  <span className="env-alt">Alt: <strong>{levelEnv.altitudeM}m</strong></span>
+                  {settings.realismPreset !== 'arcade' && (
+                    <span className="env-density">ρ: {computedAirDensity.toFixed(3)} kg/m³</span>
+                  )}
+                </>
+              ) : (
+                <span className="env-visual">Std conditions</span>
+              )}
             </div>
           </div>
         </div>
