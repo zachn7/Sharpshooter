@@ -4,10 +4,11 @@ import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore } from '../utils/scoring';
-import { simulateShotToDistance } from '../physics';
+import { simulateShotToDistance, computeFinalShotParams } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
+import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, type TurretState } from '../storage';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
@@ -106,6 +107,13 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Load weapon data
   const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
   
+  // Load selected ammo for weapon
+  const selectedAmmoId = getSelectedAmmoId(weaponId);
+  const selectedAmmo = selectedAmmoId ? getAmmoById(selectedAmmoId) : null;
+  
+  // If no ammo selected, try to get match grade for weapon type as fallback
+  const effectiveAmmo = selectedAmmo || (weapon ? getAmmoByWeaponType(weapon.type).find(a => a.name.includes('Match')) || null : null);
+  
   // Target configuration based on level's targetScale
   const targetConfig = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
@@ -196,17 +204,18 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const finalAimY_M = adjustedAim.aimY_M + offsetY_Meters;
     const finalAimZ_M = adjustedAim.aimZ_M + offsetZ_Meters;
 
-    // Run physics simulation with level and weapon parameters
-    // Apply realism scaling based on preset
-    const scaledDragFactor = weapon.params.dragFactor * dragScale;
+    // Compute final shot parameters (weapon + ammo + realism preset)
+    const finalParams = computeFinalShotParams(weapon, effectiveAmmo, settings.realismPreset);
+    
+    // Run physics simulation with aggregated parameters
     const scaledWindMps = level.windMps * windScale;
     const scaledGustMps = level.gustMps * windScale;
     
     const result = simulateShotToDistance(
       {
         distanceM: level.distanceM,
-        muzzleVelocityMps: weapon.params.muzzleVelocityMps,
-        dragFactor: scaledDragFactor,
+        muzzleVelocityMps: finalParams.muzzleVelocityMps,
+        dragFactor: finalParams.dragFactor,
         aimY_M: finalAimY_M,
         aimZ_M: finalAimZ_M,
         dtS: 0.002,
@@ -220,14 +229,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       }
     );
 
-    // Apply weapon precision dispersion
-    // Generate base seed from level ID for determinism
-    const baseSeed = stringHash(level.id + weapon.id);
+    // Apply weapon precision dispersion (from aggregated params)
+    // Generate base seed from level ID + weapon + ammo for determinism
+    const baseSeed = stringHash(level.id + weapon.id + (effectiveAmmo?.id || ''));
     // Combine with test seed and shot number for per-shot randomness
     const shotSeed = combineSeed(baseSeed + testSeed, impacts.length);
     const dispersion = sampleRadialOffset(
       level.distanceM,
-      weapon.params.precisionMoaAt100,
+      (finalParams.dispersionGroupSizeM / 91.44) * 60, // Convert meters back to MOA
       shotSeed
     );
 
@@ -262,9 +271,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const newShotCount = shotCount - 1;
     setShotCount(newShotCount);
     
-    // Trigger recoil impulse if not in test mode
+    // Trigger recoil impulse if not in test mode (use aggregated params)
     if (!isTestMode && gameState === 'running') {
-      const impulse = calculateRecoilImpulse(settings.realismPreset, weapon.type);
+      const impulse = calculateRecoilImpulse(settings.realismPreset, weapon.type, finalParams.recoilImpulseMils);
       setRecoilState(impulse);
     }
     
@@ -299,7 +308,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     targetConfig,
     gameState,
     testSeed,
-    dragScale,
     windScale,
     turretState,
     isZeroRange,
@@ -307,6 +315,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     settings.realismPreset,
     magnification,
     recoilState,
+    effectiveAmmo,
   ]);
 
   // Start level handler
@@ -974,6 +983,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       
       <div className="level-info-bar" data-testid="level-info-bar">
         <span>Weapon: {weapon.name}</span>
+        {effectiveAmmo && (
+          <span data-testid="ammo-name">Ammo: {effectiveAmmo.name}</span>
+        )}
         <span>{level.distanceM}m</span>
         <span>Range: {level.difficulty}</span>
       </div>

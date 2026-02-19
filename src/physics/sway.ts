@@ -105,11 +105,13 @@ export function calculateSwayOffset(
  * 
  * @param preset - Realism preset
  * @param weaponType - Weapon type
+ * @param customAmplitudeMils - Optional custom amplitude (from ammo modifiers)
  * @returns Recoil state with initial offset and decay rate
  */
 export function calculateRecoilImpulse(
   preset: RealismPreset,
-  weaponType: WeaponType
+  weaponType: WeaponType,
+  customAmplitudeMils?: number
 ): RecoilState {
   // Base recoil amplitude in MILs
   const RECOIL_AMPLITUDE: Record<RealismPreset, Record<WeaponType, number>> = {
@@ -140,8 +142,13 @@ export function calculateRecoilImpulse(
     expert: 2.0,    // Slow recovery
   };
   
-  const amplitude = RECOIL_AMPLITUDE[preset][weaponType];
+  let amplitude = RECOIL_AMPLITUDE[preset][weaponType];
   const decayRate = RECOIL_DECAY_RATE[preset];
+  
+  // Apply custom amplitude from ammo modifiers if provided
+  if (customAmplitudeMils !== undefined) {
+    amplitude = customAmplitudeMils;
+  }
   
   // Recoil kicks up and mostly upward (vertical component larger)
   return {

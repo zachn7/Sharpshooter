@@ -705,3 +705,79 @@ test('wind visibility: toggle overrides preset default', async ({ page }) => {
   await expect(page.getByTestId('wind-cues')).toBeVisible();
   await expect(page.getByTestId('wind-numeric')).not.toBeAttached();
 });
+
+test('ammo variants: select weapon + ammo -> start level -> HUD shows ammo name', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to weapons page
+  await page.getByTestId('weapons-button').click();
+  await page.waitForURL('**/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Select a weapon (should expand ammo selector)
+  await page.getByTestId('weapon-pistol-training').click();
+  await expect(page.getByTestId('ammo-selector-pistol-training')).toBeVisible();
+
+  // Select an ammo variant
+  await page.getByTestId('ammo-option-pistol-budget').click();
+
+  // The selected ammo should have the checkmark
+  await expect(page.getByTestId('ammo-option-pistol-budget')).toContainText('✓');
+
+  // Navigate to a level with test mode enabled
+  await page.goto('/game/pistol-calm?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+  await expect(page.getByTestId('level-briefing')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Level info bar should display the selected ammo name
+  const levelInfoBar = page.getByTestId('level-info-bar');
+  await expect(levelInfoBar).toBeVisible();
+  
+  // Check that ammo name is displayed
+  const ammoNameElement = page.getByTestId('ammo-name');
+  await expect(ammoNameElement).toBeVisible();
+  expect(await ammoNameElement.textContent()).toContain('Budget FMJ');
+
+  // Fire a shot to ensure physics works with selected ammo
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Should see impact marker
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+});
+
+test('ammo variants persists selection across page navigation', async ({ page }) => {
+  // Navigate to weapons page
+  await page.goto('/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Switch to rifle tab
+  await page.getByTestId('tab-rifle').click();
+
+  // Select weapon and ammo
+  await page.getByTestId('weapon-rifle-assault').click();
+  await expect(page.getByTestId('ammo-selector-rifle-assault')).toBeVisible();
+  await page.getByTestId('ammo-option-rifle-heavy').click();
+
+  // Verify selection
+  await expect(page.getByTestId('ammo-option-rifle-heavy')).toContainText('✓');
+
+  // Navigate away and back
+  await page.goto('/');
+  await page.goto('/weapons');
+
+  // Navigate back to weapons and verify selection persists
+  await page.getByTestId('tab-rifle').click();
+  await page.getByTestId('weapon-rifle-assault').click();
+  await expect(page.getByTestId('ammo-selector-rifle-assault')).toBeVisible();
+  await expect(page.getByTestId('ammo-option-rifle-heavy')).toContainText('✓');
+});

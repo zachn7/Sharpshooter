@@ -24,6 +24,8 @@ export {
   getZeroDistance,
   getZeroRangeShotLimitMode,
   setZeroRangeShotLimitMode,
+  getSelectedAmmoId,
+  setSelectedAmmoId,
   getTutorialsSeen,
   markTutorialSeen,
   hasTutorialBeenSeen,

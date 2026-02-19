@@ -1,5 +1,7 @@
 export { simulateShotToDistance, type Vec3, type BallisticsEnv, type BallisticsShot, type ShotResult } from './ballistics';
 
+export { computeFinalShotParams, type FinalShotParams } from './ammo';
+
 /**
  * Sign conventions for the physics engine are documented in './conventions.ts'
  * All coordinate systems follow:

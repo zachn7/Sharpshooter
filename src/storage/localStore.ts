@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 // Turret state (imported type)
 export interface TurretState {
@@ -52,6 +52,7 @@ export interface GameSave {
   settings: GameSettings;
   turretStates: Record<string, TurretState>; // Per-weapon turret state
   zeroProfiles: Record<string, ZeroProfile>; // Per-weapon zero profiles
+  selectedAmmoId: Record<string, string>; // Per-weapon selected ammo
   createdAt: number;
   updatedAt: number;
 }
@@ -119,6 +120,15 @@ const MIGRATIONS: Migration[] = [
       } : save.settings,
     };
   },
+  // v6 -> v7: Add selectedAmmoId field with empty defaults
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 7,
+      selectedAmmoId: save.selectedAmmoId || {},
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -165,6 +175,7 @@ function validateGameSave(data: unknown): data is GameSave {
     typeof save.settings === 'object' &&
     typeof save.turretStates === 'object' &&
     typeof save.zeroProfiles === 'object' &&
+    typeof save.selectedAmmoId === 'object' &&
     typeof save.createdAt === 'number' &&
     typeof save.updatedAt === 'number'
   );
@@ -206,6 +217,7 @@ function createDefaultSave(): GameSave {
     },
     turretStates: {},
     zeroProfiles: {},
+    selectedAmmoId: {},
     createdAt: now,
     updatedAt: now,
   };
@@ -566,4 +578,28 @@ export function getZeroRangeShotLimitMode(): ZeroRangeShotLimitMode {
  */
 export function setZeroRangeShotLimitMode(mode: ZeroRangeShotLimitMode): void {
   updateGameSettings({ zeroRangeShotLimitMode: mode });
+}
+
+/**
+ * Get selected ammo ID for a specific weapon
+ * @param weaponId - The weapon ID
+ * @returns Selected ammo ID, or null if none selected
+ */
+export function getSelectedAmmoId(weaponId: string): string | null {
+  const save = loadGameSave();
+  return save?.selectedAmmoId?.[weaponId] || null;
+}
+
+/**
+ * Set selected ammo ID for a specific weapon
+ * @param weaponId - The weapon ID
+ * @param ammoId - The ammo ID to select
+ * @returns Updated game save
+ */
+export function setSelectedAmmoId(weaponId: string, ammoId: string): GameSave {
+  const save = getOrCreateGameSave();
+  save.selectedAmmoId[weaponId] = ammoId;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return save;
 }

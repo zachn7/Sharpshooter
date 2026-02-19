@@ -23,6 +23,8 @@ import {
   getZeroDistance,
   getZeroRangeShotLimitMode,
   setZeroRangeShotLimitMode,
+  getSelectedAmmoId,
+  setSelectedAmmoId,
   type TurretState,
   type ZeroProfile,
   CURRENT_SCHEMA_VERSION,
@@ -56,6 +58,7 @@ describe('localStore', () => {
         },
         turretStates: {},
         zeroProfiles: {},
+        selectedAmmoId: {},
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -172,7 +175,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(6); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(7); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -377,7 +380,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '3');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(6); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(7); // Migrates all the way to latest version
       expect(loaded?.turretStates).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -560,7 +563,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '4');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(6); // Migrates to version 6
+      expect(loaded?.version).toBe(7); // Migrates to version 7
       expect(loaded?.zeroProfiles).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -628,6 +631,75 @@ describe('localStore', () => {
 
       const mode = getZeroRangeShotLimitMode();
       expect(mode).toBe('three');
+    });
+  });
+
+  describe('selectedAmmoId', () => {
+    beforeEach(() => {
+      clearSaveData();
+    });
+
+    it('returns null for weapon without selected ammo', () => {
+      const ammoId = getSelectedAmmoId('pistol-training');
+      expect(ammoId).toBeNull();
+    });
+
+    it('sets and retrieves selected ammo for weapon', () => {
+      setSelectedAmmoId('pistol-training', 'pistol-match');
+      const ammoId = getSelectedAmmoId('pistol-training');
+      expect(ammoId).toBe('pistol-match');
+    });
+
+    it('persists ammo selection across function calls', () => {
+      setSelectedAmmoId('rifle-assault', 'rifle-budget');
+      const ammoId1 = getSelectedAmmoId('rifle-assault');
+      const ammoId2 = getSelectedAmmoId('rifle-assault');
+      
+      expect(ammoId1).toBe('rifle-budget');
+      expect(ammoId2).toBe('rifle-budget');
+    });
+
+    it('maintains separate ammo selections per weapon', () => {
+      setSelectedAmmoId('pistol-training', 'pistol-match');
+      setSelectedAmmoId('rifle-assault', 'rifle-budget');
+      setSelectedAmmoId('sniper-bolt', 'sniper-heavy');
+      
+      expect(getSelectedAmmoId('pistol-training')).toBe('pistol-match');
+      expect(getSelectedAmmoId('rifle-assault')).toBe('rifle-budget');
+      expect(getSelectedAmmoId('sniper-bolt')).toBe('sniper-heavy');
+    });
+
+    it('saves ammo selection in game save', () => {
+      setSelectedAmmoId('pistol-training', 'pistol-light');
+      
+      const save = getOrCreateGameSave();
+      expect(save.selectedAmmoId['pistol-training']).toBe('pistol-light');
+    });
+
+    it('updates timestamp when setting ammo', () => {
+      const before = getOrCreateGameSave();
+      setSelectedAmmoId('pistol-training', 'pistol-heavy');
+      
+      const save = getOrCreateGameSave();
+      expect(save.updatedAt).toBeGreaterThanOrEqual(before.updatedAt);
+    });
+
+    it('persists after clearing and reloading', () => {
+      setSelectedAmmoId('rifle-assault', 'rifle-match');
+      
+      const ammoIdBefore = getSelectedAmmoId('rifle-assault');
+      const ammoIdAfterReload = getSelectedAmmoId('rifle-assault');
+      
+      expect(ammoIdBefore).toBe('rifle-match');
+      expect(ammoIdAfterReload).toBe('rifle-match');
+    });
+
+    it('overwrites previous ammo selection for weapon', () => {
+      setSelectedAmmoId('pistol-training', 'pistol-match');
+      setSelectedAmmoId('pistol-training', 'pistol-budget');
+      
+      const ammoId = getSelectedAmmoId('pistol-training');
+      expect(ammoId).toBe('pistol-budget');
     });
   });
 });
