@@ -692,7 +692,13 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const draw = () => {
+    // Track start time for frame-rate independent animations
+    const startTime = performance.now();
+
+    const draw = (timestamp: number) => {
+      // Calculate time in seconds for animations (frame-rate independent)
+      const timeS = (timestamp - startTime) / 1000;
+      
       // Clear canvas
       ctx.fillStyle = '#1a1a2e';
       ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
@@ -709,7 +715,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         // Get the wind used for the most recent shot, or use baseline/gust for visual cues
         // Use baseline wind for visual indicator, scaled by realism preset
         const visualWind = level.windMps * windScale;
-        const timeS = performance.now() / 1000;
         
         drawWindCues(
           ctx,
@@ -900,6 +905,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       requestAnimationFrame(draw);
     };
 
+    // Start the animation loop with initial timestamp
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
