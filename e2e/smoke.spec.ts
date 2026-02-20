@@ -1281,6 +1281,68 @@ test('mobile controls: fire button not visible when disabled', async ({ page }) 
   await expect(fireButton).not.toBeVisible();
 });
 
+test('shotgun: multi-impacts rendering', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to weapons to select shotgun
+  await page.getByTestId('weapons-button').click();
+  await page.waitForURL('**/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Click shotgun tab
+  await expect(page.getByTestId('tab-shotgun')).toBeVisible();
+  await page.getByTestId('tab-shotgun').click();
+
+  // Select the pump action shotgun
+  await expect(page.getByTestId('weapon-shotgun-pump')).toBeVisible();
+  await page.getByTestId('weapon-shotgun-pump').click();
+
+  // Go back to menu
+  await page.getByTestId('back-button').first().click();
+  await page.waitForURL('/');
+
+  // Navigate to levels and select a pistol level (close range works for shotgun)
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Select a pistol level (close range works for shotgun)
+  await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
+  await page.getByTestId('level-pistol-calm').click();
+
+  // Wait for game to load
+  await page.waitForURL('/game/pistol-calm');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Fire a shot
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Wait for shot to register
+  await page.waitForTimeout(300);
+
+  // Verify shot history shows shotgun multi-impacts indicator
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+  const shotRow1 = page.getByTestId('shot-row-1');
+  
+  // Check that it has the shotgun multi-impacts indicator
+  // This is done by checking for the data-testid attribute
+  const firstShotId = await shotRow1.getAttribute('data-testid');
+  expect(firstShotId).toBe('shotgun-multi-impacts');
+  
+  // Verify the pellet count is displayed
+  await expect(shotRow1.getByText(/🔫/)).toBeVisible();
+});
+
 test('mobile controls: turret controls support press-and-hold', async ({ page }) => {
   // Navigate to game page and start a level
   await page.goto('/game/pistol-windy?testMode=1');

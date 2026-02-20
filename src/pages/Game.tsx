@@ -13,6 +13,7 @@ import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSe
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
+import { samplePelletImpacts, type ShotgunPatternConfig, type PelletImpact } from '../physics/shotgun';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { RangeCard } from '../components/RangeCard';
 import { ReplayViewer } from '../components/ReplayViewer';
@@ -52,6 +53,8 @@ interface Impact {
   dispersionZ: number; // Horizontal dispersion (right positive)
   // Plate hit information (for plates mode)
   plateId?: string;    // ID of the plate that was hit (if any)
+  // Shotgun pellet pattern (for shotgun weapons)
+  pellets?: Array<{ x: number; y: number; score: number }>; // Individual pellet impacts and scores
 }
 
 type GameState = 'briefing' | 'running' | 'results';
@@ -487,8 +490,75 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     // Calculate score based on target mode
     let score: number;
     let plateId: string | undefined;
+    let shotgunPellets: Array<{ x: number; y: number; score: number }> | undefined;
     
-    if (targetMode === 'plates' && plates.length > 0) {
+    // Check if weapon is shotgun and generate pellet pattern
+    if (weapon.type === 'shotgun') {
+      // Shotgun: generate pellet pattern and calculate score based on pellets
+      const shotgunConfig: ShotgunPatternConfig = {
+        distanceM: level.distanceM,
+        pelletCount: 12, // Standard 12-gauge buckshot pellet count
+        baseSpreadMils: 25, // Base spread for cylinder choke
+        choke: 'cylinder', // Default choke
+        seed: Date.now(), // Use timestamp as seed (will be replaced by testSeed in test mode)
+      };
+      
+      // Use testSeed if available for deterministic testing
+      const shotSeedValue = testSeed || Date.now();
+      shotgunConfig.seed = combineSeed ? combineSeed(shotSeedValue, impacts.length + 1) : shotSeedValue;
+      
+      // Generate pellet offsets
+      const pellets: PelletImpact[] = samplePelletImpacts(shotgunConfig);
+      
+      // Add pellet offsets to base impact position
+      const baseX = impactX;
+      const baseY = impactY;
+      
+      shotgunPellets = pellets.map(pellet => {
+        // Convert pellet offset from meters to canvas pixels
+        const pelletOffsetX = (pellet.dZ / level.distanceM) * (canvasSize.width / 2); // Z = horizontal on canvas
+        const pelletOffsetY = -(pellet.dY / level.distanceM) * (canvasSize.height / 2); // Y = vertical, inverted
+        
+        const pelletCanvasX = baseX + pelletOffsetX;
+        const pelletCanvasY = baseY + pelletOffsetY;
+        
+        // Calculate pellet score based on target mode
+        let pelletScore = 0;
+        if (targetMode === 'plates' && plates.length > 0) {
+          // Calculate pellet score using plate detection (direct in coordinate space)
+          const pelletResult = findHitPlate({ y_M: finalImpactY + pellet.dY, z_M: finalImpactZ + pellet.dZ }, plates);
+          pelletScore = pelletResult.points;
+        } else {
+          // Bullseye mode
+          pelletScore = calculateRingScore({ x: pelletCanvasX, y: pelletCanvasY }, targetConfig);
+        }
+        
+        return { x: pelletCanvasX, y: pelletCanvasY, score: pelletScore };
+      });
+      
+      // Calculate overall score for shotgun: use best pellet for bullseye, sum for plates
+      if (targetMode === 'plates') {
+        score = shotgunPellets ? shotgunPellets.reduce((sum, p) => sum + p.score, 0) : 0;
+        // Track plate hits from pellets
+        const pellets = shotgunPellets;
+        if (pellets) {
+          plates.forEach(plate => {
+            const pelletHitCount = pellets.filter(p => p.score > 0).length;
+            if (pelletHitCount > 0) {
+              const plateId = plate.id;
+              setPlateHits(prev => {
+                const hits = { ...prev };
+                hits[plateId] = (hits[plateId] || 0) + pelletHitCount;
+                return hits;
+              });
+            }
+          });
+        }
+      } else {
+        // Bullseye mode: use the highest-scoring pellet as the base score
+        score = shotgunPellets ? Math.max(...shotgunPellets.map(p => p.score), 0) : 0;
+      }
+    } else if (targetMode === 'plates' && plates.length > 0) {
       // Plates mode: check which plate was hit
       const plateResult = findHitPlate({ y_M: finalImpactY, z_M: finalImpactZ }, plates);
       score = plateResult.points;
@@ -531,6 +601,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       dispersionY: dispersion.dY,
       dispersionZ: dispersion.dZ,
       plateId,
+      pellets: shotgunPellets,
     };
 
     const newImpacts = [...impacts, impact];
@@ -1720,9 +1791,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           <h4>Shot History</h4>
           <div className="shot-list">
             {impacts.map((impact) => (
-              <div key={impact.index} className="shot-row" data-testid={`shot-row-${impact.index}`}>
+              <div key={impact.index} className="shot-row" data-testid={`shot-row-${impact.index}`} {...(impact.pellets && impact.pellets.length > 0 && { 'data-testid': 'shotgun-multi-impacts' })}>
                 <span className="shot-number">#{impact.index}</span>
                 <span className="shot-score">{impact.score} pts</span>
+                {impact.pellets && impact.pellets.length > 0 && (
+                  <span className="shot-pellets" title={`${impact.pellets.length} pellets`}>
+                    🔫 {impact.pellets.length}
+                  </span>
+                )}
                 <span className={`shot-wind ${impact.windUsedMps > 0 ? 'right' : impact.windUsedMps < 0 ? 'left' : 'neutral'}`}>
               {impact.windUsedMps > 0 ? '→' : impact.windUsedMps < 0 ? '←' : '•'} {impact.windUsedMps.toFixed(1)} m/s
             </span>
