@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { DRILLS, generateDrillScenario } from '../data/drills';
-import { getDrillPersonalBest } from '../storage';
+import { getDrillPersonalBest, type DrillPersonalBests } from '../storage';
 
 export function Drills() {
   const [searchParams] = useSearchParams();
   const attemptNumber = parseInt(searchParams.get('attempt') || '1', 10);
   
   // Load personal bests for all drills
-  const [personalBests] = useState<Record<string, any>>(() => {
-    const pb: Record<string, any> = {};
+  const [personalBests] = useState<Record<string, DrillPersonalBests[string] | undefined>>(() => {
+    const pb: Record<string, DrillPersonalBests[string] | undefined> = {};
     DRILLS.forEach(drill => {
       pb[drill.id] = getDrillPersonalBest(drill.id);
     });

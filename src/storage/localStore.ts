@@ -1010,7 +1010,7 @@ function getDrillStore(): DrillStore | null {
 function saveDrillStore(store: DrillStore): void {
   try {
     storage.setItem(DRILLS_KEY, JSON.stringify(store));
-  } catch (e) {
+  } catch {
     // Silently fail if storage is unavailable
   }
 }
