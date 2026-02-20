@@ -433,6 +433,22 @@ describe('localStore', () => {
         turretStates: {},
         zeroProfiles: {},
         selectedAmmoId: {},
+        stats: {
+          totalShotsFired: 0,
+          totalBullseyes: 0,
+          totalCenters: 0,
+          averageOffsetMils: 0,
+          bestGroupSizeMils: 999,
+          levelsCompleted: 0,
+          packsCompleted: 0,
+          dailyChallengesCompleted: 0,
+          totalPlayTimeMs: 0,
+          longestStreak: 0,
+          currentStreak: 0,
+          lastPlayDate: null,
+        },
+        achievements: {},
+        reticleSkinId: 'classic',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -549,7 +565,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(14); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(15); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -754,7 +770,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '3');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(14); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(15); // Migrates all the way to latest version
       expect(loaded?.turretStates).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -937,7 +953,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '4');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(14); // Migrates to latest version
+      expect(loaded?.version).toBe(15); // Migrates to latest version
       expect(loaded?.zeroProfiles).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -1186,7 +1202,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '12');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(14); // Migrates to latest version
+      expect(loaded?.version).toBe(15); // Migrates to latest version
       expect(loaded?.settings).toHaveProperty('reticle');
       expect(loaded?.settings).toHaveProperty('display');
       expect(loaded?.settings.reticle.style).toBe('mil');

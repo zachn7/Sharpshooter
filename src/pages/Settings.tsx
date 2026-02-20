@@ -11,11 +11,16 @@ import {
   clearSaveData,
   clearDailyChallengeResults,
   clearTutorialsSeen,
+  getReticleSkinId,
+  setReticleSkinId,
+  getUnlockedAchievementIds,
   type GameSettings,
   type RealismPreset,
   type ZeroProfile
 } from '../storage';
 import { getDefaultShowNumericWind } from '../physics/windCues';
+import { RETICLE_SKINS, isReticleSkinUnlocked } from '../storage/reticleSkins';
+import { ACHIEVEMENT_DEFINITIONS } from '../storage/achievements';
 
 const ZERO_DISTANCE_OPTIONS = [25, 50, 100, 200] as const;
 
@@ -53,6 +58,15 @@ export function Settings() {
   const [importSuccess, setImportSuccess] = useState(false);
   const [importMigrated, setImportMigrated] = useState(false);
   const [fromVersion, setFromVersion] = useState<number | undefined>();
+  const [reticleSkinId, setReticleSkinIdState] = useState(() => getReticleSkinId());
+  const unlockedAchievementIds = getUnlockedAchievementIds();
+
+  const handleReticleSkinChange = (skinId: string) => {
+    if (isReticleSkinUnlocked(skinId, unlockedAchievementIds)) {
+      setReticleSkinId(skinId);
+      setReticleSkinIdState(skinId);
+    }
+  };
 
   const handlePresetChange = (preset: RealismPreset) => {
     if (!settings) return;
@@ -623,6 +637,38 @@ export function Settings() {
                 data-testid="reticle-thickness"
                 aria-label="Reticle thickness"
               />
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reticle Skin</span>
+                <span className="setting-sublabel">
+                  Color skin cosmetics
+                </span>
+              </div>
+              <select
+                value={reticleSkinId}
+                onChange={(e) => handleReticleSkinChange(e.target.value)}
+                className="skin-select"
+                data-testid="reticle-skin-select"
+              >
+                {RETICLE_SKINS.map(skin => {
+                  const unlocked = isReticleSkinUnlocked(skin.id, unlockedAchievementIds);
+                  const achievement = skin.achievementId
+                    ? ACHIEVEMENT_DEFINITIONS.find(a => a.id === skin.achievementId)
+                    : null;
+
+                  return (
+                    <option
+                      key={skin.id}
+                      value={skin.id}
+                      disabled={!unlocked}
+                    >
+                      {unlocked ? '' : '🔒 '}{skin.name}{unlocked ? '' : achievement ? ` (${achievement.title})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             <div className="setting-item">

@@ -1,8 +1,61 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 14;
+export const CURRENT_SCHEMA_VERSION = 15;
+
+// Stats tracked from gameplay telemetry
+export interface PlayerStats {
+  totalShotsFired: number;
+  totalBullseyes: number; // Center hits (ring 10 or better)
+  totalCenters: number; // Perfect center hits (ring 10)
+  averageOffsetMils: number; // Average distance from center across all shots
+  bestGroupSizeMils: number; // Best 3-shot group
+  levelsCompleted: number; // Levels with at least 1 star
+  packsCompleted: number; // Packs with all 3-star levels
+  dailyChallengesCompleted: number;
+  totalPlayTimeMs: number; // Total time spent in active gameplay
+  longestStreak: number; // Longest consecutive days of play
+  currentStreak: number; // Current consecutive days of play
+  lastPlayDate: string | null; // YYYY-MM-DD format
+}
+
+// Achievement types
+export type AchievementType = 'progress' | 'skill' | 'exploration';
+
+// Achievement status
+export interface AchievementProgress {
+  achievementId: string;
+  unlocked: boolean;
+  progress: number; // Current value toward goal
+  target: number; // Required value
+  unlockedAt: number | null; // Timestamp when unlocked
+}
+
+// Cosmetic reticle skin
+export interface ReticleSkin {
+  id: string;
+  name: string;
+  description: string;
+  achievementId: string | null; // Achievement that unlocks this (null = always unlocked)
+  colorPrimary: string; // CSS color for main lines
+  colorSecondary: string; // CSS color for secondary lines
+  thickness: number; // Line thickness override (0 = use setting)
+}
+
+// Achievement definition
+export interface AchievementDefinition {
+  id: string;
+  title: string;
+  description: string;
+  type: AchievementType;
+  icon: string; // Emoji icon
+  target: number; // Target value for progress-based
+  checkUnlocked: (stats: PlayerStats, levelProgress: Record<string, LevelProgress>) => { unlocked: boolean; progress: number };
+}
 
 // Daily Challenge key
 const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
+
+// Import achievements for checking (lazy import to avoid circular dependency)
+import { ACHIEVEMENT_DEFINITIONS } from './achievements';
 
 // Daily Challenge result record
 export interface DailyChallengeResult {
@@ -117,6 +170,9 @@ export interface GameSave {
   turretStates: Record<string, TurretState>; // Per-weapon turret state
   zeroProfiles: Record<string, ZeroProfile>; // Per-weapon zero profiles
   selectedAmmoId: Record<string, string>; // Per-weapon selected ammo
+  stats: PlayerStats; // Player statistics
+  achievements: Record<string, AchievementProgress>; // Achievement progress
+  reticleSkinId: string; // Selected cosmetic reticle skin
   createdAt: number;
   updatedAt: number;
 }
@@ -309,6 +365,30 @@ const MIGRATIONS: Migration[] = [
       },
     };
   },
+  // v14 -> v15: Add stats, achievements, and reticle skin
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 15,
+      stats: save.stats || {
+        totalShotsFired: 0,
+        totalBullseyes: 0,
+        totalCenters: 0,
+        averageOffsetMils: 0,
+        bestGroupSizeMils: 999, // High default = no good group yet
+        levelsCompleted: 0,
+        packsCompleted: 0,
+        dailyChallengesCompleted: 0,
+        totalPlayTimeMs: 0,
+        longestStreak: 0,
+        currentStreak: 0,
+        lastPlayDate: null,
+      },
+      achievements: save.achievements || {},
+      reticleSkinId: save.reticleSkinId || 'classic',
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -422,6 +502,22 @@ function createDefaultSave(): GameSave {
     turretStates: {},
     zeroProfiles: {},
     selectedAmmoId: {},
+    stats: {
+      totalShotsFired: 0,
+      totalBullseyes: 0,
+      totalCenters: 0,
+      averageOffsetMils: 0,
+      bestGroupSizeMils: 999,
+      levelsCompleted: 0,
+      packsCompleted: 0,
+      dailyChallengesCompleted: 0,
+      totalPlayTimeMs: 0,
+      longestStreak: 0,
+      currentStreak: 0,
+      lastPlayDate: null,
+    },
+    achievements: {},
+    reticleSkinId: 'classic',
     createdAt: now,
     updatedAt: now,
   };
@@ -627,8 +723,93 @@ export function updateLevelProgress(levelId: string, score: number, starThreshol
     lastPlayedAt: Date.now(),
   };
   
+  // Recalculate stats and check achievements on level completion
+  save.stats.levelsCompleted = Object.values(save.levelProgress).filter(
+    progress => progress.stars > 0
+  ).length;
+  
+  // Update daily streak when a level is completed
+  updateDailyStreakInternal(save);
+  
+  // Check achievements
+  checkAndUnlockAchievementsInternal(save);
+  
+  save.updatedAt = Date.now();
   saveGameSave(save);
+  
+  // Return the updated save
   return save;
+}
+
+// Internal helper for updateDailyStreak that doesn't save
+function updateDailyStreakInternal(save: GameSave): void {
+  const today = getTodayDate();
+  const lastPlayDate = save.stats.lastPlayDate;
+  
+  if (lastPlayDate === today) {
+    // Already played today, no change to streak
+    return;
+  }
+  
+  // Check if last play was yesterday (streak continues)
+  const todayDate = new Date(today);
+  const yesterday = new Date(todayDate);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (lastPlayDate === getDateString(yesterday)) {
+    // Streak continues
+    save.stats.currentStreak += 1;
+  } else {
+    // Streak reset (more than  day gap)
+    save.stats.currentStreak = 1;
+  }
+  
+  // Update longest streak
+  if (save.stats.currentStreak > save.stats.longestStreak) {
+    save.stats.longestStreak = save.stats.currentStreak;
+  }
+  
+  save.stats.lastPlayDate = today;
+}
+
+// Internal helper for checkAndUnlockAchievements
+function checkAndUnlockAchievementsInternal(gameSave: GameSave): string[] {
+  const newlyUnlocked: string[] = [];
+  
+  for (const achievement of ACHIEVEMENT_DEFINITIONS) {
+    const existing = gameSave.achievements[achievement.id];
+    
+    // Skip if already unlocked
+    if (existing?.unlocked) continue;
+    
+    // Check achievement criteria
+    const result = achievement.checkUnlocked(gameSave.stats, gameSave.levelProgress);
+    
+    if (result.unlocked || result.progress >= achievement.target) {
+      // Unlock achievement
+      gameSave.achievements[achievement.id] = {
+        achievementId: achievement.id,
+        unlocked: true,
+        progress: result.progress,
+        target: achievement.target,
+        unlockedAt: Date.now(),
+      };
+      newlyUnlocked.push(achievement.id);
+    } else {
+      // Update progress
+      if (result.progress > 0) {
+        gameSave.achievements[achievement.id] = {
+          achievementId: achievement.id,
+          unlocked: false,
+          progress: result.progress,
+          target: achievement.target,
+          unlockedAt: null,
+        };
+      }
+    }
+  }
+  
+  return newlyUnlocked;
 }
 
 /**
@@ -1237,4 +1418,226 @@ export function deserializeAppState(
     migrated: wasMigrated,
     fromVersion,
   };
+}
+
+// ===== STATS AND ACHIEVEMENTS =====
+
+/**
+ * Update player stats after a level completion
+ */
+export function updateStats(newStats: Partial<PlayerStats>): GameSave {
+  const save = getOrCreateGameSave();
+  
+  save.stats = {
+    ...save.stats,
+    ...newStats,
+  };
+  
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  
+  // Check for achievements after stats update
+  checkAndUnlockAchievements(save);
+  
+  return save;
+}
+
+/**
+ * Increment total shots fired
+ */
+export function incrementShotsFired(count: number = 1): void {
+  const save = getOrCreateGameSave();
+  save.stats.totalShotsFired += count;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  checkAndUnlockAchievements(save);
+}
+
+/**
+ * Record a bullseye hit
+ */
+export function recordBullseye(isCenter: boolean = false): void {
+  const save = getOrCreateGameSave();
+  save.stats.totalBullseyes += 1;
+  if (isCenter) {
+    save.stats.totalCenters += 1;
+  }
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  checkAndUnlockAchievements(save);
+}
+
+/**
+ * Get player stats
+ */
+export function getPlayerStats(): PlayerStats {
+  const save = loadGameSave();
+  return save?.stats || {
+    totalShotsFired: 0,
+    totalBullseyes: 0,
+    totalCenters: 0,
+    averageOffsetMils: 0,
+    bestGroupSizeMils: 999,
+    levelsCompleted: 0,
+    packsCompleted: 0,
+    dailyChallengesCompleted: 0,
+    totalPlayTimeMs: 0,
+    longestStreak: 0,
+    currentStreak: 0,
+    lastPlayDate: null,
+  };
+}
+
+/**
+ * Check and unlock achievements based on current stats
+ * Returns array of newly unlocked achievement IDs
+ */
+export function checkAndUnlockAchievements(save?: GameSave): string[] {
+  const gameSave = save || getOrCreateGameSave();
+  
+  const newlyUnlocked: string[] = [];
+  
+  for (const achievement of ACHIEVEMENT_DEFINITIONS) {
+    const existing = gameSave.achievements[achievement.id];
+    
+    // Skip if already unlocked
+    if (existing?.unlocked) continue;
+    
+    // Check achievement criteria
+    const result = achievement.checkUnlocked(gameSave.stats, gameSave.levelProgress);
+    
+    if (result.unlocked || result.progress >= achievement.target) {
+      // Unlock achievement
+      gameSave.achievements[achievement.id] = {
+        achievementId: achievement.id,
+        unlocked: true,
+        progress: result.progress,
+        target: achievement.target,
+        unlockedAt: Date.now(),
+      };
+      newlyUnlocked.push(achievement.id);
+    } else {
+      // Update progress
+      gameSave.achievements[achievement.id] = {
+        achievementId: achievement.id,
+        unlocked: false,
+        progress: result.progress,
+        target: achievement.target,
+        unlockedAt: null,
+      };
+    }
+  }
+  
+  if (newlyUnlocked.length > 0) {
+    gameSave.updatedAt = Date.now();
+    saveGameSave(gameSave);
+  }
+  
+  return newlyUnlocked;
+}
+
+/**
+ * Get all achievements with progress
+ */
+export function getPlayerAchievements(): Record<string, AchievementProgress> {
+  const save = loadGameSave();
+  return save?.achievements || {};
+}
+
+/**
+ * Get unlocked achievement IDs
+ */
+export function getUnlockedAchievementIds(): Set<string> {
+  const achievements = getPlayerAchievements();
+  const unlocked = new Set<string>();
+  
+  Object.entries(achievements).forEach(([id, progress]) => {
+    if (progress.unlocked) {
+      unlocked.add(id);
+    }
+  });
+  
+  return unlocked;
+}
+
+/**
+ * Get selected reticle skin
+ */
+export function getReticleSkinId(): string {
+  const save = loadGameSave();
+  return save?.reticleSkinId || 'classic';
+}
+
+/**
+ * Set reticle skin
+ */
+export function setReticleSkinId(skinId: string): boolean {
+  const save = getOrCreateGameSave();
+  save.reticleSkinId = skinId;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  return true;
+}
+
+/**
+ * Update daily streak - called on level completion
+ */
+export function updateDailyStreak(): void {
+  const save = getOrCreateGameSave();
+  const today = getTodayDate();
+  const lastPlayDate = save.stats.lastPlayDate;
+  
+  if (lastPlayDate === today) {
+    // Already played today, no change to streak
+    return;
+  }
+  
+  // Check if last play was yesterday (streak continues)
+  const todayDate = new Date(today);
+  const yesterday = new Date(todayDate);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  if (lastPlayDate === getDateString(yesterday)) {
+    // Streak continues
+    save.stats.currentStreak += 1;
+  } else {
+    // Streak reset (more than 1 day gap)
+    save.stats.currentStreak = 1;
+  }
+  
+  // Update longest streak
+  if (save.stats.currentStreak > save.stats.longestStreak) {
+    save.stats.longestStreak = save.stats.currentStreak;
+  }
+  
+  save.stats.lastPlayDate = today;
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  
+  checkAndUnlockAchievements(save);
+}
+
+// Helper: Format date to YYYY-MM-DD
+function getDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Recalculate stats from game state (used for initialization)
+ */
+export function recalcStats(): void {
+  const save = getOrCreateGameSave();
+  
+  // Count levels completed (at least 1 star)
+  save.stats.levelsCompleted = Object.values(save.levelProgress).filter(
+    progress => progress.stars > 0
+  ).length;
+  
+  save.updatedAt = Date.now();
+  saveGameSave(save);
+  
+  checkAndUnlockAchievements(save);
 }

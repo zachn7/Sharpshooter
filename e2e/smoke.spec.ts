@@ -1636,3 +1636,59 @@ test('ELR pack: introduction level completes successfully', async ({ page }) => 
   // Verify shot history is visible
   await expect(page.getByTestId('shot-row-1')).toBeVisible();
 });
+
+test('stats page: displays correctly', async ({ page }) => {
+  // Navigate to main menu then stats
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Click Stats
+  await page.getByTestId('stats-button').click();
+  await page.waitForURL('**/stats');
+  await expect(page.getByTestId('stats-page')).toBeVisible();
+
+  // Check stats sections are visible
+  await expect(page.getByTestId('stats-accuracy')).toBeVisible();
+  await expect(page.getByTestId('stats-progress')).toBeVisible();
+  await expect(page.getByTestId('stats-playtime')).toBeVisible();
+
+  // Check back button
+  await expect(page.getByTestId('back-button')).toBeVisible();
+});
+
+test('achievements page: displays correctly', async ({ page }) => {
+  // Navigate to main menu then achievements
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Click Achievements
+  await page.getByTestId('achievements-button').click();
+  await page.waitForURL('**/achievements');
+  await expect(page.getByTestId('achievements-page')).toBeVisible();
+
+  // Check achievements summary is visible
+  await expect(page.getByTestId('achievements-summary')).toBeVisible();
+
+  // Check achievements sections are visible
+  await expect(page.getByText(/Progress Achievements/i)).toBeVisible();
+  await expect(page.getByText(/Skill Achievements/i)).toBeVisible();
+  await expect(page.getByText(/Exploration Achievements/i)).toBeVisible();
+
+  // Check cosmetics section
+  await expect(page.getByText(/Reticle Skins/i)).toBeVisible();
+
+  // Check back button
+  await expect(page.getByTestId('back-button')).toBeVisible();
+});
+
+test('settings page: reticle skin selector exists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Find reticle section
+  await expect(page.getByTestId('reticle-section')).toBeVisible();
+
+  // Check reticle skin selector is present
+  await expect(page.getByTestId('reticle-skin-select')).toBeVisible();
+});
