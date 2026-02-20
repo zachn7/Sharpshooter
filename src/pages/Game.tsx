@@ -10,6 +10,7 @@ import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
 import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
+import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { RangeCard } from '../components/RangeCard';
@@ -135,6 +136,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Turret button refs for press-and-hold
+  const elevationUpRef = useRef<HTMLButtonElement>(null);
+  const elevationDownRef = useRef<HTMLButtonElement>(null);
+  const windageLeftRef = useRef<HTMLButtonElement>(null);
+  const windageRightRef = useRef<HTMLButtonElement>(null);
   const [recticlePosition, setReticlePosition] = useState({ x: 0.5, y: 0.5 });
   const [impacts, setImpacts] = useState<Impact[]>([]);
   const [shotTelemetry, setShotTelemetry] = useState<ShotTelemetry[]>([]);
@@ -1050,6 +1057,89 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     settings.reticle,
   ]);
 
+  // Setup press-and-hold handlers for turret buttons (only when game is running)
+  useEffect(() => {
+    if (gameState !== 'running') {
+      return;
+    }
+
+    const elevationUpHandler = createPressHoldHandler({
+      onRepeat: () => handleElevationAdjust(1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const elevationDownHandler = createPressHoldHandler({
+      onRepeat: () => handleElevationAdjust(-1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const windageLeftHandler = createPressHoldHandler({
+      onRepeat: () => handleWindageAdjust(-1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const windageRightHandler = createPressHoldHandler({
+      onRepeat: () => handleWindageAdjust(1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const elevationUpBtn = elevationUpRef.current;
+    const elevationDownBtn = elevationDownRef.current;
+    const windageLeftBtn = windageLeftRef.current;
+    const windageRightBtn = windageRightRef.current;
+
+    // Attach handlers using pointer events
+    const addPointerListeners = (btn: HTMLButtonElement | null, handler: PressHoldHandler) => {
+      if (!btn) return;
+      btn.addEventListener('pointerdown', handler.start);
+      btn.addEventListener('pointerup', handler.stop);
+      btn.addEventListener('pointerleave', handler.stop);
+      btn.addEventListener('pointercancel', handler.stop);
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    };
+
+    const removePointerListeners = (
+      btn: HTMLButtonElement | null,
+      handler: PressHoldHandler
+    ) => {
+      if (!btn) return;
+      btn.removeEventListener('pointerdown', handler.start);
+      btn.removeEventListener('pointerup', handler.stop);
+      btn.removeEventListener('pointerleave', handler.stop);
+      btn.removeEventListener('pointercancel', handler.stop);
+      const preventContext = (e: Event) => e.preventDefault();
+      btn.removeEventListener('contextmenu', preventContext);
+    };
+
+    addPointerListeners(elevationUpBtn, elevationUpHandler);
+    addPointerListeners(elevationDownBtn, elevationDownHandler);
+    addPointerListeners(windageLeftBtn, windageLeftHandler);
+    addPointerListeners(windageRightBtn, windageRightHandler);
+
+    return () => {
+      elevationUpHandler.stop();
+      elevationDownHandler.stop();
+      windageLeftHandler.stop();
+      windageRightHandler.stop();
+      removePointerListeners(elevationUpBtn, elevationUpHandler);
+      removePointerListeners(elevationDownBtn, elevationDownHandler);
+      removePointerListeners(windageLeftBtn, windageLeftHandler);
+      removePointerListeners(windageRightBtn, windageRightHandler);
+    };
+  }, [gameState, handleElevationAdjust, handleWindageAdjust]);
+
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
     return (
@@ -1400,10 +1490,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               <span className="turret-label">Elevation</span>
               <div className="turret-dial-controls">
                 <button
+                  ref={elevationDownRef}
                   onClick={() => handleElevationAdjust(-1)}
                   className="dial-button"
                   data-testid="elevation-down"
-                  title="Elevation Down (-)"
+                  title="Elevation Down (-) (hold for rapid fire)"
                 >
                   −
                 </button>
@@ -1411,10 +1502,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                   {turretState.elevationMils >= 0 ? '+' : ''}{turretState.elevationMils.toFixed(1)}
                 </span>
                 <button
+                  ref={elevationUpRef}
                   onClick={() => handleElevationAdjust(1)}
                   className="dial-button"
                   data-testid="elevation-up"
-                  title="Elevation Up (+)"
+                  title="Elevation Up (+) (hold for rapid fire)"
                 >
                   +
                 </button>
@@ -1426,10 +1518,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               <span className="turret-label">Windage</span>
               <div className="turret-dial-controls">
                 <button
+                  ref={windageLeftRef}
                   onClick={() => handleWindageAdjust(-1)}
                   className="dial-button"
                   data-testid="windage-left"
-                  title="Windage Left (-)"
+                  title="Windage Left (-) (hold for rapid fire)"
                 >
                   −
                 </button>
@@ -1437,10 +1530,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                   {turretState.windageMils >= 0 ? '+' : ''}{turretState.windageMils.toFixed(1)}
                 </span>
                 <button
+                  ref={windageRightRef}
                   onClick={() => handleWindageAdjust(1)}
                   className="dial-button"
                   data-testid="windage-right"
-                  title="Windage Right (+)"
+                  title="Windage Right (+) (hold for rapid fire)"
                 >
                   +
                 </button>
@@ -1544,6 +1638,19 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           </div>
         )}
       </div>
+      
+      {/* Mobile Fire Button */}
+      {settings.mobile.showFireButton && gameState === 'running' && (
+        <button
+          onClick={handlePointerDown}
+          className="fire-button mobile-fire-button"
+          data-testid="fire-button"
+          onPointerUp={(e) => e.stopPropagation()}
+          title="Fire (tap to shoot)"
+        >
+          🔥
+        </button>
+      )}
       
       {/* Shot History */}
       {impacts.length > 0 && settings.showHud && (

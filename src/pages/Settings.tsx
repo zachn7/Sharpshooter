@@ -150,6 +150,18 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleMobileToggleChange = (key: 'showFireButton' | 'thumbAimMode') => {
+    if (!settings) return;
+    const currentValue = settings.mobile[key];
+    const updated = updateGameSettings({
+      mobile: {
+        ...settings.mobile,
+        [key]: !currentValue,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
   const handleZeroDistanceChange = async (distance: number) => {
     setZeroDistance(distance as ZeroDistanceOption);
 
@@ -660,6 +672,54 @@ export function Settings() {
                   data-testid="offset-units-moa"
                 >
                   MOA
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Settings Section */}
+        <div className="settings-section" data-testid="mobile-section">
+          <h3>Mobile Controls</h3>
+          <p className="setting-description">
+            Configure on-screen controls for touch devices.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Fire Button</span>
+                <span className="setting-sublabel">
+                  Show on-screen fire button (alternative to tapping canvas)
+                </span>
+              </div>
+              <div className="setting-actions">
+                <button
+                  onClick={() => handleMobileToggleChange('showFireButton')}
+                  className={`action-toggle ${settings.mobile.showFireButton ? 'on' : 'off'}`}
+                  data-testid="show-fire-button-toggle"
+                  aria-pressed={settings.mobile.showFireButton}
+                >
+                  {settings.mobile.showFireButton ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Thumb Aim</span>
+                <span className="setting-sublabel">
+                  Use virtual joystick for aiming (coming soon)
+                </span>
+              </div>
+              <div className="setting-actions">
+                <button
+                  onClick={() => handleMobileToggleChange('thumbAimMode')}
+                  className={`action-toggle ${settings.mobile.thumbAimMode ? 'on' : 'off'} action-toggle-disabled`}
+                  data-testid="thumb-aim-mode-toggle"
+                  aria-pressed={settings.mobile.thumbAimMode}
+                  disabled
+                  title="Coming soon"
+                >
+                  {settings.mobile.thumbAimMode ? 'ON' : 'OFF'}
                 </button>
               </div>
             </div>

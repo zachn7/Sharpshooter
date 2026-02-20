@@ -1193,3 +1193,117 @@ test('display settings: offset unit toggle changes impact offset readout', async
   expect(offsetText2).toContain('MIL');
   expect(offsetText2).not.toContain('MOA');
 });
+
+test('mobile controls: settings page has mobile controls section', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify mobile controls section exists
+  await expect(page.getByTestId('mobile-section')).toBeVisible();
+
+  // Verify Fire Button toggle exists
+  await expect(page.getByTestId('show-fire-button-toggle')).toBeVisible();
+});
+
+test('mobile controls: enable fire button toggle', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Fire button should be OFF by default
+  await expect(page.getByTestId('show-fire-button-toggle')).toHaveText('OFF');
+
+  // Toggle it ON
+  await page.getByTestId('show-fire-button-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Verify it's ON
+  await expect(page.getByTestId('show-fire-button-toggle')).toHaveText('ON');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  await expect(page.getByTestId('show-fire-button-toggle')).toHaveText('ON');
+});
+
+test('mobile controls: fire button exists in game when enabled', async ({ page }) => {
+  // Navigate to settings and enable fire button
+  await page.goto('/settings');
+  
+  // Ensure fire button is ON
+  const fireButtonToggle = page.getByTestId('show-fire-button-toggle');
+  const toggleText = await fireButtonToggle.textContent();
+  if (toggleText === 'OFF') {
+    await fireButtonToggle.click();
+    await page.waitForTimeout(100);
+  }
+
+  // Navigate to game page and start a level
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+  await page.waitForTimeout(200);
+
+  // Fire button should be visible
+  await expect(page.getByTestId('fire-button')).toBeVisible();
+
+  // Verify shot count before firing
+  const shotCountBefore = await page.getByTestId('shot-count').textContent();
+  expect(shotCountBefore).toContain('3/3');
+
+  // Click fire button
+  await page.getByTestId('fire-button').click();
+  await page.waitForTimeout(200);
+
+  // Verify shot count decreased
+  const shotCountAfter = await page.getByTestId('shot-count').textContent();
+  expect(shotCountAfter).toContain('2/3');
+});
+
+test('mobile controls: fire button not visible when disabled', async ({ page }) => {
+  // Navigate to settings and disable fire button
+  await page.goto('/settings');
+  
+  // Ensure fire button is OFF
+  const fireButtonToggle = page.getByTestId('show-fire-button-toggle');
+  const toggleText = await fireButtonToggle.textContent();
+  if (toggleText === 'ON') {
+    await fireButtonToggle.click();
+    await page.waitForTimeout(100);
+  }
+
+  // Navigate to game page and start a level
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+  await page.waitForTimeout(200);
+
+  // Fire button should NOT be visible
+  const fireButton = page.getByTestId('fire-button');
+  await expect(fireButton).not.toBeVisible();
+});
+
+test('mobile controls: turret controls support press-and-hold', async ({ page }) => {
+  // Navigate to game page and start a level
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+  await page.waitForTimeout(200);
+
+  // Get initial elevation value
+  const initialValue = await page.getByTestId('elevation-value').textContent();
+  expect(initialValue).toBe('+0.0');
+
+  // Press and hold elevation-up button
+  const elevationUpBtn = page.getByTestId('elevation-up');
+  await elevationUpBtn.down();
+  
+  // Wait for some repeats to occur
+  await page.waitForTimeout(800);
+  
+  // Release button
+  await elevationUpBtn.up();
+  await page.waitForTimeout(100);
+
+  // Verify elevation value increased (should be multiple clicks due to press-and-hold)
+  const changedValue = await page.getByTestId('elevation-value').textContent();
+  expect(changedValue).not.toBe('+0.0');
+  expect(changedValue).toContain('+');
+});

@@ -425,6 +425,10 @@ describe('localStore', () => {
           display: {
             offsetUnit: 'mil',
           },
+          mobile: {
+            showFireButton: false,
+            thumbAimMode: false,
+          },
         },
         turretStates: {},
         zeroProfiles: {},
@@ -545,7 +549,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(13); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(14); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -933,7 +937,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '4');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(13); // Migrates to latest version
+      expect(loaded?.version).toBe(14); // Migrates to latest version
       expect(loaded?.zeroProfiles).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });

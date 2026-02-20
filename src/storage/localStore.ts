@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 13;
+export const CURRENT_SCHEMA_VERSION = 14;
 
 // Daily Challenge key
 const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
@@ -85,6 +85,11 @@ export interface DisplaySettings {
   offsetUnit: OffsetUnit; // Unit for offset display (MIL/MOA)
 }
 
+export interface MobileSettings {
+  showFireButton: boolean; // Show on-screen fire button
+  thumbAimMode: boolean; // Enable thumb aim (virtual joystick/drag region)
+}
+
 // Game settings
 export interface GameSettings {
   realismPreset: RealismPreset;
@@ -99,6 +104,7 @@ export interface GameSettings {
   vfx: VFXSettings; // VFX accessibility settings
   reticle: ReticleSettings; // Reticle customization
   display: DisplaySettings; // Display settings (offset units)
+  mobile: MobileSettings; // Mobile control settings
 }
 
 // Complete game save data
@@ -288,6 +294,21 @@ const MIGRATIONS: Migration[] = [
       },
     };
   },
+  // v13 -> v14: Add mobile control settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 14,
+      settings: {
+        ...save.settings,
+        mobile: save.settings?.mobile ?? {
+          showFireButton: false,
+          thumbAimMode: false,
+        },
+      },
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -392,6 +413,10 @@ function createDefaultSave(): GameSave {
       },
       display: {
         offsetUnit: 'mil',
+      },
+      mobile: {
+        showFireButton: false, // Off by default (fire by tapping canvas)
+        thumbAimMode: false,   // Off by default (direct drag to aim)
       },
     },
     turretStates: {},
