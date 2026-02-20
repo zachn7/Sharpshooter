@@ -1538,3 +1538,41 @@ test('shotguns pack: select weapon, start level and complete', async ({ page }) 
   const firstShot = page.getByTestId('shot-row-1');
   await expect(firstShot.getByText(/🔫/)).toBeVisible();
 });
+
+test('wind layers: ELR level shows layered wind cues', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to levels
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Navigate to Expert Challenge pack
+  await expect(page.getByTestId('expert-challenge')).toBeVisible();
+  await page.getByTestId('expert-challenge').click();
+
+  // Select ELR Wind Layers level
+  await expect(page.getByTestId('level-elr-wind-layers-1')).toBeVisible();
+  await page.getByTestId('level-elr-wind-layers-1').click();
+
+  // Wait for game page to load
+  await page.waitForURL('/game/elr-wind-layers-1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Verify layered wind cues are visible
+  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Verify layered wind indicator is visible in HUD
+  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
+  
+  // Verify the layered indicator shows 3 layers
+  const windHud = page.getByTestId('wind-cues-layered');
+  await expect(windHud).toContainText('Layered Wind');
+  await expect(windHud).toContainText('segments');
+});

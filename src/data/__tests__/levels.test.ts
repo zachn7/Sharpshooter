@@ -68,7 +68,7 @@ describe('levels data validation', () => {
   it('level distances are within sane bounds', () => {
     LEVELS.forEach((level) => {
       expect(level.distanceM).toBeGreaterThan(0);
-      expect(level.distanceM).toBeLessThan(1000); // Max reasonable distance
+      expect(level.distanceM).toBeLessThan(2000); // Max reasonable distance (allows ELR levels)
     });
   });
 

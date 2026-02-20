@@ -4,7 +4,7 @@ import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore, findHitPlate } from '../utils/scoring';
-import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT, calculateExpertEffects, hasExpertExtras, type ExpertEffectsParams } from '../physics';
+import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT, calculateExpertEffects, hasExpertExtras, type ExpertEffectsParams, type WindSamplingContext } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
@@ -36,7 +36,7 @@ import {
   isTestModeEnabled,
   type RecoilState,
 } from '../physics/sway';
-import { drawWindCues } from '../physics/windCues';
+import { drawWindCues, drawLayeredWindCues, shouldUseLayeredWindCues } from '../physics/windCues';
 
 interface Impact {
   x: number;
@@ -421,8 +421,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const finalParams = computeFinalShotParams(weapon, effectiveAmmo, settings.realismPreset);
     
     // Run physics simulation with aggregated parameters
-    const scaledWindMps = level.windMps * windScale;
-    const scaledGustMps = level.gustMps * windScale;
+    const scaledWindMps = (level.windMps || 0) * windScale;
+    const scaledGustMps = (level.gustMps || 0) * windScale;
     
     const result = simulateShotToDistance(
       {
@@ -437,6 +437,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       {
         windMps: scaledWindMps,
         gustMps: scaledGustMps,
+        windProfile: level.windProfile, // Pass wind profile if present
         airDensityKgM3: computedAirDensity, // Use computed air density from env
         gravityMps2: level.gravityMps2,
         seed: testSeed + shotCount, // Each shot gets a different deterministic seed
@@ -970,21 +971,60 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       };
 
       // Draw wind cues (flags and mirage) if there's any wind
-      if (level && (level.windMps !== 0 || level.gustMps > 0) && settings.showHud) {
-        // Get the wind used for the most recent shot, or use baseline/gust for visual cues
-        // Use baseline wind for visual indicator, scaled by realism preset
-        const visualWind = level.windMps * windScale;
+      if (level && settings.showHud) {
+        // Check if level uses layered wind
+        const hasWindProfile = level.windProfile && level.windProfile.length > 0;
+        const hasWind = level.windMps && (level.windMps !== 0 || level.gustMps);
         
-        drawWindCues(
-          ctx,
-          visualWind,
-          timeS,
-          canvasSize.width,
-          canvasSize.height,
-          WORLD_WIDTH,
-          WORLD_HEIGHT,
-          true // Show mirage
-        );
+        if (hasWindProfile || hasWind) {
+          // Create wind sampling context
+          const windContext: WindSamplingContext = {
+            baseWind: level.windMps || 0,
+            gust: level.gustMps || 0,
+            windProfile: level.windProfile,
+            seed: testSeed, // Use test seed for deterministic wind display
+          };
+          
+          // Scale wind for realism preset
+          const scaledContext: WindSamplingContext = {
+            ...windContext,
+            baseWind: (windContext.baseWind || 0) * windScale,
+            gust: (windContext.gust || 0) * windScale,
+            windProfile: windContext.windProfile?.map(seg => ({
+              ...seg,
+              windMps: seg.windMps * windScale,
+              gustMps: seg.gustMps * windScale,
+            })),
+          };
+          
+          if (shouldUseLayeredWindCues(scaledContext)) {
+            // Draw layered wind flags (near/mid/far) for wind profiles
+            drawLayeredWindCues(
+              ctx,
+              scaledContext,
+              level.distanceM,
+              timeS,
+              canvasSize.width,
+              canvasSize.height,
+              WORLD_WIDTH,
+              WORLD_HEIGHT,
+              true // Show mirage
+            );
+          } else if (hasWind) {
+            // Use baseline wind for visual indicator, scaled by realism preset
+            const visualWind = (level.windMps || 0) * windScale; 
+            drawWindCues(
+              ctx,
+              visualWind,
+              timeS,
+              canvasSize.width,
+              canvasSize.height,
+              WORLD_WIDTH,
+              WORLD_HEIGHT,
+              true // Show mirage
+            );
+          }
+        }
       }
 
       // Draw targets based on target mode
@@ -1302,8 +1342,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 <h4>Wind Conditions</h4>
                 {settings.showNumericWind ? (
                   <>
-                    <p>Baseline: {level.windMps} m/s</p>
-                    {level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                    {level.windProfile ? (
+                      <p>Layered wind: {level.windProfile.length} segments</p>
+                    ) : (
+                      <>
+                        <p>Baseline: {level.windMps || 0} m/s</p>
+                        {level.gustMps && level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                      </>
+                    )}
                   </>
                 ) : (
                   <p>Visual indicators only (flags + mirage)</p>
@@ -1538,19 +1584,31 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       
       {/* Wind HUD Panel */}
       {level && settings.showHud && (
-        <div className="wind-hud" data-testid="wind-cues">
+        <div className={level.windProfile ? "wind-hud layered" : "wind-hud"} data-testid={level.windProfile ? "wind-cues-layered" : "wind-cues"}>
           <div className="wind-display">
             <div className="wind-header">
               <span>Wind</span>
-              <div className={`wind-arrow ${level.windMps >= 0 ? 'right' : 'left'}`} data-testid="wind-arrow">
-                {level.windMps >= 0 ? '→' : '←'}
-              </div>
+              {!level.windProfile && (
+                <div className={`wind-arrow ${(level.windMps || 0) >= 0 ? 'right' : 'left'}`} data-testid="wind-arrow">
+                  {(level.windMps || 0) >= 0 ? '→' : '←'}
+                </div>
+              )}
+              {level.windProfile && <span className="layered-indicator" title="Layered wind">3⃣</span>}
             </div>
             <div className="wind-details">
               {settings.showNumericWind ? (
                 <>
-                  <span className="wind-baseline" data-testid="wind-numeric">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
-                  <span className="wind-gust" data-testid="wind-numeric">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+                  {level.windProfile ? (
+                    <>
+                      <span className="wind-baseline" data-testid="wind-numeric">Layered Wind</span>
+                      <span className="wind-gust" data-testid="wind-numeric">{level.windProfile.length} segments</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="wind-baseline" data-testid="wind-numeric">Baseline: <strong>{(level.windMps || 0) > 0 ? '+' : ''}{((level.windMps || 0) * windScale).toFixed(1)} m/s</strong></span>
+                      <span className="wind-gust" data-testid="wind-numeric">Gust: ±{((level.gustMps || 0) * windScale).toFixed(1)} m/s</span>
+                    </>
+                  )}
                 </>
               ) : (
                 <span className="wind-visual">Visual cues only</span>

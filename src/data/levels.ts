@@ -1,6 +1,14 @@
 // Level difficulty tiers
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
+// Wind layer segment for multi-range wind variation
+export interface WindLayerSegment {
+  startM: number;             // Start distance in meters
+  endM: number;                // End distance in meters
+  windMps: number;             // Wind speed in this segment (m/s, + = left-to-right)
+  gustMps: number;             // Gust variation range (+/-) in this segment
+}
+
 // Environment preset for level
 export interface LevelEnvironment {
   temperatureC: number;        // Temperature in Celsius (default 15°C)
@@ -42,9 +50,10 @@ export interface Level {
   
   // Environmental parameters
   env?: LevelEnvironment;      // Optional environment preset
-  windMps: number;             // Base crosswind speed (m/s, + = left-to-right)
+  windMps?: number;            // Base crosswind speed (m/s, + = left-to-right) - used if windProfile not provided
   windDirectionDeg?: number;   // Wind direction (0-360°, 0=from right, 90=from top)
-  gustMps: number;             // Gust variation range (+/-)
+  gustMps?: number;            // Gust variation range (+/-) - used if windProfile not provided
+  windProfile?: WindLayerSegment[];  // Multi-segment wind profile (distance-varying wind)
   airDensityKgM3: number;      // Air density (default 1.225 at sea level)
   gravityMps2: number;         // Gravity (default 9.80665)
   
@@ -138,7 +147,7 @@ export const LEVEL_PACKS: LevelPack[] = [
     id: 'expert-challenge',
     name: 'Expert Challenge',
     description: 'Extreme conditions for expert marksman',
-    levels: ['expert-blizzard', 'expert-hurricane'],
+    levels: ['expert-blizzard', 'expert-hurricane', 'elr-wind-layers-1', 'elr-reversing-wind'],
     weaponType: 'any',
   },
   {
@@ -1189,6 +1198,52 @@ export const LEVELS: Level[] = [
     maxShots: 5,
     timerSeconds: 12,
     starThresholds: { one: 30, two: 50, three: 70 },
+    unlocked: true,
+  },
+
+  // ===== EXTENDED LONG RANGE (ELR) WITH WIND LAYERS =====
+  {
+    id: 'elr-wind-layers-1',
+    packId: 'expert-challenge',
+    name: 'ELR Wind Layers',
+    description: 'Extreme long range with varying wind layers. 1500m challenge.',
+    difficulty: 'expert',
+    requiredWeaponType: 'sniper',
+    distanceM: 1500,
+    env: { temperatureC: 15, altitudeM: 0 },
+    // Wind profile with 3 layers: light, moderate, strong
+    windProfile: [
+      { startM: 0, endM: 500, windMps: 3, gustMps: 1 },   // Near: light breeze
+      { startM: 500, endM: 1000, windMps: 8, gustMps: 2 },  // Mid: moderate wind
+      { startM: 1000, endM: 1600, windMps: 15, gustMps: 3 }, // Far: strong wind
+    ],
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 0.2,  // Very small target at 1500m
+    maxShots: 3,
+    starThresholds: { one: 5, two: 10, three: 15 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-reversing-wind',
+    packId: 'expert-challenge',
+    name: 'Reversing Wind',
+    description: 'Wind changes direction at mid-range. Complex ballistics required.',
+    difficulty: 'expert',
+    requiredWeaponType: 'sniper',
+    distanceM: 1000,
+    env: { temperatureC: 15, altitudeM: 1000 },  // Higher altitude changes air density
+    // Wind profile with reversed direction in middle layer
+    windProfile: [
+      { startM: 0, endM: 333, windMps: 5, gustMps: 1 },   // Near: rightward wind
+      { startM: 333, endM: 666, windMps: -6, gustMps: 1.5 }, // Mid: leftward wind (reverses)
+      { startM: 666, endM: 1100, windMps: 8, gustMps: 2 },  // Far: stronger rightward wind
+    ],
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 0.25,
+    maxShots: 4,
+    starThresholds: { one: 8, two: 15, three: 20 },
     unlocked: true,
   },
 ];
