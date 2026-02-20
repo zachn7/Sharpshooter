@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  getGameSettings, 
-  updateGameSettings, 
+import {
+  getGameSettings,
+  updateGameSettings,
   getSelectedWeaponId,
   saveZeroProfile,
   getZeroProfile,
-  type GameSettings, 
+  serializeAppState,
+  deserializeAppState,
+  clearSaveData,
+  clearDailyChallengeResults,
+  clearTutorialsSeen,
+  type GameSettings,
   type RealismPreset,
   type ZeroProfile
 } from '../storage';
@@ -42,6 +47,12 @@ export function Settings() {
     const profile = getZeroProfile(weaponId);
     return (profile?.zeroDistanceM || 0) as ZeroDistanceOption;
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [importMigrated, setImportMigrated] = useState(false);
+  const [fromVersion, setFromVersion] = useState<number | undefined>();
 
   const handlePresetChange = (preset: RealismPreset) => {
     if (!settings) return;
@@ -97,15 +108,101 @@ export function Settings() {
 
   const handleZeroDistanceChange = async (distance: number) => {
     setZeroDistance(distance as ZeroDistanceOption);
-    
+
     // Get or create profile
     const profile: ZeroProfile = {
       zeroDistanceM: distance,
       zeroElevationMils: 0.0,
       zeroWindageMils: 0.0,
     };
-    
+
     saveZeroProfile(selectedWeaponId, profile);
+  };
+
+  const handleExport = () => {
+    try {
+      const state = serializeAppState();
+      const jsonString = JSON.stringify(state, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toISOString().split('T')[0];
+      a.download = `sharpshooter-backup-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+    setImportSuccess(false);
+    setImportMigrated(false);
+    setFromVersion(undefined);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const result = deserializeAppState(content);
+
+        if (result.success) {
+          setImportSuccess(true);
+          setImportMigrated(!!result.migrated);
+          setFromVersion(result.fromVersion);
+
+          // Reload the page to refresh all state
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } else {
+          setImportError(result.error || 'Import failed');
+        }
+      } catch {
+        setImportError('Failed to read file');
+      }
+    };
+
+    reader.readAsText(file);
+
+    // Reset input to allow selecting the same file again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleResetClick = () => {
+    setShowResetConfirm(true);
+  };
+
+  const handleResetConfirm = () => {
+    try {
+      clearSaveData();
+      clearDailyChallengeResults();
+      clearTutorialsSeen();
+      window.location.reload();
+    } catch (error) {
+      console.error('Reset failed:', error);
+      alert('Reset failed. Please try again.');
+      setShowResetConfirm(false);
+    }
+  };
+
+  const handleResetCancel = () => {
+    setShowResetConfirm(false);
   };
 
   if (!settings) {
@@ -447,6 +544,115 @@ export function Settings() {
               Go to Zero Range
             </Link>
           </div>
+        </div>
+
+        {/* Data Management Section */}
+        <div className="settings-section" data-testid="data-section">
+          <h3>Data Management</h3>
+          <p className="setting-description">
+            Export your progress, settings, and daily challenge scores to a JSON file, or import a backup to restore your data.
+          </p>
+
+          {/* Export Button */}
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Export Data</span>
+              <span className="setting-sublabel">
+                Download a JSON backup of your progress and settings
+              </span>
+            </div>
+            <button
+              onClick={handleExport}
+              className="action-button"
+              data-testid="export-save"
+            >
+              Export
+            </button>
+          </div>
+
+          {/* Import Button */}
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Import Data</span>
+              <span className="setting-sublabel">
+                Restore from a JSON backup file
+              </span>
+            </div>
+            <div className="data-import-wrapper">
+              <button
+                onClick={handleImportClick}
+                className="action-button"
+                data-testid="import-save"
+              >
+                Import
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+                data-testid="import-file-input"
+              />
+            </div>
+          </div>
+
+          {/* Import Status Messages */}
+          {importError && (
+            <div className="data-message data-error" data-testid="import-error">
+              Import failed: {importError}
+            </div>
+          )}
+          {importSuccess && (
+            <div className="data-message data-success" data-testid="import-success">
+              {importMigrated
+                ? `Import successful! Migrated from version ${fromVersion} to version 12. Reloading...`
+                : 'Import successful! Reloading...'}
+            </div>
+          )}
+
+          {/* Reset Button */}
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Reset Local Data</span>
+              <span className="setting-sublabel">
+                Clear all progress, settings, and daily challenge results
+              </span>
+            </div>
+            {!showResetConfirm ? (
+              <button
+                onClick={handleResetClick}
+                className="action-button dangerous"
+                data-testid="reset-save"
+              >
+                Reset
+              </button>
+            ) : (
+              <div className="reset-confirm-wrapper" data-testid="reset-confirm">
+                <button
+                  onClick={handleResetConfirm}
+                  className="action-button dangerous confirm"
+                  data-testid="reset-confirm-yes"
+                >
+                  Yes, Reset
+                </button>
+                <button
+                  onClick={handleResetCancel}
+                  className="action-button"
+                  data-testid="reset-confirm-no"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Warning Message */}
+          {showResetConfirm && (
+            <div className="data-message data-warning" data-testid="reset-warning">
+              ⚠️ This will permanently delete all your progress, settings, and daily challenge results. This cannot be undone!
+            </div>
+          )}
         </div>
       </div>
     </div>

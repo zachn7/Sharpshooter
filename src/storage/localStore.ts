@@ -894,3 +894,167 @@ export function getDailyChallengeStreak(): number {
   
   return streak;
 }
+
+// ==================== IMPORT/EXPORT ====================
+
+/**
+ * Complete application state for import/export
+ */
+export interface AppState {
+  version: number; // Schema version
+  exportDate: string; // ISO timestamp of export
+  gameSave: GameSave | null;
+  dailyChallenge: DailyChallengeStore | null;
+  tutorialsSeen: string[];
+}
+
+/**
+ * Serialize all application state to a JSON object
+ * This includes game save, daily challenge results, and tutorials seen
+ * @returns Complete application state as an object
+ */
+export function serializeAppState(): AppState {
+  const tutorialsSeen = Array.from(getTutorialsSeen());
+  const dailyChallenge = getDailyChallengeStore();
+  const gameSave = loadGameSave();
+
+  return {
+    version: CURRENT_SCHEMA_VERSION,
+    exportDate: new Date().toISOString(),
+    gameSave,
+    dailyChallenge,
+    tutorialsSeen,
+  };
+}
+
+/**
+ * Deserialize and import application state from JSON
+ * Strictly validates the input and never executes arbitrary code
+ * @param json - JSON string or parsed object to import
+ * @returns Object with success status and error message if failed
+ */
+export function deserializeAppState(
+  json: string | unknown,
+): { success: boolean; error?: string; migrated?: boolean; fromVersion?: number } {
+  let data: unknown;
+
+  // Parse JSON if string
+  if (typeof json === 'string') {
+    try {
+      data = JSON.parse(json);
+    } catch {
+      return { success: false, error: 'Invalid JSON: Could not parse file' };
+    }
+  } else {
+    data = json;
+  }
+
+  // Validate that data is an object
+  if (!data || typeof data !== 'object') {
+    return { success: false, error: 'Invalid data: Not an object' };
+  }
+
+  const state = data as Partial<AppState>;
+
+  // Check for required top-level fields
+  if (typeof state.version !== 'number') {
+    return { success: false, error: 'Invalid data: Missing or invalid version' };
+  }
+
+  if (!state.exportDate || typeof state.exportDate !== 'string') {
+    return { success: false, error: 'Invalid data: Missing or invalid export date' };
+  }
+
+  // Validate that this is a Sharpshooter save file
+  if (state.version < 1 || state.version > CURRENT_SCHEMA_VERSION) {
+    return {
+      success: false,
+      error: `Invalid version: ${state.version}. Current version: ${CURRENT_SCHEMA_VERSION}`,
+    };
+  }
+
+  // Validate and migrate game save if present
+  let wasMigrated = false;
+  let fromVersion: number | undefined;
+
+  if (state.gameSave !== null && state.gameSave !== undefined) {
+    if (!validateGameSave(state.gameSave)) {
+      return { success: false, error: 'Invalid data: Game save validation failed' };
+    }
+
+    // Check if migration is needed and save original version
+    const needsMigration = state.gameSave.version < CURRENT_SCHEMA_VERSION;
+    fromVersion = state.gameSave.version;
+
+    if (needsMigration) {
+      try {
+        const migrated = migrateData(
+          state.gameSave,
+          state.gameSave.version,
+          CURRENT_SCHEMA_VERSION,
+        ) as GameSave;
+
+        if (!validateGameSave(migrated)) {
+          return { success: false, error: 'Migration failed: Result is invalid' };
+        }
+
+        state.gameSave = migrated;
+        wasMigrated = true;
+      } catch (error) {
+        return {
+          success: false,
+          error: `Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        };
+      }
+    }
+
+    // Save the game save
+    if (!saveGameSave(state.gameSave)) {
+      return { success: false, error: 'Failed to save game data' };
+    }
+  }
+
+  // Validate and import daily challenge data if present
+  if (state.dailyChallenge !== null && state.dailyChallenge !== undefined) {
+    const dc = state.dailyChallenge;
+    if (!dc.results || !Array.isArray(dc.results)) {
+      return { success: false, error: 'Invalid data: Daily challenge results are invalid' };
+    }
+
+    // Validate each result
+    for (const result of dc.results) {
+      if (
+        !result.date ||
+        typeof result.date !== 'string' ||
+        typeof result.score !== 'number' ||
+        typeof result.stars !== 'number' ||
+        typeof result.completedAt !== 'number' ||
+        typeof result.groupSizeMeters !== 'number' ||
+        !result.weaponId ||
+        typeof result.weaponId !== 'string'
+      ) {
+        return { success: false, error: 'Invalid data: Daily challenge result is invalid' };
+      }
+    }
+
+    storage.setItem(DAILY_CHALLENGE_KEY, JSON.stringify(state.dailyChallenge));
+  }
+
+  // Validate and import tutorials seen if present
+  if (state.tutorialsSeen && Array.isArray(state.tutorialsSeen)) {
+    // Validate that all tutorials are strings
+    for (const tutorialId of state.tutorialsSeen) {
+      if (typeof tutorialId !== 'string') {
+        return { success: false, error: 'Invalid data: Tutorial IDs must be strings' };
+      }
+    }
+
+    storage.setItem(TUTORIALS_KEY, JSON.stringify(state.tutorialsSeen));
+  }
+
+  return {
+    success: true,
+    migrated: wasMigrated,
+    fromVersion,
+  };
+}

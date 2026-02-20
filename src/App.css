@@ -1479,4 +1479,107 @@ body {
   background: #1a1a2e;
   border-radius: 4px;
 }
+
+/* Data Management Section */
+.action-button {
+  padding: 0.6rem 1.5rem;
+  background: #0f3460;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.action-button:hover {
+  background: #1a4b7a;
+  transform: translateY(-2px);
+}
+
+.action-button:active {
+  transform: translateY(0);
+}
+
+.action-button.dangerous {
+  background: #e94560;
+}
+
+.action-button.dangerous:hover {
+  background: #ff6b6b;
+}
+
+.action-button.dangerous.confirm {
+  background: #c62828;
+}
+
+.action-button.dangerous.confirm:hover {
+  background: #d32f2f;
+}
+
+.data-import-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.reset-confirm-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reset-confirm-wrapper .action-button {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.data-message {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.data-error {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.data-warning {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffe0b2;
+}
+
+.data-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.preset-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.preset-select:hover {
+  border-color: #0f3460;
+}
+
+.preset-select:focus {
+  outline: none;
+  border-color: #0f3460;
+  box-shadow: 0 0 0 3px rgba(15, 52, 96, 0.1);
+}
+
+.volume-slider {
+  width: 150px;
+  cursor: pointer;
+}
 }

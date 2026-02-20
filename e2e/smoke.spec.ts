@@ -43,6 +43,45 @@ test('smoke test: navigate through pages', async ({ page }) => {
   await expect(page.getByTestId('main-menu')).toBeVisible();
 });
 
+test('settings page: data management controls exist', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify data section exists
+  await expect(page.getByTestId('data-section')).toBeVisible();
+
+  // Verify export button exists
+  await expect(page.getByTestId('export-save')).toBeVisible();
+
+  // Verify import button exists
+  await expect(page.getByTestId('import-save')).toBeVisible();
+
+  // Verify reset button exists
+  await expect(page.getByTestId('reset-save')).toBeVisible();
+  await expect(page.getByTestId('reset-save')).toHaveText('Reset');
+
+  // Click reset button to show confirmation
+  await page.getByTestId('reset-save').click();
+
+  // Verify confirmation buttons appear
+  await expect(page.getByTestId('reset-confirm')).toBeVisible();
+  await expect(page.getByTestId('reset-confirm-yes')).toBeVisible();
+  await expect(page.getByTestId('reset-confirm-yes')).toHaveText('Yes, Reset');
+  await expect(page.getByTestId('reset-confirm-no')).toBeVisible();
+  await expect(page.getByTestId('reset-confirm-no')).toHaveText('Cancel');
+
+  // Verify warning message appears
+  await expect(page.getByTestId('reset-warning')).toBeVisible();
+
+  // Cancel the reset
+  await page.getByTestId('reset-confirm-no').click();
+
+  // Verify reset button is back to normal
+  await expect(page.getByTestId('reset-save')).toBeVisible();
+  await expect(page.getByTestId('reset-save')).toHaveText('Reset');
+});
+
 test('level run flow: complete level and see results', async ({ page }) => {
   // Start at main menu
   await page.goto('/');
