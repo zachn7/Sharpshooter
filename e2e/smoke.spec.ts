@@ -1307,3 +1307,92 @@ test('mobile controls: turret controls support press-and-hold', async ({ page })
   expect(changedValue).not.toBe('+0.0');
   expect(changedValue).toContain('+');
 });
+
+test('pistols pack: select pistol, start level, fire, see results', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to weapons to select a pistol
+  await page.getByTestId('weapons-button').click();
+  await page.waitForURL('**/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Verify pistol tab exists and click it
+  await expect(page.getByTestId('tab-pistol')).toBeVisible();
+  await page.getByTestId('tab-pistol').click();
+
+  // Select a pistol weapon (verify one exists)
+  await expect(page.getByTestId('weapon-pistol-viper')).toBeVisible();
+  await page.getByTestId('weapon-pistol-viper').click();
+
+  // Go back to menu
+  await page.getByTestId('back-button').first().click();
+  await page.waitForURL('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to levels page
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Verify pistols pack exists with correct testid
+  await expect(page.getByTestId('pistols-pack')).toBeVisible();
+  const pistolsPack = page.getByTestId('pistols-pack');
+  
+  // Verify pack name is displayed
+  await expect(pistolsPack.getByText('Pistols')).toBeVisible();
+  await expect(pistolsPack.getByText('PISTOL')).toBeVisible();
+
+  // Verify first pistol level is visible and unlocked
+  await expect(page.getByTestId('level-pistols-1-cqc')).toBeVisible();
+  const levelButton = page.getByTestId('level-pistols-1-cqc');
+  await expect(levelButton).toHaveText('Close Quarters');
+
+  // Start the first pistol level
+  await levelButton.click();
+  await page.waitForURL('**/game/pistols-1-cqc');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Should see level briefing
+  await expect(page.getByTestId('level-briefing')).toBeVisible();
+  await expect(page.getByText('Mission Briefing')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('level-briefing')).not.toBeVisible();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Verify initial shot count (pistols-1-cqc has 5 shots)
+  const shotCount = page.getByTestId('shot-count');
+  await expect(shotCount).toContainText('Shots: 5/5');
+
+  // Get canvas and fire shots at the center
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    // Fire 5 shots at center for deterministic results
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+      await page.waitForTimeout(100); // Small delay between shots
+    }
+  }
+
+  // Should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByText('Mission Complete')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  await expect(page.getByTestId('stars-earned')).toBeVisible();
+
+  // Verify result elements are present
+  await expect(page.getByTestId('retry-button')).toBeVisible();
+  await expect(page.getByTestId('back-to-levels')).toBeVisible();
+
+  // Go back to levels
+  await page.getByTestId('back-to-levels').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Verify pistols pack is still visible after completing a level
+  await expect(page.getByTestId('pistols-pack')).toBeVisible();
+});

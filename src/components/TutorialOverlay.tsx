@@ -8,6 +8,42 @@ interface TutorialContent {
 
 // Tutorial content keyed by level ID
 const TUTORIALS: Record<string, TutorialContent> = {
+  'pistols-1-cqc': {
+    title: 'Welcome to Pistols!',
+    message: [
+      'Pistols excel at close-range combat (25-50m).',
+      'Higher velocity means less bullet drop than rifles...',
+      '...but also more recoil that affects follow-up shots.',
+      'Manage your shooting rhythm for consistent accuracy.',
+    ],
+  },
+  'pistols-2-wind-adapt': {
+    title: 'Pistol Wind Adaptation',
+    message: [
+      'Pistols have shorter flight time = less wind drift than rifles.',
+      'At 25m, a 2.5 m/s crosswind causes ~3 MILs of drift.',
+      'Hold slightly into the wind to compensate.',
+      'Quick recovery: pistols return to stability faster than rifles!',
+    ],
+  },
+  'pistols-3-rapid-fire': {
+    title: 'Recoil Management',
+    message: [
+      'Rapid fire requires recoil awareness!',
+      'Each shot raises the muzzle slightly - aim slightly lower.',
+      'Pause briefly between shots to let the sight settle.',
+      'Better weapons have faster recoil recovery times.',
+    ],
+  },
+  'pistols-5-timed-string': {
+    title: 'Timed Engagement',
+    message: [
+      'Plate targets: find each target and land hits quickly!',
+      'You have 45 seconds to hit all 5 plates.',
+      'Prioritize speed: 3 points per plate is generous.',
+      'Focus on smooth transitions between targets!',
+    ],
+  },
   'rifle-basics-1': {
     title: 'Welcome to Sharpshooter!',
     message: [

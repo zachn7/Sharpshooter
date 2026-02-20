@@ -41,7 +41,11 @@ export function Levels() {
           const maxStars = getPackMaxStars(pack.levels);
 
           return (
-            <div key={pack.id} className="level-pack" data-testid={`level-pack-${pack.id}`}>
+            <div 
+              key={pack.id} 
+              className="level-pack" 
+              data-testid={pack.id === 'pistols' ? 'pistols-pack' : `level-pack-${pack.id}`}
+            >
               <div className="pack-header">
                 <h3 className="pack-name">{pack.name}</h3>
                 <span className="pack-weapon-type">{pack.weaponType.toUpperCase()}</span>
