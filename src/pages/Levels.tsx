@@ -44,11 +44,7 @@ export function Levels() {
             <div 
               key={pack.id} 
               className="level-pack" 
-              data-testid={
-                pack.id === 'pistols' ? 'pistols-pack' :
-                pack.id === 'elr-pack' ? 'elr-pack' :
-                `level-pack-${pack.id}`
-              }
+              data-testid={`pack-${pack.id}`}
             >
               <div className="pack-header">
                 <h3 className="pack-name">{pack.name}</h3>

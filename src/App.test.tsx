@@ -61,8 +61,8 @@ describe('App Pages', () => {
         </BrowserRouter>
       );
       expect(screen.getByTestId('levels-page')).toBeInTheDocument();
-      expect(screen.getByTestId('level-pack-pistol-basics')).toBeInTheDocument();
-      expect(screen.getByTestId('level-pack-sniper-basics')).toBeInTheDocument();
+      expect(screen.getByTestId('pack-pistol-basics')).toBeInTheDocument();
+      expect(screen.getByTestId('pack-sniper-basics')).toBeInTheDocument();
     });
   });
 
