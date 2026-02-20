@@ -13,6 +13,11 @@ export interface WeaponParams {
   defaultOptic: OpticType;       // Default optic type
   recoilRecoveryMs: number;      // Time to recover from recoil (for future use)
   precisionMoaAt100: number;     // 3-shot group precision at 100 yards in MOA (lower = more accurate)
+  // Shotgun-specific parameters
+  pelletCount?: number;          // Number of pellets for shotgun (default: 12)
+  spreadMils?: number;           // Base spread diameter in MILs for shotgun (default: 25)
+  choke?: 'cylinder' | 'improved-cylinder' | 'modified' | 'improved-modified' | 'full'; // Shotgun choke (default: cylinder)
+  recoilScale?: number;         // Recoil intensity multiplier for shotguns (default: 1.0)
 }
 
 // Weapon entry in catalog
@@ -76,8 +81,56 @@ export const WEAPONS_CATALOG: Weapon[] = [
     },
     unlocked: true,
   },
+  {
+    id: 'pistol-viper',
+    name: 'Viper VX-9',
+    type: 'pistol',
+    description: 'Compact tactical pistol optimized for close-range engagement. Fast recoil recovery.',
+    params: {
+      muzzleVelocityMps: 380,
+      massKg: 0.009,
+      diameterM: 0.009,
+      dragFactor: 0.000028,
+      defaultOptic: 'red-dot',
+      recoilRecoveryMs: 120,
+      precisionMoaAt100: 2.5,
+    },
+    unlocked: true,
+  },
+  {
+    id: 'pistol-phantom',
+    name: 'Phantom P-45',
+    type: 'pistol',
+    description: 'Full-size service pistol with strong recoil and stable platform for follow-up shots.',
+    params: {
+      muzzleVelocityMps: 320,
+      massKg: 0.012,
+      diameterM: 0.011,
+      dragFactor: 0.000032,
+      defaultOptic: 'red-dot',
+      recoilRecoveryMs: 250,
+      precisionMoaAt100: 2.0,
+    },
+    unlocked: true,
+  },
+  {
+    id: 'pistol-eclipse',
+    name: 'Eclipse E-22',
+    type: 'pistol',
+    description: 'Match-grade precision pistol with exceptional accuracy and minimal drag.',
+    params: {
+      muzzleVelocityMps: 420,
+      massKg: 0.0075,
+      diameterM: 0.0055,
+      dragFactor: 0.000018,
+      defaultOptic: 'red-dot',
+      recoilRecoveryMs: 180,
+      precisionMoaAt100: 0.8,
+    },
+    unlocked: true,
+  },
 
-  // Rifles
+  // Rifles,
   {
     id: 'rifle-carbine',
     name: 'Carbine AR-15',
@@ -177,20 +230,114 @@ export const WEAPONS_CATALOG: Weapon[] = [
     unlocked: true,
   },
 
+  // ELR (Extended Long Range) Rifles
+  {
+    id: 'dmr-precision',
+    name: 'Precision DMR MK-II',
+    type: 'rifle',
+    description: 'Designated marksman rifle. High velocity, tight groups.',
+    params: {
+      muzzleVelocityMps: 940,
+      massKg: 0.0097,
+      diameterM: 0.0076,
+      dragFactor: 0.000016,
+      defaultOptic: 'scope-8x',
+      recoilRecoveryMs: 180,
+      precisionMoaAt100: 0.75,  // Very tight for DMR
+    },
+    unlocked: true,
+  },
+  {
+    id: 'elr-sniper',
+    name: 'ELR Sniper Horizon',
+    type: 'sniper',
+    description: 'Supreme long-range rifle. Built for 1500m+ engagements.',
+    params: {
+      muzzleVelocityMps: 1020,
+      massKg: 0.0105,
+      diameterM: 0.0080,
+      dragFactor: 0.000014,  // Very low drag for long range
+      defaultOptic: 'scope-12x',
+      recoilRecoveryMs: 280,
+      precisionMoaAt100: 0.6,  // Extremely tight
+    },
+    unlocked: true,
+  },
+  {
+    id: 'dmr-heavy-magnum',
+    name: 'Magnum DMR Tyrant',
+    type: 'rifle',
+    description: 'Heavy magnum cartridge. Resists wind at extreme ranges.',
+    params: {
+      muzzleVelocityMps: 880,
+      massKg: 0.0125,
+      diameterM: 0.0085,
+      dragFactor: 0.000017,
+      defaultOptic: 'scope-12x',
+      recoilRecoveryMs: 320,
+      precisionMoaAt100: 0.9,
+    },
+    unlocked: true,
+  },
+
   // Shotguns (for close-range fun)
   {
     id: 'shotgun-pump',
     name: 'Pump Action 12G',
     type: 'shotgun',
-    description: 'Close-range shotgun with wide spread.',
+    description: 'Classic pump action with wide spread. Great for moving targets.',
     params: {
       muzzleVelocityMps: 400,
-      massKg: 0.035,  // Heavier slug
+      massKg: 0.035,
       diameterM: 0.0185,
       dragFactor: 0.00008,
       defaultOptic: 'iron-sights',
       recoilRecoveryMs: 350,
       precisionMoaAt100: 10.0,
+      pelletCount: 12,
+      spreadMils: 28,
+      choke: 'cylinder',
+      recoilScale: 1.0,
+    },
+    unlocked: true,
+  },
+  {
+    id: 'shotgun-semi',
+    name: 'Semi-Auto 12G',
+    type: 'shotgun',
+    description: 'Fast semi-auto with tighter pattern and manageable recoil.',
+    params: {
+      muzzleVelocityMps: 420,
+      massKg: 0.032,
+      diameterM: 0.0185,
+      dragFactor: 0.000075,
+      defaultOptic: 'iron-sights',
+      recoilRecoveryMs: 200,  // Faster recovery for rapid shooting
+      precisionMoaAt100: 9.0,
+      pelletCount: 10,
+      spreadMils: 22,
+      choke: 'improved-cylinder',
+      recoilScale: 0.85,
+    },
+    unlocked: true,
+  },
+  {
+    id: 'shotgun-skeet',
+    name: 'Skeet Master 20G',
+    description: 'Lightweight 20-gauge with tight pattern. Ideal for clays.',
+    type: 'shotgun',
+    params: {
+      muzzleVelocityMps: 380,
+      massKg: 0.025,  // Lighter pellets, less recoil
+      diameterM: 0.015,  // Smaller diameter
+      dragFactor: 0.00007,
+      defaultOptic: 'iron-sights',
+      recoilRecoveryMs: 150,
+      precisionMoaAt100: 8.0,
+      pelletCount: 8,
+      spreadMils: 18,
+      choke: 'modified',
+      recoilScale: 0.65,  // Much lower recoil
     },
     unlocked: true,
   },

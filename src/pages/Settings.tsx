@@ -1,16 +1,26 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  getGameSettings, 
-  updateGameSettings, 
+import {
+  getGameSettings,
+  updateGameSettings,
   getSelectedWeaponId,
   saveZeroProfile,
   getZeroProfile,
-  type GameSettings, 
+  serializeAppState,
+  deserializeAppState,
+  clearSaveData,
+  clearDailyChallengeResults,
+  clearTutorialsSeen,
+  getReticleSkinId,
+  setReticleSkinId,
+  getUnlockedAchievementIds,
+  type GameSettings,
   type RealismPreset,
   type ZeroProfile
 } from '../storage';
 import { getDefaultShowNumericWind } from '../physics/windCues';
+import { RETICLE_SKINS, isReticleSkinUnlocked } from '../storage/reticleSkins';
+import { ACHIEVEMENT_DEFINITIONS } from '../storage/achievements';
 
 const ZERO_DISTANCE_OPTIONS = [25, 50, 100, 200] as const;
 
@@ -42,6 +52,21 @@ export function Settings() {
     const profile = getZeroProfile(weaponId);
     return (profile?.zeroDistanceM || 0) as ZeroDistanceOption;
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [importMigrated, setImportMigrated] = useState(false);
+  const [fromVersion, setFromVersion] = useState<number | undefined>();
+  const [reticleSkinId, setReticleSkinIdState] = useState(() => getReticleSkinId());
+  const unlockedAchievementIds = getUnlockedAchievementIds();
+
+  const handleReticleSkinChange = (skinId: string) => {
+    if (isReticleSkinUnlocked(skinId, unlockedAchievementIds)) {
+      setReticleSkinId(skinId);
+      setReticleSkinIdState(skinId);
+    }
+  };
 
   const handlePresetChange = (preset: RealismPreset) => {
     if (!settings) return;
@@ -95,17 +120,159 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleReticleStyleChange = (style: 'simple' | 'mil' | 'tree') => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      reticle: {
+        ...settings.reticle,
+        style,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleReticleThicknessChange = (thickness: number) => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      reticle: {
+        ...settings.reticle,
+        thickness: Math.max(1, Math.min(5, thickness)),
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleReticleCenterDotToggleChange = () => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      reticle: {
+        ...settings.reticle,
+        centerDot: !settings.reticle.centerDot,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleOffsetUnitChange = (unit: 'mil' | 'moa') => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      display: {
+        ...settings.display,
+        offsetUnit: unit,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleMobileToggleChange = (key: 'showFireButton' | 'thumbAimMode') => {
+    if (!settings) return;
+    const currentValue = settings.mobile[key];
+    const updated = updateGameSettings({
+      mobile: {
+        ...settings.mobile,
+        [key]: !currentValue,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
   const handleZeroDistanceChange = async (distance: number) => {
     setZeroDistance(distance as ZeroDistanceOption);
-    
+
     // Get or create profile
     const profile: ZeroProfile = {
       zeroDistanceM: distance,
       zeroElevationMils: 0.0,
       zeroWindageMils: 0.0,
     };
-    
+
     saveZeroProfile(selectedWeaponId, profile);
+  };
+
+  const handleExport = () => {
+    try {
+      const state = serializeAppState();
+      const jsonString = JSON.stringify(state, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toISOString().split('T')[0];
+      a.download = `sharpshooter-backup-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+    setImportSuccess(false);
+    setImportMigrated(false);
+    setFromVersion(undefined);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const result = deserializeAppState(content);
+
+        if (result.success) {
+          setImportSuccess(true);
+          setImportMigrated(!!result.migrated);
+          setFromVersion(result.fromVersion);
+
+          // Reload the page to refresh all state
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } else {
+          setImportError(result.error || 'Import failed');
+        }
+      } catch {
+        setImportError('Failed to read file');
+      }
+    };
+
+    reader.readAsText(file);
+
+    // Reset input to allow selecting the same file again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleResetClick = () => {
+    setShowResetConfirm(true);
+  };
+
+  const handleResetConfirm = () => {
+    try {
+      clearSaveData();
+      clearDailyChallengeResults();
+      clearTutorialsSeen();
+      window.location.reload();
+    } catch (error) {
+      console.error('Reset failed:', error);
+      alert('Reset failed. Please try again.');
+      setShowResetConfirm(false);
+    }
+  };
+
+  const handleResetCancel = () => {
+    setShowResetConfirm(false);
   };
 
   if (!settings) {
@@ -413,6 +580,198 @@ export function Settings() {
           </div>
         </div>
 
+        {/* Reticle Settings Section */}
+        <div className="settings-section" data-testid="reticle-section">
+          <h3>Reticle</h3>
+          <p className="setting-description">
+            Customize the aiming reticle appearance and display options.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Style</span>
+                <span className="setting-sublabel">
+                  Choose reticle pattern
+                </span>
+              </div>
+              <div className="setting-options">
+                <button
+                  className={`option-button ${settings.reticle.style === 'simple' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('simple')}
+                  data-testid="reticle-style-simple"
+                >
+                  Simple
+                </button>
+                <button
+                  className={`option-button ${settings.reticle.style === 'mil' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('mil')}
+                  data-testid="reticle-style-mil"
+                >
+                  MIL
+                </button>
+                <button
+                  className={`option-button ${settings.reticle.style === 'tree' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('tree')}
+                  data-testid="reticle-style-tree"
+                >
+                  Tree
+                </button>
+              </div>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Thickness</span>
+                <span className="setting-sublabel">
+                  Line thickness: {settings.reticle.thickness}px
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={settings.reticle.thickness}
+                onChange={(e) => handleReticleThicknessChange(Number(e.target.value))}
+                className="range-slider"
+                data-testid="reticle-thickness"
+                aria-label="Reticle thickness"
+              />
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Reticle Skin</span>
+                <span className="setting-sublabel">
+                  Color skin cosmetics
+                </span>
+              </div>
+              <select
+                value={reticleSkinId}
+                onChange={(e) => handleReticleSkinChange(e.target.value)}
+                className="skin-select"
+                data-testid="reticle-skin-select"
+              >
+                {RETICLE_SKINS.map(skin => {
+                  const unlocked = isReticleSkinUnlocked(skin.id, unlockedAchievementIds);
+                  const achievement = skin.achievementId
+                    ? ACHIEVEMENT_DEFINITIONS.find(a => a.id === skin.achievementId)
+                    : null;
+
+                  return (
+                    <option
+                      key={skin.id}
+                      value={skin.id}
+                      disabled={!unlocked}
+                    >
+                      {unlocked ? '' : '🔒 '}{skin.name}{unlocked ? '' : achievement ? ` (${achievement.title})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Center Dot</span>
+                <span className="setting-sublabel">
+                  Show dot at reticle center
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.reticle.centerDot ? 'on' : 'off'}`}
+                onClick={handleReticleCenterDotToggleChange}
+                data-testid="reticle-center-dot"
+                aria-pressed={settings.reticle.centerDot}
+              >
+                {settings.reticle.centerDot ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Display Settings Section */}
+        <div className="settings-section" data-testid="display-section">
+          <h3>Display</h3>
+          <p className="setting-description">
+            Configure display units and readout preferences.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Offset Units</span>
+                <span className="setting-sublabel">
+                  Unit for impact offset display
+                </span>
+              </div>
+              <div className="setting-options">
+                <button
+                  className={`option-button ${settings.display.offsetUnit === 'mil' ? 'active' : ''}`}
+                  onClick={() => handleOffsetUnitChange('mil')}
+                  data-testid="offset-units-mil"
+                >
+                  MIL
+                </button>
+                <button
+                  className={`option-button ${settings.display.offsetUnit === 'moa' ? 'active' : ''}`}
+                  onClick={() => handleOffsetUnitChange('moa')}
+                  data-testid="offset-units-moa"
+                >
+                  MOA
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Settings Section */}
+        <div className="settings-section" data-testid="mobile-section">
+          <h3>Mobile Controls</h3>
+          <p className="setting-description">
+            Configure on-screen controls for touch devices.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Fire Button</span>
+                <span className="setting-sublabel">
+                  Show on-screen fire button (alternative to tapping canvas)
+                </span>
+              </div>
+              <div className="setting-actions">
+                <button
+                  onClick={() => handleMobileToggleChange('showFireButton')}
+                  className={`action-toggle ${settings.mobile.showFireButton ? 'on' : 'off'}`}
+                  data-testid="show-fire-button-toggle"
+                  aria-pressed={settings.mobile.showFireButton}
+                >
+                  {settings.mobile.showFireButton ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Thumb Aim</span>
+                <span className="setting-sublabel">
+                  Use virtual joystick for aiming (coming soon)
+                </span>
+              </div>
+              <div className="setting-actions">
+                <button
+                  onClick={() => handleMobileToggleChange('thumbAimMode')}
+                  className={`action-toggle ${settings.mobile.thumbAimMode ? 'on' : 'off'} action-toggle-disabled`}
+                  data-testid="thumb-aim-mode-toggle"
+                  aria-pressed={settings.mobile.thumbAimMode}
+                  disabled
+                  title="Coming soon"
+                >
+                  {settings.mobile.thumbAimMode ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Zero Distance Section */}
         <div className="settings-section" data-testid="zeroing-section">
           <h3>Zero Settings</h3>
@@ -447,6 +806,115 @@ export function Settings() {
               Go to Zero Range
             </Link>
           </div>
+        </div>
+
+        {/* Data Management Section */}
+        <div className="settings-section" data-testid="data-section">
+          <h3>Data Management</h3>
+          <p className="setting-description">
+            Export your progress, settings, and daily challenge scores to a JSON file, or import a backup to restore your data.
+          </p>
+
+          {/* Export Button */}
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Export Data</span>
+              <span className="setting-sublabel">
+                Download a JSON backup of your progress and settings
+              </span>
+            </div>
+            <button
+              onClick={handleExport}
+              className="action-button"
+              data-testid="export-save"
+            >
+              Export
+            </button>
+          </div>
+
+          {/* Import Button */}
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Import Data</span>
+              <span className="setting-sublabel">
+                Restore from a JSON backup file
+              </span>
+            </div>
+            <div className="data-import-wrapper">
+              <button
+                onClick={handleImportClick}
+                className="action-button"
+                data-testid="import-save"
+              >
+                Import
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+                data-testid="import-file-input"
+              />
+            </div>
+          </div>
+
+          {/* Import Status Messages */}
+          {importError && (
+            <div className="data-message data-error" data-testid="import-error">
+              Import failed: {importError}
+            </div>
+          )}
+          {importSuccess && (
+            <div className="data-message data-success" data-testid="import-success">
+              {importMigrated
+                ? `Import successful! Migrated from version ${fromVersion} to version 12. Reloading...`
+                : 'Import successful! Reloading...'}
+            </div>
+          )}
+
+          {/* Reset Button */}
+          <div className="setting-item">
+            <div className="setting-info">
+              <span className="setting-label">Reset Local Data</span>
+              <span className="setting-sublabel">
+                Clear all progress, settings, and daily challenge results
+              </span>
+            </div>
+            {!showResetConfirm ? (
+              <button
+                onClick={handleResetClick}
+                className="action-button dangerous"
+                data-testid="reset-save"
+              >
+                Reset
+              </button>
+            ) : (
+              <div className="reset-confirm-wrapper" data-testid="reset-confirm">
+                <button
+                  onClick={handleResetConfirm}
+                  className="action-button dangerous confirm"
+                  data-testid="reset-confirm-yes"
+                >
+                  Yes, Reset
+                </button>
+                <button
+                  onClick={handleResetCancel}
+                  className="action-button"
+                  data-testid="reset-confirm-no"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Warning Message */}
+          {showResetConfirm && (
+            <div className="data-message data-warning" data-testid="reset-warning">
+              ⚠️ This will permanently delete all your progress, settings, and daily challenge results. This cannot be undone!
+            </div>
+          )}
         </div>
       </div>
     </div>

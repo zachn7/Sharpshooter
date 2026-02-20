@@ -1,12 +1,46 @@
 /**
  * MIL (milliradian) reticle utilities
  * 1 MIL = 1 milliradian = 0.001 radians
-n * 
-n * MIL subtension at distance D (meters):
+ * 
+ * MIL subtension at distance D (meters):
  * - 1 MIL subtends (D * 0.001) meters at distance D
-n * - At 100m, 1 MIL = 0.1m (10cm)
-n * - At 500m, 1 MIL = 0.5m (50cm)
-n */
+ * - At 100m, 1 MIL = 0.1m (10cm)
+ * - At 500m, 1 MIL = 0.5m (50cm)
+ * 
+ * MIL to MOA conversion (display-only, for readouts):
+ * - 1 MIL ≈ 3.438 MOA
+ * - 1 MOA ≈ 0.291 MIL
+ */
+
+/**
+ * Conversion factor: MILs to MOA
+ * 1 MIL = 3.43774677... MOA, rounded to 3.438 for display
+ */
+export const MIL_TO_MOA = 3.438;
+
+/**
+ * Conversion factor: MOA to MIL
+ * 1 MOA = 0.290888... MIL, rounded to 0.291 for display
+ */
+export const MOA_TO_MIL = 0.291;
+
+/**
+ * Convert MILs to MOA (display-only)
+ * @param mils - MIL value to convert
+ * @returns Equivalent value in MOA
+ */
+export function milsToMoa(mils: number): number {
+  return mils * MIL_TO_MOA;
+}
+
+/**
+ * Convert MOA to MILs (display-only)
+ * @param moa - MOA value to convert
+ * @returns Equivalent value in MILs
+ */
+export function moaToMils(moa: number): number {
+  return moa * MOA_TO_MIL;
+}
 
 /**
  * Convert MILs to meters at a given distance

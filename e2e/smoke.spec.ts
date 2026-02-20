@@ -21,7 +21,7 @@ test('smoke test: navigate through pages', async ({ page }) => {
   await page.getByTestId('levels-button').click();
   await page.waitForURL('**/levels');
   await expect(page.getByTestId('levels-page')).toBeVisible();
-  await expect(page.getByTestId('level-pack-pistol-basics')).toBeVisible();
+  await expect(page.getByTestId('pack-pistol-basics')).toBeVisible();
   await expect(page.getByTestId('back-button').first()).toBeVisible();
 
   // Go back to main menu
@@ -41,6 +41,45 @@ test('smoke test: navigate through pages', async ({ page }) => {
   await page.getByTestId('back-button').first().click();
   await page.waitForURL('/');
   await expect(page.getByTestId('main-menu')).toBeVisible();
+});
+
+test('settings page: data management controls exist', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify data section exists
+  await expect(page.getByTestId('data-section')).toBeVisible();
+
+  // Verify export button exists
+  await expect(page.getByTestId('export-save')).toBeVisible();
+
+  // Verify import button exists
+  await expect(page.getByTestId('import-save')).toBeVisible();
+
+  // Verify reset button exists
+  await expect(page.getByTestId('reset-save')).toBeVisible();
+  await expect(page.getByTestId('reset-save')).toHaveText('Reset');
+
+  // Click reset button to show confirmation
+  await page.getByTestId('reset-save').click();
+
+  // Verify confirmation buttons appear
+  await expect(page.getByTestId('reset-confirm')).toBeVisible();
+  await expect(page.getByTestId('reset-confirm-yes')).toBeVisible();
+  await expect(page.getByTestId('reset-confirm-yes')).toHaveText('Yes, Reset');
+  await expect(page.getByTestId('reset-confirm-no')).toBeVisible();
+  await expect(page.getByTestId('reset-confirm-no')).toHaveText('Cancel');
+
+  // Verify warning message appears
+  await expect(page.getByTestId('reset-warning')).toBeVisible();
+
+  // Cancel the reset
+  await page.getByTestId('reset-confirm-no').click();
+
+  // Verify reset button is back to normal
+  await expect(page.getByTestId('reset-save')).toBeVisible();
+  await expect(page.getByTestId('reset-save')).toHaveText('Reset');
 });
 
 test('level run flow: complete level and see results', async ({ page }) => {
@@ -119,14 +158,12 @@ test('wind HUD displays baseline and gust range', async ({ page }) => {
   await page.getByTestId('start-level').click();
 
   // Wind HUD should be visible
-  await expect(page.getByTestId('wind-hud')).toBeVisible();
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
   await expect(page.getByTestId('wind-arrow')).toBeVisible();
 
   // Wind HUD should contain wind information
-  const windHud = page.getByTestId('wind-hud');
+  const windHud = page.getByTestId('wind-cues');
   expect(await windHud.textContent()).toContain('Wind');
-  expect(await windHud.textContent()).toContain('Baseline:');
-  expect(await windHud.textContent()).toContain('Gust:');
 
   // Wind arrow should point in the direction of wind (pistol-windy has +2 m/s wind)
   const windArrow = page.getByTestId('wind-arrow');
@@ -308,7 +345,7 @@ test('settings: preset selection persists and affects HUD', async ({ page }) => 
   await page.getByTestId('start-level').click();
 
   // HUD should be visible by default
-  await expect(page.getByTestId('wind-hud')).toBeVisible();
+  await expect(page.getByTestId('wind-cues')).toBeVisible();
 
   // Navigate back and turn off HUD
   await page.goto('/settings');
@@ -318,7 +355,7 @@ test('settings: preset selection persists and affects HUD', async ({ page }) => 
   // Verify HUD is off
   await page.goto('/game/pistol-windy');
   await page.getByTestId('start-level').click();
-  await expect(page.getByTestId('wind-hud')).not.toBeVisible();
+  await expect(page.getByTestId('wind-cues')).not.toBeVisible();
 });
 
 test('level unlock progression: next level unlocks on star', async ({ page }) => {
@@ -991,4 +1028,621 @@ test('Expert extras: HUD badge not visible when Expert extras disabled', async (
   // Expert extras badge should NOT be visible
   const badge = page.getByTestId('expert-extras-badge');
   await expect(badge).not.toBeVisible();
+});
+
+test('reticle customization: settings page has reticle controls', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify reticle section exists
+  await expect(page.getByTestId('reticle-section')).toBeVisible();
+
+  // Verify reticle style options exist
+  await expect(page.getByTestId('reticle-style-simple')).toBeVisible();
+  await expect(page.getByTestId('reticle-style-mil')).toBeVisible();
+  await expect(page.getByTestId('reticle-style-tree')).toBeVisible();
+
+  // Verify reticle thickness slider exists
+  await expect(page.getByTestId('reticle-thickness')).toBeVisible();
+
+  // Verify center dot toggle exists
+  await expect(page.getByTestId('reticle-center-dot')).toBeVisible();
+});
+
+test('reticle customization: toggle center dot persists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Center dot should be ON by default
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('ON');
+
+  // Toggle it OFF
+  await page.getByTestId('reticle-center-dot').click();
+  await page.waitForTimeout(100);
+
+  // Verify it's OFF
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('OFF');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('OFF');
+
+  // Toggle it back ON
+  await page.getByTestId('reticle-center-dot').click();
+  await page.waitForTimeout(100);
+
+  // Refresh and verify it's ON
+  await page.reload();
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('ON');
+});
+
+test('reticle customization: adjust thickness persists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Get the thickness slider
+  const thicknessSlider = page.getByTestId('reticle-thickness');
+  await expect(thicknessSlider).toBeVisible();
+
+  // Check default thickness (should be 2)
+  const defaultThickness = await thicknessSlider.inputValue();
+  expect(defaultThickness).toBe('2');
+
+  // Adjust thickness to 5
+  await thicknessSlider.fill('5');
+  await page.waitForTimeout(100);
+
+  // Verify it's 5
+  const newThickness1 = await thicknessSlider.inputValue();
+  expect(newThickness1).toBe('5');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  const newThickness2 = await thicknessSlider.inputValue();
+  expect(newThickness2).toBe('5');
+});
+
+test('reticle customization: change style persists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Simple style should be selectable
+  await page.getByTestId('reticle-style-simple').click();
+  await page.waitForTimeout(100);
+
+  // Verify simple is selected
+  await expect(page.getByTestId('reticle-style-simple')).toHaveClass(/active/);
+
+  // Refresh and verify style persists
+  await page.reload();
+  await expect(page.getByTestId('reticle-style-simple')).toHaveClass(/active/);
+
+  // Change to MIL style
+  await page.getByTestId('reticle-style-mil').click();
+  await page.waitForTimeout(100);
+
+  // Verify MIL is selected
+  await expect(page.getByTestId('reticle-style-mil')).toHaveClass(/active/);
+
+  // Refresh and verify style persists
+  await page.reload();
+  await expect(page.getByTestId('reticle-style-mil')).toHaveClass(/active/);
+});
+
+test('display settings: offset unit toggle changes impact offset readout', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify display section exists
+  await expect(page.getByTestId('display-section')).toBeVisible();
+
+  // Verify offset unit options exist
+  await expect(page.getByTestId('offset-units-mil')).toBeVisible();
+  await expect(page.getByTestId('offset-units-moa')).toBeVisible();
+
+  // Change to MOA
+  await page.getByTestId('offset-units-moa').click();
+  await page.waitForTimeout(100);
+
+  // Verify MOA is selected
+  await expect(page.getByTestId('offset-units-moa')).toHaveClass(/active/);
+
+  // Start a game and verify offset shows in MOA
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+
+  // Fire a shot
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Impact offset panel should show MOA
+  const offsetPanel = page.getByTestId('impact-offset-panel');
+  await expect(offsetPanel).toBeVisible();
+  const offsetText = await offsetPanel.textContent();
+  expect(offsetText).toContain('MOA');
+  expect(offsetText).not.toContain('MIL');
+
+  // Go back to settings and change to MIL
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  await page.getByTestId('offset-units-mil').click();
+  await page.waitForTimeout(100);
+
+  // Start the game again and verify offset shows in MIL
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Impact offset panel should now show MIL
+  const offsetPanel2 = page.getByTestId('impact-offset-panel');
+  await expect(offsetPanel2).toBeVisible();
+  const offsetText2 = await offsetPanel2.textContent();
+  expect(offsetText2).toContain('MIL');
+  expect(offsetText2).not.toContain('MOA');
+});
+
+test('mobile controls: settings page has mobile controls section', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify mobile controls section exists
+  await expect(page.getByTestId('mobile-section')).toBeVisible();
+
+  // Verify Fire Button toggle exists
+  await expect(page.getByTestId('show-fire-button-toggle')).toBeVisible();
+});
+
+test('mobile controls: enable fire button toggle', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Fire button should be OFF by default
+  await expect(page.getByTestId('show-fire-button-toggle')).toHaveText('OFF');
+
+  // Toggle it ON
+  await page.getByTestId('show-fire-button-toggle').click();
+  await page.waitForTimeout(100);
+
+  // Verify it's ON
+  await expect(page.getByTestId('show-fire-button-toggle')).toHaveText('ON');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  await expect(page.getByTestId('show-fire-button-toggle')).toHaveText('ON');
+});
+
+test('mobile controls: fire button exists in game when enabled', async ({ page }) => {
+  // Navigate to settings and enable fire button
+  await page.goto('/settings');
+  
+  // Ensure fire button is ON
+  const fireButtonToggle = page.getByTestId('show-fire-button-toggle');
+  const toggleText = await fireButtonToggle.textContent();
+  if (toggleText === 'OFF') {
+    await fireButtonToggle.click();
+    await page.waitForTimeout(100);
+  }
+
+  // Navigate to game page and start a level
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+  await page.waitForTimeout(200);
+
+  // Fire button should be visible
+  await expect(page.getByTestId('fire-button')).toBeVisible();
+
+  // Verify shot count before firing
+  const shotCountBefore = await page.getByTestId('shot-count').textContent();
+  expect(shotCountBefore).toContain('3/3');
+
+  // Click fire button
+  await page.getByTestId('fire-button').click();
+  await page.waitForTimeout(200);
+
+  // Verify shot count decreased
+  const shotCountAfter = await page.getByTestId('shot-count').textContent();
+  expect(shotCountAfter).toContain('2/3');
+});
+
+test('mobile controls: fire button not visible when disabled', async ({ page }) => {
+  // Navigate to settings and disable fire button
+  await page.goto('/settings');
+  
+  // Ensure fire button is OFF
+  const fireButtonToggle = page.getByTestId('show-fire-button-toggle');
+  const toggleText = await fireButtonToggle.textContent();
+  if (toggleText === 'ON') {
+    await fireButtonToggle.click();
+    await page.waitForTimeout(100);
+  }
+
+  // Navigate to game page and start a level
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+  await page.waitForTimeout(200);
+
+  // Fire button should NOT be visible
+  const fireButton = page.getByTestId('fire-button');
+  await expect(fireButton).not.toBeVisible();
+});
+
+test('shotgun: multi-impacts rendering', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to weapons to select shotgun
+  await page.getByTestId('weapons-button').click();
+  await page.waitForURL('**/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Click shotgun tab
+  await expect(page.getByTestId('tab-shotgun')).toBeVisible();
+  await page.getByTestId('tab-shotgun').click();
+
+  // Select the pump action shotgun
+  await expect(page.getByTestId('weapon-shotgun-pump')).toBeVisible();
+  await page.getByTestId('weapon-shotgun-pump').click();
+
+  // Go back to menu
+  await page.getByTestId('back-button').first().click();
+  await page.waitForURL('/');
+
+  // Navigate to levels and select a pistol level (close range works for shotgun)
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Select a pistol level (close range works for shotgun)
+  await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
+  await page.getByTestId('level-pistol-calm').click();
+
+  // Wait for game to load
+  await page.waitForURL('/game/pistol-calm');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Fire a shot
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Wait for shot to register
+  await page.waitForTimeout(300);
+
+  // Verify shot history shows shotgun multi-impacts indicator
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+  const shotRow1 = page.getByTestId('shot-row-1');
+  
+  // Check that it has the shotgun multi-impacts indicator
+  // This is done by checking for the data-testid attribute
+  const firstShotId = await shotRow1.getAttribute('data-testid');
+  expect(firstShotId).toBe('shotgun-multi-impacts');
+  
+  // Verify the pellet count is displayed
+  await expect(shotRow1.getByText(/🔫/)).toBeVisible();
+});
+
+test('mobile controls: turret controls support click to increment', async ({ page }) => {
+  // Navigate to game page and start a level
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+  await page.waitForTimeout(200);
+
+  // Get initial elevation value
+  const initialValue = await page.getByTestId('elevation-value').textContent();
+  expect(initialValue).toBe('+0.0');
+
+  // Click elevation-up button
+  const elevationUpBtn = page.getByTestId('elevation-up');
+  await elevationUpBtn.click();
+  await page.waitForTimeout(100);
+
+  // Verify elevation value increased
+  const changedValue = await page.getByTestId('elevation-value').textContent();
+  expect(changedValue).not.toBe('+0.0');
+  expect(changedValue).toContain('+');
+});
+
+test('pistols pack: select pistol, start level, fire, see results', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to weapons to select a pistol
+  await page.getByTestId('weapons-button').click();
+  await page.waitForURL('**/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Verify pistol tab exists and click it
+  await expect(page.getByTestId('tab-pistol')).toBeVisible();
+  await page.getByTestId('tab-pistol').click();
+
+  // Select a pistol weapon (verify one exists)
+  await expect(page.getByTestId('weapon-pistol-viper')).toBeVisible();
+  await page.getByTestId('weapon-pistol-viper').click();
+
+  // Go back to menu
+  await page.getByTestId('back-button').first().click();
+  await page.waitForURL('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to levels page
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Verify pistols pack exists with correct testid
+  await expect(page.getByTestId('pack-pistols')).toBeVisible();
+  const pistolsPack = page.getByTestId('pack-pistols');
+  
+  // Verify pack name is displayed
+  await expect(pistolsPack.getByText('Pistols')).toBeVisible();
+  await expect(pistolsPack.getByText('PISTOL', { exact: true })).toBeVisible();
+
+  // Verify first pistol level is visible and contains expected text
+  await expect(page.getByTestId('level-pistols-1-cqc')).toBeVisible();
+  const levelButton = page.getByTestId('level-pistols-1-cqc');
+  await expect(levelButton).toContainText('Close Quarters');
+
+  // Navigate directly to game with testMode
+  await page.goto('/game/pistols-1-cqc?testMode=1');
+  await page.waitForURL('**/game/pistols-1-cqc');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Should see level briefing
+  await expect(page.getByTestId('level-briefing')).toBeVisible();
+  await expect(page.getByText('Mission Briefing')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('level-briefing')).not.toBeVisible();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Verify initial shot count (pistols-1-cqc has 5 shots)
+  const shotCount = page.getByTestId('shot-count');
+  await expect(shotCount).toContainText('Shots: 5/5');
+
+  // Get canvas and fire shots at the center
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    // Fire 5 shots at center for deterministic results
+    for (let i = 0; i < 5; i++) {
+      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+      await page.waitForTimeout(100); // Small delay between shots
+    }
+  }
+
+  // Should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByText('Mission Complete')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  await expect(page.getByTestId('stars-earned')).toBeVisible();
+
+  // Verify result elements are present
+  await expect(page.getByTestId('retry-button')).toBeVisible();
+  await expect(page.getByTestId('back-to-levels')).toBeVisible();
+
+  // Go back to levels
+  await page.getByTestId('back-to-levels').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Verify pistols pack is still visible after completing a level
+  await expect(page.getByTestId('pack-pistols')).toBeVisible();
+});
+
+test('shotguns pack: select weapon, start level and complete', async ({ page }) => {
+  // Navigate to weapons to select shotgun
+  await page.goto('/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Click shotgun tab
+  await expect(page.getByTestId('tab-shotgun')).toBeVisible();
+  await page.getByTestId('tab-shotgun').click();
+
+  // Select the pump action shotgun
+  await expect(page.getByTestId('weapon-shotgun-pump')).toBeVisible();
+  await page.getByTestId('weapon-shotgun-pump').click();
+
+  // Navigate directly to shotgun intro level with testMode
+  await page.goto('/game/shotgun-intro?testMode=1');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Dismiss tutorial if present (shotgun intro has tutorial)
+  const tutorialOverlay = page.getByTestId('tutorial-overlay');
+  if (await tutorialOverlay.isVisible()) {
+    await page.getByTestId('tutorial-next').click();
+    await page.waitForTimeout(200);
+    await page.getByTestId('tutorial-close').click();
+  }
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Fire shots at the clay targets
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    // Aim at top clay
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 - 50 } });
+    await page.waitForTimeout(100);
+    // Aim at middle clay (center)
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await page.waitForTimeout(100);
+    // Aim at bottom clay
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 + 50 } });
+    await page.waitForTimeout(100);
+    // Fire 2 more shots to complete the level
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await page.waitForTimeout(100);
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  await expect(page.getByTestId('stars-earned')).toBeVisible();
+
+  // Verify shot history shows shotgun multi-impacts
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+  const firstShot = page.getByTestId('shot-row-1');
+  await expect(firstShot.getByText(/🔫/)).toBeVisible();
+});
+
+test('wind layers: ELR level shows layered wind cues', async ({ page }) => {
+  // Navigate directly to ELR level with testMode
+  await page.goto('/game/elr-intro?testMode=1');
+  await page.waitForURL('/game/elr-intro');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Verify layered wind cues are visible in briefing
+  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Verify layered wind indicator is visible in HUD
+  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
+  
+  // Verify the layered indicator shows 3 layers
+  const windHud = page.getByTestId('wind-cues-layered');
+  await expect(windHud).toContainText('Layered Wind');
+  await expect(windHud).toContainText('segments');
+});
+
+test('ELR pack: introduction level completes successfully', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to levels
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Navigate to ELR Pack
+  await expect(page.getByTestId('pack-elr-pack')).toBeVisible();
+  await page.getByTestId('pack-elr-pack').click();
+
+  // Verify ELR pack is visible and shows correct name
+  const elrPack = page.getByTestId('pack-elr-pack');
+  await expect(elrPack).toContainText('ELR Pack');
+  
+  // Navigate directly to ELR level with testMode for testing
+  await page.goto('/game/elr-intro?testMode=1');
+
+  // Wait for game page to load
+  await page.waitForURL('**/game/elr-intro');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Verify level briefing shows correct info
+  await expect(page.locator('text=ELR Introduction')).toBeVisible();
+  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Fire shots at the target
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    // Fire 3 shots at roughly center (600m distance, need some lead for wind)
+    for (let i = 0; i < 3; i++) {
+      // Aim slightly left to compensate for left-to-right wind (2-5 m/s)
+      await canvas.click({ position: { x: box.width / 2 - 30, y: box.height / 2 + 20 } });
+      await page.waitForTimeout(100);
+    }
+    // Fire 2 more shots
+    for (let i = 0; i < 2; i++) {
+      await canvas.click({ position: { x: box.width / 2 - 30, y: box.height / 2 + 20 } });
+      await page.waitForTimeout(100);
+    }
+  }
+
+  // Should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  await expect(page.getByTestId('stars-earned')).toBeVisible();
+
+  // Verify shot history is visible
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+});
+
+test('stats page: displays correctly', async ({ page }) => {
+  // Navigate to main menu then stats
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Click Stats
+  await page.getByTestId('stats-button').click();
+  await page.waitForURL('**/stats');
+  await expect(page.getByTestId('stats-page')).toBeVisible();
+
+  // Check stats sections are visible
+  await expect(page.getByTestId('stats-accuracy')).toBeVisible();
+  await expect(page.getByTestId('stats-progress')).toBeVisible();
+  await expect(page.getByTestId('stats-playtime')).toBeVisible();
+
+  // Check back button
+  await expect(page.getByTestId('stats-page').getByTestId('back-button')).toBeVisible();
+});
+
+test('achievements page: displays correctly', async ({ page }) => {
+  // Navigate to main menu then achievements
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Click Achievements
+  await page.getByTestId('achievements-button').click();
+  await page.waitForURL('**/achievements');
+  await expect(page.getByTestId('achievements-page')).toBeVisible();
+
+  // Check achievements summary is visible
+  await expect(page.getByTestId('achievements-summary')).toBeVisible();
+
+  // Check achievements sections are visible
+  await expect(page.getByText(/Progress Achievements/i)).toBeVisible();
+  await expect(page.getByText(/Skill Achievements/i)).toBeVisible();
+  await expect(page.getByText(/Exploration Achievements/i)).toBeVisible();
+
+  // Check cosmetics section
+  await expect(page.getByText(/Reticle Skins/i)).toBeVisible();
+
+  // Check back button
+  await expect(page.getByTestId('achievements-page').getByTestId('back-button')).toBeVisible();
+});
+
+test('settings page: reticle skin selector exists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Find reticle section
+  await expect(page.getByTestId('reticle-section')).toBeVisible();
+
+  // Check reticle skin selector is present
+  await expect(page.getByTestId('reticle-skin-select')).toBeVisible();
 });

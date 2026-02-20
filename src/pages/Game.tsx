@@ -4,13 +4,16 @@ import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
 import { worldToCanvas, canvasToWorld } from '../utils/coordinates';
 import { createStandardTarget, calculateRingScore, findHitPlate } from '../utils/scoring';
-import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT, calculateExpertEffects, hasExpertExtras, type ExpertEffectsParams } from '../physics';
+import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT, calculateExpertEffects, hasExpertExtras, type ExpertEffectsParams, type WindSamplingContext } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, type TurretState } from '../storage';
+import { DRILLS, generateDrillScenario, type DrillScenario } from '../data/drills';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
-import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
+import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
+import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
+import { samplePelletImpacts, type ShotgunPatternConfig, type PelletImpact } from '../physics/shotgun';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { RangeCard } from '../components/RangeCard';
 import { ReplayViewer } from '../components/ReplayViewer';
@@ -33,7 +36,7 @@ import {
   isTestModeEnabled,
   type RecoilState,
 } from '../physics/sway';
-import { drawWindCues } from '../physics/windCues';
+import { drawWindCues, drawLayeredWindCues, shouldUseLayeredWindCues } from '../physics/windCues';
 
 interface Impact {
   x: number;
@@ -50,10 +53,11 @@ interface Impact {
   dispersionZ: number; // Horizontal dispersion (right positive)
   // Plate hit information (for plates mode)
   plateId?: string;    // ID of the plate that was hit (if any)
+  // Shotgun pellet pattern (for shotgun weapons)
+  pellets?: Array<{ x: number; y: number; score: number }>; // Individual pellet impacts and scores
 }
 
 type GameState = 'briefing' | 'running' | 'results';
-type ReticleMode = 'simple' | 'mil';
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
@@ -136,6 +140,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Turret button refs for press-and-hold
+  const elevationUpRef = useRef<HTMLButtonElement>(null);
+  const elevationDownRef = useRef<HTMLButtonElement>(null);
+  const windageLeftRef = useRef<HTMLButtonElement>(null);
+  const windageRightRef = useRef<HTMLButtonElement>(null);
   const [recticlePosition, setReticlePosition] = useState({ x: 0.5, y: 0.5 });
   const [impacts, setImpacts] = useState<Impact[]>([]);
   const [shotTelemetry, setShotTelemetry] = useState<ShotTelemetry[]>([]);
@@ -150,8 +160,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Sway and recoil state
   const [recoilState, setRecoilState] = useState<RecoilState | null>(null);
   
-  // Reticle state
-  const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
+  // Reticle and magnification state
   const [magnification, setMagnification] = useState<MagnificationLevel>(1);
   
   // Turret state (loaded from storage per weapon)
@@ -175,11 +184,48 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const dateOverride = searchParams.get('dateOverride') || undefined;
   const isDailyChallenge = levelIdSafe === 'daily-challenge';
   
+  // Check for drill mode
+  const isDrill = searchParams.get('mode') === 'drill' && DRILLS.some(d => d.id === levelIdSafe);
+  let drillScenario: DrillScenario | undefined;
+  const drill = isDrill ? DRILLS.find(d => d.id === levelIdSafe) : undefined;
+  
   let level: Level | undefined;
   if (isDailyChallenge) {
     const seedParam = searchParams.get('seed');
     const seed = seedParam ? parseInt(seedParam, 10) : seedFromDate(getTodayDate(dateOverride));
     level = generateDailyLevelFromSeed(seed);
+  } else if (isDrill && drill) {
+    // Load drill scenario and convert to level-like structure
+    const seedParam = searchParams.get('seed') || '1';
+    drillScenario = generateDrillScenario(drill.id, parseInt(seedParam, 10));
+    level = {
+      id: drill.id,
+      packId: 'drills',
+      name: drill.name,
+      description: drill.description,
+      difficulty: 'medium',
+      requiredWeaponType: 'any',
+      distanceM: drillScenario.distanceM,
+      windMps: drillScenario.windMps,
+      gustMps: drillScenario.gustMps,
+      windDirectionDeg: drillScenario.windMps >= 0 ? 90 : 270,
+      env: drillScenario.env,
+      airDensityKgM3: 1.225,
+      gravityMps2: 9.81,
+      targetMode: drillScenario.targetMode,
+      targets: drillScenario.plates?.map(p => ({
+        id: p.id,
+        centerY_M: p.x_M,
+        centerZ_M: p.z_M,
+        radiusM: 0.05,
+        points: p.points,
+      })) || [],
+      maxShots: drillScenario.maxShots,
+      timerSeconds: drillScenario.timeLimit,
+      starThresholds: { one: drillScenario.maxShots * 5, two: drillScenario.maxShots * 8, three: drillScenario.maxShots * 10 },
+      targetScale: 1.0,
+      unlocked: true,
+    };
   } else {
     level = getLevelById(levelIdSafe);
   }
@@ -375,8 +421,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const finalParams = computeFinalShotParams(weapon, effectiveAmmo, settings.realismPreset);
     
     // Run physics simulation with aggregated parameters
-    const scaledWindMps = level.windMps * windScale;
-    const scaledGustMps = level.gustMps * windScale;
+    const scaledWindMps = (level.windMps || 0) * windScale;
+    const scaledGustMps = (level.gustMps || 0) * windScale;
     
     const result = simulateShotToDistance(
       {
@@ -391,6 +437,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       {
         windMps: scaledWindMps,
         gustMps: scaledGustMps,
+        windProfile: level.windProfile, // Pass wind profile if present
         airDensityKgM3: computedAirDensity, // Use computed air density from env
         gravityMps2: level.gravityMps2,
         seed: testSeed + shotCount, // Each shot gets a different deterministic seed
@@ -444,8 +491,75 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     // Calculate score based on target mode
     let score: number;
     let plateId: string | undefined;
+    let shotgunPellets: Array<{ x: number; y: number; score: number }> | undefined;
     
-    if (targetMode === 'plates' && plates.length > 0) {
+    // Check if weapon is shotgun and generate pellet pattern
+    if (weapon.type === 'shotgun') {
+      // Shotgun: generate pellet pattern and calculate score based on pellets
+      const shotgunConfig: ShotgunPatternConfig = {
+        distanceM: level.distanceM,
+        pelletCount: 12, // Standard 12-gauge buckshot pellet count
+        baseSpreadMils: 25, // Base spread for cylinder choke
+        choke: 'cylinder', // Default choke
+        seed: Date.now(), // Use timestamp as seed (will be replaced by testSeed in test mode)
+      };
+      
+      // Use testSeed if available for deterministic testing
+      const shotSeedValue = testSeed || Date.now();
+      shotgunConfig.seed = combineSeed ? combineSeed(shotSeedValue, impacts.length + 1) : shotSeedValue;
+      
+      // Generate pellet offsets
+      const pellets: PelletImpact[] = samplePelletImpacts(shotgunConfig);
+      
+      // Add pellet offsets to base impact position
+      const baseX = impactX;
+      const baseY = impactY;
+      
+      shotgunPellets = pellets.map(pellet => {
+        // Convert pellet offset from meters to canvas pixels
+        const pelletOffsetX = (pellet.dZ / level.distanceM) * (canvasSize.width / 2); // Z = horizontal on canvas
+        const pelletOffsetY = -(pellet.dY / level.distanceM) * (canvasSize.height / 2); // Y = vertical, inverted
+        
+        const pelletCanvasX = baseX + pelletOffsetX;
+        const pelletCanvasY = baseY + pelletOffsetY;
+        
+        // Calculate pellet score based on target mode
+        let pelletScore = 0;
+        if (targetMode === 'plates' && plates.length > 0) {
+          // Calculate pellet score using plate detection (direct in coordinate space)
+          const pelletResult = findHitPlate({ y_M: finalImpactY + pellet.dY, z_M: finalImpactZ + pellet.dZ }, plates);
+          pelletScore = pelletResult.points;
+        } else {
+          // Bullseye mode
+          pelletScore = calculateRingScore({ x: pelletCanvasX, y: pelletCanvasY }, targetConfig);
+        }
+        
+        return { x: pelletCanvasX, y: pelletCanvasY, score: pelletScore };
+      });
+      
+      // Calculate overall score for shotgun: use best pellet for bullseye, sum for plates
+      if (targetMode === 'plates') {
+        score = shotgunPellets ? shotgunPellets.reduce((sum, p) => sum + p.score, 0) : 0;
+        // Track plate hits from pellets
+        const pellets = shotgunPellets;
+        if (pellets) {
+          plates.forEach(plate => {
+            const pelletHitCount = pellets.filter(p => p.score > 0).length;
+            if (pelletHitCount > 0) {
+              const plateId = plate.id;
+              setPlateHits(prev => {
+                const hits = { ...prev };
+                hits[plateId] = (hits[plateId] || 0) + pelletHitCount;
+                return hits;
+              });
+            }
+          });
+        }
+      } else {
+        // Bullseye mode: use the highest-scoring pellet as the base score
+        score = shotgunPellets ? Math.max(...shotgunPellets.map(p => p.score), 0) : 0;
+      }
+    } else if (targetMode === 'plates' && plates.length > 0) {
       // Plates mode: check which plate was hit
       const plateResult = findHitPlate({ y_M: finalImpactY, z_M: finalImpactZ }, plates);
       score = plateResult.points;
@@ -488,6 +602,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       dispersionY: dispersion.dY,
       dispersionZ: dispersion.dZ,
       plateId,
+      pellets: shotgunPellets,
     };
 
     const newImpacts = [...impacts, impact];
@@ -548,6 +663,25 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             ammoId: getSelectedAmmoId(weaponId),
             completedAt: Date.now(),
           });
+        } else if (isDrill && drill && drillScenario) {
+          // Save drill result
+          const drillSeed = parseInt(searchParams.get('seed') || '1', 10);
+          const timeSeconds = level.timerSeconds !== undefined && level.timerSeconds > 0
+            ? Math.max(0, (Date.now() - levelStartedAt) / 1000)
+            : undefined;
+          
+          saveDrillResult({
+            drillId: drill.id,
+            seed: drillSeed,
+            score: finalScore,
+            timeSeconds,
+            completedAt: Date.now(),
+            shots: newImpacts.map((impact) => ({
+              score: impact.score,
+              elevationMils: impact.elevationMils,
+              windageMils: impact.windageMils,
+            })),
+          });
         } else {
           // Save regular level progress
           updateLevelProgress(level.id, finalScore, level.starThresholds);
@@ -577,6 +711,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     timeRemaining,
     dateOverride,
     isDailyChallenge,
+    isDrill,
+    drill,
+    drillScenario,
+    levelStartedAt,
+    searchParams,
     weaponId,
     settings.expertSpinDriftEnabled,
     settings.expertCoriolisEnabled,
@@ -758,6 +897,19 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     navigate('/levels');
   }, [navigate]);
 
+  // Cycle through reticle styles
+  const handleReticleStyleCycle = useCallback(() => {
+    const currentStyle = settings.reticle.style;
+    const styles: Array<'simple' | 'mil' | 'tree'> = ['simple', 'mil', 'tree'];
+    const currentIndex = styles.indexOf(currentStyle as 'simple' | 'mil' | 'tree');
+    if (currentIndex === -1) return;
+    const nextIndex = (currentIndex + 1) % styles.length;
+    updateGameSettings({ reticle: { ...settings.reticle, style: styles[nextIndex] } });
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
+  }, [settings.reticle]);
+
   // Update recoil decay over time
   useEffect(() => {
     if (gameState !== 'running') return;
@@ -819,21 +971,60 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       };
 
       // Draw wind cues (flags and mirage) if there's any wind
-      if (level && (level.windMps !== 0 || level.gustMps > 0) && settings.showHud) {
-        // Get the wind used for the most recent shot, or use baseline/gust for visual cues
-        // Use baseline wind for visual indicator, scaled by realism preset
-        const visualWind = level.windMps * windScale;
+      if (level && settings.showHud) {
+        // Check if level uses layered wind
+        const hasWindProfile = level.windProfile && level.windProfile.length > 0;
+        const hasWind = level.windMps && (level.windMps !== 0 || level.gustMps);
         
-        drawWindCues(
-          ctx,
-          visualWind,
-          timeS,
-          canvasSize.width,
-          canvasSize.height,
-          WORLD_WIDTH,
-          WORLD_HEIGHT,
-          true // Show mirage
-        );
+        if (hasWindProfile || hasWind) {
+          // Create wind sampling context
+          const windContext: WindSamplingContext = {
+            baseWind: level.windMps || 0,
+            gust: level.gustMps || 0,
+            windProfile: level.windProfile,
+            seed: testSeed, // Use test seed for deterministic wind display
+          };
+          
+          // Scale wind for realism preset
+          const scaledContext: WindSamplingContext = {
+            ...windContext,
+            baseWind: (windContext.baseWind || 0) * windScale,
+            gust: (windContext.gust || 0) * windScale,
+            windProfile: windContext.windProfile?.map(seg => ({
+              ...seg,
+              windMps: seg.windMps * windScale,
+              gustMps: seg.gustMps * windScale,
+            })),
+          };
+          
+          if (shouldUseLayeredWindCues(scaledContext)) {
+            // Draw layered wind flags (near/mid/far) for wind profiles
+            drawLayeredWindCues(
+              ctx,
+              scaledContext,
+              level.distanceM,
+              timeS,
+              canvasSize.width,
+              canvasSize.height,
+              WORLD_WIDTH,
+              WORLD_HEIGHT,
+              true // Show mirage
+            );
+          } else if (hasWind) {
+            // Use baseline wind for visual indicator, scaled by realism preset
+            const visualWind = (level.windMps || 0) * windScale; 
+            drawWindCues(
+              ctx,
+              visualWind,
+              timeS,
+              canvasSize.width,
+              canvasSize.height,
+              WORLD_WIDTH,
+              WORLD_HEIGHT,
+              true // Show mirage
+            );
+          }
+        }
       }
 
       // Draw targets based on target mode
@@ -923,12 +1114,15 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
       // Draw reticle
       const reticleCanvas = worldToCanvas(recticlePosition, viewportConfig);
+      const reticleStyle = settings.reticle.style;
+      const reticleThickness = settings.reticle.thickness;
+      const showCenterDot = settings.reticle.centerDot;
 
-      if (reticleMode === 'simple') {
+      if (reticleStyle === 'simple') {
         // Simple crosshair reticle
         const reticleSize = 20;
         ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = reticleThickness;
         ctx.beginPath();
         // Crosshair
         ctx.moveTo(reticleCanvas.x - reticleSize, reticleCanvas.y);
@@ -938,7 +1132,13 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         // Circle
         ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleSize / 2, 0, Math.PI * 2);
         ctx.stroke();
-      } else if (reticleMode === 'mil' && level) {
+        // Center dot
+        if (showCenterDot) {
+          ctx.beginPath();
+          ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleThickness, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (reticleStyle === 'mil' && level) {
         // MIL reticle with tick marks
         const milSpacingPixels = getMilSpacingPixels(
           level.distanceM,
@@ -949,13 +1149,15 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         );
 
         ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = reticleThickness;
         ctx.fillStyle = '#ff0000';
 
         // Draw center dot
-        ctx.beginPath();
-        ctx.arc(reticleCanvas.x, reticleCanvas.y, 2, 0, Math.PI * 2);
-        ctx.fill();
+        if (showCenterDot) {
+          ctx.beginPath();
+          ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleThickness, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
         // Draw horizontal MIL ticks (left and right from center)
         [-1, 1].forEach((direction) => {
@@ -1024,9 +1226,92 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     recticlePosition,
     level,
     magnification,
-    reticleMode,
     settings.showHud,
+    settings.reticle,
   ]);
+
+  // Setup press-and-hold handlers for turret buttons (only when game is running)
+  useEffect(() => {
+    if (gameState !== 'running') {
+      return;
+    }
+
+    const elevationUpHandler = createPressHoldHandler({
+      onRepeat: () => handleElevationAdjust(1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const elevationDownHandler = createPressHoldHandler({
+      onRepeat: () => handleElevationAdjust(-1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const windageLeftHandler = createPressHoldHandler({
+      onRepeat: () => handleWindageAdjust(-1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const windageRightHandler = createPressHoldHandler({
+      onRepeat: () => handleWindageAdjust(1),
+      initialDelay: 500,
+      repeatDelay: 150,
+      rampUpDuration: 1000,
+      minRepeatDelay: 50,
+    });
+
+    const elevationUpBtn = elevationUpRef.current;
+    const elevationDownBtn = elevationDownRef.current;
+    const windageLeftBtn = windageLeftRef.current;
+    const windageRightBtn = windageRightRef.current;
+
+    // Attach handlers using pointer events
+    const addPointerListeners = (btn: HTMLButtonElement | null, handler: PressHoldHandler) => {
+      if (!btn) return;
+      btn.addEventListener('pointerdown', handler.start);
+      btn.addEventListener('pointerup', handler.stop);
+      btn.addEventListener('pointerleave', handler.stop);
+      btn.addEventListener('pointercancel', handler.stop);
+      btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    };
+
+    const removePointerListeners = (
+      btn: HTMLButtonElement | null,
+      handler: PressHoldHandler
+    ) => {
+      if (!btn) return;
+      btn.removeEventListener('pointerdown', handler.start);
+      btn.removeEventListener('pointerup', handler.stop);
+      btn.removeEventListener('pointerleave', handler.stop);
+      btn.removeEventListener('pointercancel', handler.stop);
+      const preventContext = (e: Event) => e.preventDefault();
+      btn.removeEventListener('contextmenu', preventContext);
+    };
+
+    addPointerListeners(elevationUpBtn, elevationUpHandler);
+    addPointerListeners(elevationDownBtn, elevationDownHandler);
+    addPointerListeners(windageLeftBtn, windageLeftHandler);
+    addPointerListeners(windageRightBtn, windageRightHandler);
+
+    return () => {
+      elevationUpHandler.stop();
+      elevationDownHandler.stop();
+      windageLeftHandler.stop();
+      windageRightHandler.stop();
+      removePointerListeners(elevationUpBtn, elevationUpHandler);
+      removePointerListeners(elevationDownBtn, elevationDownHandler);
+      removePointerListeners(windageLeftBtn, windageLeftHandler);
+      removePointerListeners(windageRightBtn, windageRightHandler);
+    };
+  }, [gameState, handleElevationAdjust, handleWindageAdjust]);
 
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
@@ -1057,8 +1342,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 <h4>Wind Conditions</h4>
                 {settings.showNumericWind ? (
                   <>
-                    <p>Baseline: {level.windMps} m/s</p>
-                    {level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                    {level.windProfile ? (
+                      <p>Layered wind: {level.windProfile.length} segments</p>
+                    ) : (
+                      <>
+                        <p>Baseline: {level.windMps || 0} m/s</p>
+                        {level.gustMps && level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                      </>
+                    )}
                   </>
                 ) : (
                   <p>Visual indicators only (flags + mirage)</p>
@@ -1269,12 +1560,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         </div>
         <div className="reticle-controls">
           <button
-            onClick={() => setReticleMode(reticleMode === 'simple' ? 'mil' : 'simple')}
+            onClick={handleReticleStyleCycle}
             className="control-button"
             data-testid="reticle-mode-toggle"
             title="Toggle reticle mode"
           >
-            {reticleMode === 'simple' ? 'Crosshair' : 'MIL Reticle'}
+            {settings.reticle.style === 'simple' ? 'Crosshair' : settings.reticle.style === 'mil' ? 'MIL Reticle' : 'Tree Reticle'}
           </button>
           <button
             onClick={() => {
@@ -1293,19 +1584,31 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       
       {/* Wind HUD Panel */}
       {level && settings.showHud && (
-        <div className="wind-hud" data-testid="wind-cues">
+        <div className={level.windProfile ? "wind-hud layered" : "wind-hud"} data-testid={level.windProfile ? "wind-cues-layered" : "wind-cues"}>
           <div className="wind-display">
             <div className="wind-header">
               <span>Wind</span>
-              <div className={`wind-arrow ${level.windMps >= 0 ? 'right' : 'left'}`} data-testid="wind-arrow">
-                {level.windMps >= 0 ? '→' : '←'}
-              </div>
+              {!level.windProfile && (
+                <div className={`wind-arrow ${(level.windMps || 0) >= 0 ? 'right' : 'left'}`} data-testid="wind-arrow">
+                  {(level.windMps || 0) >= 0 ? '→' : '←'}
+                </div>
+              )}
+              {level.windProfile && <span className="layered-indicator" title="Layered wind">3⃣</span>}
             </div>
             <div className="wind-details">
               {settings.showNumericWind ? (
                 <>
-                  <span className="wind-baseline" data-testid="wind-numeric">Baseline: <strong>{level.windMps > 0 ? '+' : ''}{(level.windMps * windScale).toFixed(1)} m/s</strong></span>
-                  <span className="wind-gust" data-testid="wind-numeric">Gust: ±{(level.gustMps * windScale).toFixed(1)} m/s</span>
+                  {level.windProfile ? (
+                    <>
+                      <span className="wind-baseline" data-testid="wind-numeric">Layered Wind</span>
+                      <span className="wind-gust" data-testid="wind-numeric">{level.windProfile.length} segments</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="wind-baseline" data-testid="wind-numeric">Baseline: <strong>{(level.windMps || 0) > 0 ? '+' : ''}{((level.windMps || 0) * windScale).toFixed(1)} m/s</strong></span>
+                      <span className="wind-gust" data-testid="wind-numeric">Gust: ±{((level.gustMps || 0) * windScale).toFixed(1)} m/s</span>
+                    </>
+                  )}
                 </>
               ) : (
                 <span className="wind-visual">Visual cues only</span>
@@ -1378,10 +1681,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               <span className="turret-label">Elevation</span>
               <div className="turret-dial-controls">
                 <button
+                  ref={elevationDownRef}
                   onClick={() => handleElevationAdjust(-1)}
                   className="dial-button"
                   data-testid="elevation-down"
-                  title="Elevation Down (-)"
+                  title="Elevation Down (-) (hold for rapid fire)"
                 >
                   −
                 </button>
@@ -1389,10 +1693,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                   {turretState.elevationMils >= 0 ? '+' : ''}{turretState.elevationMils.toFixed(1)}
                 </span>
                 <button
+                  ref={elevationUpRef}
                   onClick={() => handleElevationAdjust(1)}
                   className="dial-button"
                   data-testid="elevation-up"
-                  title="Elevation Up (+)"
+                  title="Elevation Up (+) (hold for rapid fire)"
                 >
                   +
                 </button>
@@ -1404,10 +1709,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               <span className="turret-label">Windage</span>
               <div className="turret-dial-controls">
                 <button
+                  ref={windageLeftRef}
                   onClick={() => handleWindageAdjust(-1)}
                   className="dial-button"
                   data-testid="windage-left"
-                  title="Windage Left (-)"
+                  title="Windage Left (-) (hold for rapid fire)"
                 >
                   −
                 </button>
@@ -1415,10 +1721,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                   {turretState.windageMils >= 0 ? '+' : ''}{turretState.windageMils.toFixed(1)}
                 </span>
                 <button
+                  ref={windageRightRef}
                   onClick={() => handleWindageAdjust(1)}
                   className="dial-button"
                   data-testid="windage-right"
-                  title="Windage Right (+)"
+                  title="Windage Right (+) (hold for rapid fire)"
                 >
                   +
                 </button>
@@ -1475,13 +1782,17 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             <div className="offset-row">
               <span className="offset-label">Elevation:</span>
               <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`}>
-                {impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL
+                {settings.display.offsetUnit === 'moa'
+                  ? `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].elevationMils).toFixed(1)} MOA`
+                  : `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL`}
               </span>
             </div>
             <div className="offset-row">
               <span className="offset-label">Windage:</span>
               <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`}>
-                {impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].windageMils.toFixed(1)} MIL
+                {settings.display.offsetUnit === 'moa'
+                  ? `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].windageMils).toFixed(1)} MOA`
+                  : `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].windageMils.toFixed(1)} MIL`}
               </span>
             </div>
           </div>
@@ -1519,15 +1830,33 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         )}
       </div>
       
+      {/* Mobile Fire Button */}
+      {settings.mobile.showFireButton && gameState === 'running' && (
+        <button
+          onClick={handlePointerDown}
+          className="fire-button mobile-fire-button"
+          data-testid="fire-button"
+          onPointerUp={(e) => e.stopPropagation()}
+          title="Fire (tap to shoot)"
+        >
+          🔥
+        </button>
+      )}
+      
       {/* Shot History */}
       {impacts.length > 0 && settings.showHud && (
         <div className="shot-history" data-testid="shot-history">
           <h4>Shot History</h4>
           <div className="shot-list">
             {impacts.map((impact) => (
-              <div key={impact.index} className="shot-row" data-testid={`shot-row-${impact.index}`}>
+              <div key={impact.index} className="shot-row" data-testid={`shot-row-${impact.index}`} {...(impact.pellets && impact.pellets.length > 0 && { 'data-testid': 'shotgun-multi-impacts' })}>
                 <span className="shot-number">#{impact.index}</span>
                 <span className="shot-score">{impact.score} pts</span>
+                {impact.pellets && impact.pellets.length > 0 && (
+                  <span className="shot-pellets" title={`${impact.pellets.length} pellets`}>
+                    🔫 {impact.pellets.length}
+                  </span>
+                )}
                 <span className={`shot-wind ${impact.windUsedMps > 0 ? 'right' : impact.windUsedMps < 0 ? 'left' : 'neutral'}`}>
               {impact.windUsedMps > 0 ? '→' : impact.windUsedMps < 0 ? '←' : '•'} {impact.windUsedMps.toFixed(1)} m/s
             </span>

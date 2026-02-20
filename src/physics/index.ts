@@ -1,5 +1,15 @@
 export { simulateShotToDistance, type Vec3, type BallisticsEnv, type BallisticsShot, type ShotResult } from './ballistics';
 
+export {
+  sampleWindAtDistance,
+  sampleWindAtMultipleDistances,
+  getWindAtFlagPositions,
+  isLayeredWind,
+  type WindSamplingContext,
+  type WindSample,
+  type WindLayerSegment,
+} from './windLayers';
+
 export { computeFinalShotParams, type FinalShotParams } from './ammo';
 
 export { 

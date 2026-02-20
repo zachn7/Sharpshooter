@@ -13,6 +13,15 @@ export function MainMenu() {
           <Link to="/daily" className="menu-button" data-testid="daily-button">
             Daily Challenge
           </Link>
+          <Link to="/drills" className="menu-button" data-testid="drills-button">
+            Training Drills
+          </Link>
+          <Link to="/stats" className="menu-button" data-testid="stats-button">
+            Stats
+          </Link>
+          <Link to="/achievements" className="menu-button" data-testid="achievements-button">
+            Achievements
+          </Link>
           <Link to="/weapons" className="menu-button" data-testid="weapons-button">
             Weapons
           </Link>

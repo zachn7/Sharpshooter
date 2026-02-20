@@ -381,6 +381,117 @@ body {
   cursor: not-allowed;
 }
 
+/* Action toggle styling (settings use action-toggle instead of toggle-button) */
+.action-toggle {
+  min-width: 70px;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.action-toggle.on {
+  background: #4caf50;
+  color: white;
+}
+
+.action-toggle.on:hover {
+  background: #66bb6a;
+  transform: translateY(-2px);
+}
+
+.action-toggle.off {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.action-toggle.off:hover {
+  background: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+.action-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-toggle-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Option buttons (for selecting from multiple options) */
+.setting-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.option-button {
+  min-width: 60px;
+  padding: 0.5rem 1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  background: white;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.option-button:hover {
+  border-color: #0f3460;
+  color: #0f3460;
+  transform: translateY(-2px);
+}
+
+.option-button.active {
+  background: #0f3460;
+  border-color: #0f3460;
+  color: white;
+}
+
+/* Range slider */
+.range-slider {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  outline: none;
+  transition: background 0.2s;
+}
+
+.range-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f3460;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f3460;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.2s;
+}
+
+.range-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
 .zero-link-button {
   display: block;
   text-align: center;
@@ -492,6 +603,50 @@ body {
   border-radius: 4px;
   cursor: crosshair;
   touch-action: none;
+}
+
+.mobile-fire-button {
+  position: absolute;
+  bottom: 2rem;
+  right: 2rem;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee524b 100%);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.5);
+  font-size: 2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  z-index: 100;
+}
+
+.mobile-fire-button:hover {
+  background: linear-gradient(135deg, #ff8787 0%, #ff6b6b 100%);
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+}
+
+.mobile-fire-button:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 768px) {
+  .mobile-fire-button {
+    width: 64px;
+    height: 64px;
+    font-size: 1.75rem;
+    bottom: 1.5rem;
+    right: 1.5rem;
+  }
 }
 
 .game-controls {
@@ -1479,4 +1634,214 @@ body {
   background: #1a1a2e;
   border-radius: 4px;
 }
+
+/* Data Management Section */
+.action-button {
+  padding: 0.6rem 1.5rem;
+  background: #0f3460;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.action-button:hover {
+  background: #1a4b7a;
+  transform: translateY(-2px);
+}
+
+.action-button:active {
+  transform: translateY(0);
+}
+
+.action-button.dangerous {
+  background: #e94560;
+}
+
+.action-button.dangerous:hover {
+  background: #ff6b6b;
+}
+
+.action-button.dangerous.confirm {
+  background: #c62828;
+}
+
+.action-button.dangerous.confirm:hover {
+  background: #d32f2f;
+}
+
+.data-import-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.reset-confirm-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reset-confirm-wrapper .action-button {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.data-message {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.data-error {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.data-warning {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffe0b2;
+}
+
+.data-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.preset-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.preset-select:hover {
+  border-color: #0f3460;
+}
+
+.preset-select:focus {
+  outline: none;
+  border-color: #0f3460;
+  box-shadow: 0 0 0 3px rgba(15, 52, 96, 0.1);
+}
+
+.volume-slider {
+  width: 150px;
+  cursor: pointer;
+}
+}
+
+/* Training Drills Page */
+.drills-page {
+  text-align: center;
+  padding: 2rem;
+}
+
+.drills-list {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 600px;
+  margin: 2rem auto;
+}
+
+.drill-card {
+  background: #f9f9f9;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
+}
+
+.drill-card:hover {
+  border-color: #0f3460;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.drill-card h3 {
+  margin: 0 0 0.5rem 0;
+  color: #1a1a2e;
+  font-size: 1.4rem;
+}
+
+.drill-description {
+  color: #666;
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.drill-info {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.drill-info div {
+  color: #555;
+}
+
+.drill-pb {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: #e8f5e9;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  color: #2e7d32;
+}
+
+.drill-start-button {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: #0f3460;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  text-align: center;
+  transition:
+    background 0.2s,
+    transform 0.1s;
+}
+
+.drill-start-button:hover {
+  background: #16213e;
+  transform: translateY(-2px);
+}
+
+.drill-start-button:active {
+  transform: translateY(0);
+}
+
+.back-link {
+  margin-top: 2rem;
+}
+
+.back-link a {
+  color: #0f3460;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.back-link a:hover {
+  text-decoration: underline;
 }

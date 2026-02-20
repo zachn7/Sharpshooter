@@ -1,9 +1,12 @@
+import { getWindAtFlagPositions, type WindSamplingContext } from './windLayers';
+
 /**
  * Visual wind cues (flags and mirage)
  * 
  * Provides canvas rendering functions for visual wind indicators:
  * - Flags that lean with wind direction and animate with gusts
  * - Mirage shimmer lines that drift to indicate wind direction
+ * - Layered wind flags (near/mid/far) for multi-segment wind profiles
  */
 
 export interface WindCueState {
@@ -205,6 +208,55 @@ export function drawWindCues(
 }
 
 /**
+ * Draw layered wind cues (near/mid/far flags) for wind profiles
+ * Shows multiple flags representing wind at different distances
+ * 
+ * @param ctx - Canvas 2D context
+ * @param windContext - Wind sampling context with profile
+ * @param targetDistanceM - Total distance to target
+ * @param timeS - Time in seconds for animation
+ * @param canvasWidth - Canvas width in pixels
+ * @param canvasHeight - Canvas height in pixels
+ * @param worldWidth - World width in meters
+ * @param worldHeight - World height in meters
+ * @param showMirage - Whether to show mirage
+ */
+export function drawLayeredWindCues(
+  ctx: CanvasRenderingContext2D,
+  windContext: WindSamplingContext,
+  targetDistanceM: number,
+  timeS: number,
+  canvasWidth: number,
+  canvasHeight: number,
+  worldWidth: number,
+  worldHeight: number,
+  showMirage: boolean = true
+): void {
+  // Get wind at near, mid, and far positions
+  const { near, mid, far } = getWindAtFlagPositions(targetDistanceM, windContext);
+  
+  // Layered flag positions (arranged vertically to show different ranges)
+  const layerFlags: FlagConfig[] = [
+    { x: 0.15, y: 0.25, scale: 0.9 },   // Near (left, higher)
+    { x: 0.5, y: 0.18, scale: 1.0 },    // Mid (center)
+    { x: 0.85, y: 0.25, scale: 0.9 },  // Far (right, higher)
+  ];
+  
+  const windSamples = [near, mid, far];
+  
+  // Draw each flag with its corresponding wind
+  layerFlags.forEach((flag, index) => {
+    const windSample = windSamples[index];
+    drawWindFlag(ctx, flag, windSample.windSpeed, timeS, canvasWidth, canvasHeight, worldWidth, worldHeight);
+  });
+  
+  // Draw mirage based on far wind (most impactful)
+  if (showMirage) {
+    drawMirage(ctx, far.windSpeed, timeS, canvasWidth, canvasHeight);
+  }
+}
+
+/**
  * Get default showNumericWind value for a preset
  * Arcade: true (shows numeric wind by default)
  * Realistic: false (uses visual cues by default)
@@ -212,6 +264,14 @@ export function drawWindCues(
  */
 export function getDefaultShowNumericWind(preset: 'arcade' | 'realistic' | 'expert'): boolean {
   return preset === 'arcade';
+}
+
+/**
+ * Check if layered wind rendering should be used
+ * Returns true if windContext has a windProfile
+ */
+export function shouldUseLayeredWindCues(windContext: WindSamplingContext): boolean {
+  return !!(windContext.windProfile && windContext.windProfile.length > 0);
 }
 
 /**

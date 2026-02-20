@@ -9,6 +9,10 @@ import {
   getNextMagnification,
   MAGNIFICATION_LEVELS,
   type MagnificationLevel,
+  milsToMoa,
+  moaToMils,
+  MIL_TO_MOA,
+  MOA_TO_MIL,
 } from '../reticle';
 
 describe('reticle utilities', () => {
@@ -165,6 +169,94 @@ describe('getMilSpacingPixels', () => {
         expect(getNextMagnification(current)).toBe(level === 8 ? 1 : levels[levels.indexOf(level) + 1]);
         current = getNextMagnification(current);
       }
+    });
+  });
+
+  describe('MOA/MIL conversions (display-only)', () => {
+    describe('conversion constants', () => {
+      it('has correct MIL to MOA conversion factor', () => {
+        expect(MIL_TO_MOA).toBeCloseTo(3.438, 3);
+      });
+
+      it('has correct MOA to MIL conversion factor', () => {
+        expect(MOA_TO_MIL).toBeCloseTo(0.291, 3);
+      });
+
+      it('conversion factors are inverses', () => {
+        // 1 MIL * 3.438 = 3.438 MOA
+        // 3.438 MOA * 0.291 ≈ 1 MIL
+        const moa = 1 * MIL_TO_MOA;
+        const mil = moa * MOA_TO_MIL;
+        expect(mil).toBeCloseTo(1, 2);
+      });
+    });
+
+    describe('milsToMoa', () => {
+      it('converts 1 MIL to ~3.4 MOA', () => {
+        expect(milsToMoa(1)).toBeCloseTo(3.44, 1);
+      });
+
+      it('converts 0.1 MIL to ~0.34 MOA', () => {
+        expect(milsToMoa(0.1)).toBeCloseTo(0.344, 2);
+      });
+
+      it('converts 10 MIL to ~34.4 MOA', () => {
+        expect(milsToMoa(10)).toBeCloseTo(34.38, 1);
+      });
+
+      it('handles fractional MILs', () => {
+        expect(milsToMoa(2.5)).toBeCloseTo(8.6, 1);
+      });
+
+      it('handles negative values', () => {
+        expect(milsToMoa(-1)).toBeCloseTo(-3.44, 1);
+      });
+
+      it('handles zero', () => {
+        expect(milsToMoa(0)).toBe(0);
+      });
+    });
+
+    describe('moaToMils', () => {
+      it('converts 1 MOA to ~0.29 MIL', () => {
+        expect(moaToMils(1)).toBeCloseTo(0.29, 2);
+      });
+
+      it('converts 3.4 MOA to ~1 MIL', () => {
+        expect(moaToMils(3.438)).toBeCloseTo(1, 1);
+      });
+
+      it('converts 34.4 MOA to ~10 MIL', () => {
+        expect(moaToMils(34.38)).toBeCloseTo(10, 1);
+      });
+
+      it('handles fractional MOA', () => {
+        expect(moaToMils(0.5)).toBeCloseTo(0.15, 2);
+      });
+
+      it('handles negative values', () => {
+        expect(moaToMils(-1)).toBeCloseTo(-0.29, 2);
+      });
+
+      it('handles zero', () => {
+        expect(moaToMils(0)).toBe(0);
+      });
+    });
+
+    describe('round-trip conversions', () => {
+      it('MIL -> MOA -> MIL is consistent', () => {
+        const original = 2.5;
+        const moa = milsToMoa(original);
+        const back = moaToMils(moa);
+        expect(back).toBeCloseTo(original, 2);
+      });
+
+      it('MOA -> MIL -> MOA is consistent', () => {
+        const original = 8.59;
+        const mil = moaToMils(original);
+        const back = milsToMoa(mil);
+        expect(back).toBeCloseTo(original, 1);
+      });
     });
   });
 });

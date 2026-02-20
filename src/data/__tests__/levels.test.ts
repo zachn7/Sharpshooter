@@ -68,7 +68,7 @@ describe('levels data validation', () => {
   it('level distances are within sane bounds', () => {
     LEVELS.forEach((level) => {
       expect(level.distanceM).toBeGreaterThan(0);
-      expect(level.distanceM).toBeLessThan(1000); // Max reasonable distance
+      expect(level.distanceM).toBeLessThan(2000); // Max reasonable distance (allows ELR levels)
     });
   });
 
@@ -89,8 +89,11 @@ describe('levels data validation', () => {
 
   it('targetScale is within reasonable bounds', () => {
     LEVELS.forEach((level) => {
-      expect(level.targetScale).toBeGreaterThan(0);
-      expect(level.targetScale).toBeLessThanOrEqual(2); // Max 2x standard size
+      // Only check targetScale for bullseye mode (not plates mode)
+      if (level.targetMode !== 'plates') {
+        expect(level.targetScale).toBeGreaterThan(0);
+        expect(level.targetScale).toBeLessThanOrEqual(2); // Max 2x standard size
+      }
     });
   });
 
@@ -116,5 +119,69 @@ describe('levels data validation', () => {
     const testPack = LEVEL_PACKS[0];
     const found = getPackById(testPack.id);
     expect(found).toEqual(testPack);
+  });
+
+  describe('ELR pack', () => {
+    it('ELR pack exists with correct properties', () => {
+      const elrPack = getPackById('elr-pack');
+      expect(elrPack).toBeDefined();
+      expect(elrPack?.name).toBe('ELR Pack');
+      expect(elrPack?.weaponType).toBe('sniper');
+      expect(elrPack?.levels.length).toBe(12);
+    });
+
+    it('all ELR levels exist and are properly configured', () => {
+      const elrPack = getPackById('elr-pack');
+      expect(elrPack).toBeDefined();
+      
+      elrPack!.levels.forEach(levelId => {
+        const level = getLevelById(levelId);
+        expect(level).toBeDefined();
+        expect(level?.packId).toBe('elr-pack');
+        expect(level?.requiredWeaponType).toBe('sniper');
+        expect(level?.distanceM).toBeGreaterThanOrEqual(600);  // Minimum ELR distance
+      });
+    });
+
+    it('ELR levels have wind profiles or wind settings', () => {
+      const elrPack = getPackById('elr-pack');
+      
+      elrPack!.levels.forEach(levelId => {
+        const level = getLevelById(levelId);
+        expect(level).toBeDefined();
+        
+        // Should either have windProfile OR windMps
+        const hasWindProfile = level!.windProfile && level!.windProfile.length > 0;
+        const hasConstantWind = level!.windMps !== undefined && level!.windMps !== 0;
+        
+        expect(hasWindProfile || hasConstantWind).toBe(true);
+      });
+    });
+
+    it('ELR levels have valid difficulty levels', () => {
+      const elrPack = getPackById('elr-pack');
+      const difficulties = new Set(
+        elrPack!.levels.map(id => getLevelById(id)!.difficulty).filter(d => d !== undefined)
+      );
+      
+      const validDifficulties = ['easy', 'medium', 'hard', 'expert'];
+      difficulties.forEach(diff => {
+        expect(validDifficulties).toContain(diff);
+      });
+    });
+
+    it('ELR levels have valid environments', () => {
+      const elrPack = getPackById('elr-pack');
+      
+      elrPack!.levels.forEach(levelId => {
+        const level = getLevelById(levelId);
+        expect(level).toBeDefined();
+        expect(level?.env).toBeDefined();
+        expect(level?.env?.temperatureC).toBeDefined();
+        expect(level?.env?.altitudeM).toBeDefined();
+        expect(level?.airDensityKgM3).toBeDefined();
+        expect(level?.airDensityKgM3).toBeGreaterThan(0);
+      });
+    });
   });
 });

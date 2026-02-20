@@ -4,9 +4,12 @@ import { MainMenu } from './pages/MainMenu';
 import { Weapons } from './pages/Weapons';
 import { Levels } from './pages/Levels';
 import { Settings } from './pages/Settings';
+import { Stats } from './pages/Stats';
+import { Achievements } from './pages/Achievements';
 import { Game } from './pages/Game';
 import { ZeroRange } from './pages/ZeroRange';
 import { DailyChallenge } from './pages/DailyChallenge';
+import { Drills } from './pages/Drills';
 
 function InnerApp() {
   return (
@@ -48,6 +51,30 @@ function InnerApp() {
         element={
           <Layout>
             <DailyChallenge />
+          </Layout>
+        }
+      />
+      <Route
+        path="/drills"
+        element={
+          <Layout>
+            <Drills />
+          </Layout>
+        }
+      />
+      <Route
+        path="/stats"
+        element={
+          <Layout>
+            <Stats />
+          </Layout>
+        }
+      />
+      <Route
+        path="/achievements"
+        element={
+          <Layout>
+            <Achievements />
           </Layout>
         }
       />
