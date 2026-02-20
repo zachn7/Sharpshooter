@@ -13,6 +13,11 @@ export interface WeaponParams {
   defaultOptic: OpticType;       // Default optic type
   recoilRecoveryMs: number;      // Time to recover from recoil (for future use)
   precisionMoaAt100: number;     // 3-shot group precision at 100 yards in MOA (lower = more accurate)
+  // Shotgun-specific parameters
+  pelletCount?: number;          // Number of pellets for shotgun (default: 12)
+  spreadMils?: number;           // Base spread diameter in MILs for shotgun (default: 25)
+  choke?: 'cylinder' | 'improved-cylinder' | 'modified' | 'improved-modified' | 'full'; // Shotgun choke (default: cylinder)
+  recoilScale?: number;         // Recoil intensity multiplier for shotguns (default: 1.0)
 }
 
 // Weapon entry in catalog
@@ -230,15 +235,59 @@ export const WEAPONS_CATALOG: Weapon[] = [
     id: 'shotgun-pump',
     name: 'Pump Action 12G',
     type: 'shotgun',
-    description: 'Close-range shotgun with wide spread.',
+    description: 'Classic pump action with wide spread. Great for moving targets.',
     params: {
       muzzleVelocityMps: 400,
-      massKg: 0.035,  // Heavier slug
+      massKg: 0.035,
       diameterM: 0.0185,
       dragFactor: 0.00008,
       defaultOptic: 'iron-sights',
       recoilRecoveryMs: 350,
       precisionMoaAt100: 10.0,
+      pelletCount: 12,
+      spreadMils: 28,
+      choke: 'cylinder',
+      recoilScale: 1.0,
+    },
+    unlocked: true,
+  },
+  {
+    id: 'shotgun-semi',
+    name: 'Semi-Auto 12G',
+    type: 'shotgun',
+    description: 'Fast semi-auto with tighter pattern and manageable recoil.',
+    params: {
+      muzzleVelocityMps: 420,
+      massKg: 0.032,
+      diameterM: 0.0185,
+      dragFactor: 0.000075,
+      defaultOptic: 'iron-sights',
+      recoilRecoveryMs: 200,  // Faster recovery for rapid shooting
+      precisionMoaAt100: 9.0,
+      pelletCount: 10,
+      spreadMils: 22,
+      choke: 'improved-cylinder',
+      recoilScale: 0.85,
+    },
+    unlocked: true,
+  },
+  {
+    id: 'shotgun-skeet',
+    name: 'Skeet Master 20G',
+    description: 'Lightweight 20-gauge with tight pattern. Ideal for clays.',
+    type: 'shotgun',
+    params: {
+      muzzleVelocityMps: 380,
+      massKg: 0.025,  // Lighter pellets, less recoil
+      diameterM: 0.015,  // Smaller diameter
+      dragFactor: 0.00007,
+      defaultOptic: 'iron-sights',
+      recoilRecoveryMs: 150,
+      precisionMoaAt100: 8.0,
+      pelletCount: 8,
+      spreadMils: 18,
+      choke: 'modified',
+      recoilScale: 0.65,  // Much lower recoil
     },
     unlocked: true,
   },

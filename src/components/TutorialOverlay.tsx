@@ -89,6 +89,15 @@ const TUTORIALS: Record<string, TutorialContent> = {
       'Great for quickly switching between different conditions.',
     ],
   },
+  'shotgun-intro': {
+    title: 'Welcome to Shotguns!',
+    message: [
+      'Shotguns fire multiple pellets in a spreading pattern.',
+      'Hitting a target with ANY pellet scores points.',
+      'Shot history shows how many pellets hit (🔫 symbol).',
+      'Use this to your advantage on moving targets!',
+    ],
+  },
 };
 
 interface TutorialOverlayProps {

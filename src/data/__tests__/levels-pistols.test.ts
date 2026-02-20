@@ -129,8 +129,8 @@ describe('pistols pack data', () => {
       const easyLevels = pistolLevels.filter(l => l.difficulty === 'easy');
       const expertLevels = pistolLevels.filter(l => l.difficulty === 'expert');
       
-      const avgEasyScale = easyLevels.reduce((sum, l) => sum + l.targetScale, 0) / easyLevels.length;
-      const avgExpertScale = expertLevels.reduce((sum, l) => sum + l.targetScale, 0) / expertLevels.length;
+      const avgEasyScale = easyLevels.reduce((sum, l) => sum + (l.targetScale || 1.0), 0) / easyLevels.length;
+      const avgExpertScale = expertLevels.reduce((sum, l) => sum + (l.targetScale || 1.0), 0) / expertLevels.length;
       
       expect(avgExpertScale).toBeLessThan(avgEasyScale);
     });

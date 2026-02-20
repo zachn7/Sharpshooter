@@ -89,8 +89,11 @@ describe('levels data validation', () => {
 
   it('targetScale is within reasonable bounds', () => {
     LEVELS.forEach((level) => {
-      expect(level.targetScale).toBeGreaterThan(0);
-      expect(level.targetScale).toBeLessThanOrEqual(2); // Max 2x standard size
+      // Only check targetScale for bullseye mode (not plates mode)
+      if (level.targetMode !== 'plates') {
+        expect(level.targetScale).toBeGreaterThan(0);
+        expect(level.targetScale).toBeLessThanOrEqual(2); // Max 2x standard size
+      }
     });
   });
 

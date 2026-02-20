@@ -12,6 +12,9 @@ export interface AmmoVariant {
   dragScale: number;           // Multiplier for drag factor (BC proxy)
   dispersionScale: number;     // Multiplier for weapon precision (MOA)
   recoilScale: number;         // Multiplier for recoil impulse
+  // Shotgun-specific modifiers
+  pelletCountScale?: number;   // Multiplier for pellet count (shotgun only)
+  spreadScale?: number;        // Multiplier for spread diameter in MILs (shotgun only)
 }
 
 // Ammo variants catalog - organized by weapon type
@@ -146,22 +149,26 @@ export const AMMO_CATALOG: AmmoVariant[] = [
   {
     id: 'shotgun-budget',
     weaponType: 'shotgun',
-    name: 'Target Slugs',
-    description: 'Basic target slugs. Moderate accuracy.',
+    name: 'Birdshot Light',
+    description: 'Light birdshot with fewer pellets. Good for practice.',
     muzzleVelocityScale: 0.95,
     dragScale: 1.1,
     dispersionScale: 1.25,
     recoilScale: 0.9,
+    pelletCountScale: 0.83,  // 10 pellets instead of 12
+    spreadScale: 1.2,  // 20% wider spread
   },
   {
     id: 'shotgun-match',
     weaponType: 'shotgun',
-    name: 'Brenneke Slug',
-    description: 'Premium slug load. Better stability.',
+    name: 'Buckshot Match',
+    description: 'Tight pattern match buckshot. Better for clays.',
     muzzleVelocityScale: 1.0,
     dragScale: 0.95,
     dispersionScale: 0.7,
     recoilScale: 1.0,
+    pelletCountScale: 1.0,  // Standard 12 pellets
+    spreadScale: 0.9,  // 10% tighter spread
   },
   {
     id: 'shotgun-heavy',

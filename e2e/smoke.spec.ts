@@ -1458,3 +1458,83 @@ test('pistols pack: select pistol, start level, fire, see results', async ({ pag
   // Verify pistols pack is still visible after completing a level
   await expect(page.getByTestId('pistols-pack')).toBeVisible();
 });
+
+test('shotguns pack: select weapon, start level and complete', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to weapons to select shotgun
+  await page.getByTestId('weapons-button').click();
+  await page.waitForURL('**/weapons');
+  await expect(page.getByTestId('weapons-page')).toBeVisible();
+
+  // Click shotgun tab
+  await expect(page.getByTestId('tab-shotgun')).toBeVisible();
+  await page.getByTestId('tab-shotgun').click();
+
+  // Select the pump action shotgun
+  await expect(page.getByTestId('weapon-shotgun-pump')).toBeVisible();
+  await page.getByTestId('weapon-shotgun-pump').click();
+
+  // Go back to menu
+  await page.getByTestId('back-button').first().click();
+  await page.waitForURL('/');
+
+  // Navigate to levels
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Verify Shotguns pack exists
+  await expect(page.getByTestId('shotguns-pack')).toBeVisible();
+
+  // Select first shotgun level
+  await expect(page.getByTestId('level-shotgun-intro')).toBeVisible();
+  await page.getByTestId('level-shotgun-intro').click();
+
+  // Wait for game page to load
+  await page.waitForURL('/game/shotgun-intro');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Dismiss tutorial if present (shotgun intro has tutorial)
+  const tutorialOverlay = page.getByTestId('tutorial-overlay');
+  if (await tutorialOverlay.isVisible()) {
+    await page.getByTestId('tutorial-next').click();
+    await page.waitForTimeout(200);
+    await page.getByTestId('tutorial-close').click();
+  }
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Fire shots at the clay targets
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    // Aim at top clay
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 - 50 } });
+    await page.waitForTimeout(100);
+    // Aim at middle clay (center)
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await page.waitForTimeout(100);
+    // Aim at bottom clay
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 + 50 } });
+    await page.waitForTimeout(100);
+    // Fire 2 more shots to complete the level
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await page.waitForTimeout(100);
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  await expect(page.getByTestId('stars-earned')).toBeVisible();
+
+  // Verify shot history shows shotgun multi-impacts
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+  const firstShot = page.getByTestId('shot-row-1');
+  await expect(firstShot.getByText(/🔫/)).toBeVisible();
+});
