@@ -147,7 +147,7 @@ export const LEVEL_PACKS: LevelPack[] = [
     id: 'expert-challenge',
     name: 'Expert Challenge',
     description: 'Extreme conditions for expert marksman',
-    levels: ['expert-blizzard', 'expert-hurricane', 'elr-wind-layers-1', 'elr-reversing-wind'],
+    levels: ['expert-blizzard', 'expert-hurricane'],
     weaponType: 'any',
   },
   {
@@ -160,6 +160,17 @@ export const LEVEL_PACKS: LevelPack[] = [
       'shotgun-speed-1', 'shotgun-speed-2', 'shotgun-master'
     ],
     weaponType: 'shotgun',
+  },
+  {
+    id: 'elr-pack',
+    name: 'ELR Pack',
+    description: 'Extended Long Range: layered wind, extreme environments, 600m-1500m engagements',
+    levels: [
+      'elr-intro', 'elr-wind-layers-2', 'elr-high-altitude', 'elr-cold-dense',
+      'elr-hot-thin', 'elr-gust-nightmare', 'elr-reversing-wind-2', 'elr-triple-layer',
+      'elr-gust-gauntlet', 'elr-environment-alchemist', 'elr-extreme', 'elr-master'
+    ],
+    weaponType: 'sniper',
   },
 ];
 
@@ -1201,49 +1212,245 @@ export const LEVELS: Level[] = [
     unlocked: true,
   },
 
-  // ===== EXTENDED LONG RANGE (ELR) WITH WIND LAYERS =====
+  // ===== EXTENDED LONG RANGE (ELR) PACK =====
   {
-    id: 'elr-wind-layers-1',
-    packId: 'expert-challenge',
-    name: 'ELR Wind Layers',
-    description: 'Extreme long range with varying wind layers. 1500m challenge.',
-    difficulty: 'expert',
+    id: 'elr-intro',
+    packId: 'elr-pack',
+    name: 'ELR Introduction',
+    description: 'First long-range engagement with layered wind. Learn to read wind cues.',
+    difficulty: 'easy',
     requiredWeaponType: 'sniper',
-    distanceM: 1500,
-    env: { temperatureC: 15, altitudeM: 0 },
-    // Wind profile with 3 layers: light, moderate, strong
+    distanceM: 600,
+    env: { temperatureC: 20, altitudeM: 0 },
     windProfile: [
-      { startM: 0, endM: 500, windMps: 3, gustMps: 1 },   // Near: light breeze
-      { startM: 500, endM: 1000, windMps: 8, gustMps: 2 },  // Mid: moderate wind
-      { startM: 1000, endM: 1600, windMps: 15, gustMps: 3 }, // Far: strong wind
+      { startM: 0, endM: 300, windMps: 2, gustMps: 0.5 },   // Near: light
+      { startM: 300, endM: 600, windMps: 5, gustMps: 1 },     // Far: moderate
     ],
     airDensityKgM3: 1.225,
     gravityMps2: 9.80665,
-    targetScale: 0.2,  // Very small target at 1500m
+    targetScale: 0.4,
+    maxShots: 5,
+    starThresholds: { one: 15, two: 25, three: 35 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-wind-layers-2',
+    packId: 'elr-pack',
+    name: 'Triple Wind Layers',
+    description: 'Three distinct wind layers. Adjust for gradual drift.',
+    difficulty: 'medium',
+    requiredWeaponType: 'sniper',
+    distanceM: 800,
+    env: { temperatureC: 15, altitudeM: 0 },
+    windProfile: [
+      { startM: 0, endM: 300, windMps: 3, gustMps: 1 },     // Near: light
+      { startM: 300, endM: 600, windMps: 8, gustMps: 1.5 },   // Mid: moderate
+      { startM: 600, endM: 900, windMps: 12, gustMps: 2 },    // Far: strong
+    ],
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 0.35,
+    maxShots: 5,
+    starThresholds: { one: 12, two: 20, three: 30 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-high-altitude',
+    packId: 'elr-pack',
+    name: 'High Altitude',
+    description: '2000m elevation. Thinner air = less drag, more drop.',
+    difficulty: 'medium',
+    requiredWeaponType: 'sniper',
+    distanceM: 1000,
+    env: { temperatureC: 10, altitudeM: 2000 },
+    windMps: 5,
+    gustMps: 2,
+    airDensityKgM3: 1.0,  // Thinner air at 2000m altitude
+    gravityMps2: 9.80665,
+    targetScale: 0.3,
+    maxShots: 5,
+    starThresholds: { one: 10, two: 18, three: 25 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-cold-dense',
+    packId: 'elr-pack',
+    name: 'Cold Dense Air',
+    description: '-20°C at sea level. Denser air = more drag, requires more elevation.',
+    difficulty: 'medium',
+    requiredWeaponType: 'sniper',
+    distanceM: 900,
+    env: { temperatureC: -20, altitudeM: 0 },
+    windMps: 4,
+    gustMps: 1.5,
+    airDensityKgM3: 1.4,  // Denser cold air
+    gravityMps2: 9.80665,
+    targetScale: 0.35,
+    maxShots: 5,
+    starThresholds: { one: 12, two: 20, three: 30 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-hot-thin',
+    packId: 'elr-pack',
+    name: 'Hot Thin Air',
+    description: '40°C at 1500m. Thin hot air with strong gusty wind.',
+    difficulty: 'hard',
+    requiredWeaponType: 'sniper',
+    distanceM: 1100,
+    env: { temperatureC: 40, altitudeM: 1500 },
+    windMps: 8,
+    gustMps: 3,
+    airDensityKgM3: 0.95,  // Very thin hot air
+    gravityMps2: 9.80665,
+    targetScale: 0.28,
+    maxShots: 4,
+    starThresholds: { one: 8, two: 15, three: 20 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-gust-nightmare',
+    packId: 'elr-pack',
+    name: 'Gust Nightmare',
+    description: '1200m with unpredictable gusts. Extreme long range challenge.',
+    difficulty: 'hard',
+    requiredWeaponType: 'sniper',
+    distanceM: 1200,
+    env: { temperatureC: 25, altitudeM: 0 },
+    windMps: 10,
+    gustMps: 5,  // Very gusty
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 0.25,
+    maxShots: 4,
+    starThresholds: { one: 8, two: 15, three: 22 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-reversing-wind-2',
+    packId: 'elr-pack',
+    name: 'Reversing Wind',
+    description: 'Wind changes direction mid-flight. Complex ballistics required.',
+    difficulty: 'hard',
+    requiredWeaponType: 'sniper',
+    distanceM: 1000,
+    env: { temperatureC: 15, altitudeM: 1000 },
+    windProfile: [
+      { startM: 0, endM: 333, windMps: 5, gustMps: 1 },     // Near: rightward
+      { startM: 333, endM: 666, windMps: -6, gustMps: 1.5 },  // Mid: leftward (reverses)
+      { startM: 666, endM: 1100, windMps: 8, gustMps: 2 },   // Far: rightward
+    ],
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 0.28,
+    maxShots: 4,
+    starThresholds: { one: 8, two: 15, three: 20 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-triple-layer',
+    packId: 'elr-pack',
+    name: 'Triple Layer Chaos',
+    description: 'Strong wind in all three layers with varying directions.',
+    difficulty: 'hard',
+    requiredWeaponType: 'sniper',
+    distanceM: 1100,
+    env: { temperatureC: 20, altitudeM: 500 },
+    windProfile: [
+      { startM: 0, endM: 400, windMps: 6, gustMps: 1.5 },    // Near: moderate
+      { startM: 400, endM: 800, windMps: -10, gustMps: 2 },   // Mid: strong leftward
+      { startM: 800, endM: 1200, windMps: 8, gustMps: 1.5 },   // Far: strong rightward
+    ],
+    airDensityKgM3: 1.15,
+    gravityMps2: 9.80665,
+    targetScale: 0.26,
+    maxShots: 4,
+    starThresholds: { one: 8, two: 15, three: 22 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-gust-gauntlet',
+    packId: 'elr-pack',
+    name: 'Gust Gauntlet',
+    description: 'Extreme gusts. Each shot may see different wind.',
+    difficulty: 'expert',
+    requiredWeaponType: 'sniper',
+    distanceM: 1000,
+    env: { temperatureC: 15, altitudeM: 0 },
+    windMps: 8,
+    gustMps: 6,  // Massive gust range
+    airDensityKgM3: 1.225,
+    gravityMps2: 9.80665,
+    targetScale: 0.28,
+    maxShots: 5,
+    starThresholds: { one: 10, two: 18, three: 25 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-environment-alchemist',
+    packId: 'elr-pack',
+    name: 'Environment Alchemist',
+    description: '-30°C at 3000m. Extreme density challenge with layered wind.',
+    difficulty: 'expert',
+    requiredWeaponType: 'sniper',
+    distanceM: 1300,
+    env: { temperatureC: -30, altitudeM: 3000 },
+    windProfile: [
+      { startM: 0, endM: 500, windMps: 4, gustMps: 1 },     // Near: light
+      { startM: 500, endM: 1000, windMps: 10, gustMps: 2 },   // Mid: strong
+      { startM: 1000, endM: 1400, windMps: 14, gustMps: 2.5 }, // Far: very strong
+    ],
+    airDensityKgM3: 0.85,  // Very thin at 3000m altitude
+    gravityMps2: 9.80665,
+    targetScale: 0.22,
+    maxShots: 4,
+    starThresholds: { one: 6, two: 12, three: 18 },
+    unlocked: true,
+  },
+  {
+    id: 'elr-extreme',
+    packId: 'elr-pack',
+    name: 'ELR Ultimate',
+    description: '1500m with reversing wind and extreme conditions.',
+    difficulty: 'expert',
+    requiredWeaponType: 'sniper',
+    distanceM: 1500,
+    env: { temperatureC: 10, altitudeM: 2000 },
+    windProfile: [
+      { startM: 0, endM: 500, windMps: 7, gustMps: 2 },     // Near: moderate
+      { startM: 500, endM: 1000, windMps: -8, gustMps: 2 },   // Mid: leftward
+      { startM: 1000, endM: 1600, windMps: 15, gustMps: 3 }, // Far: very strong rightward
+    ],
+    airDensityKgM3: 1.0,
+    gravityMps2: 9.80665,
+    targetScale: 0.2,  // Very small target
+    headingDegrees: 90,  // Shooting East (for Coriolis)
+    latitudeDegrees: 60,  // High latitude (more Coriolis)
     maxShots: 3,
     starThresholds: { one: 5, two: 10, three: 15 },
     unlocked: true,
   },
   {
-    id: 'elr-reversing-wind',
-    packId: 'expert-challenge',
-    name: 'Reversing Wind',
-    description: 'Wind changes direction at mid-range. Complex ballistics required.',
+    id: 'elr-master',
+    packId: 'elr-pack',
+    name: 'ELR Master',
+    description: 'Ultimate test: 1500m, triple layer wind, harsh environment, physics on.',
     difficulty: 'expert',
     requiredWeaponType: 'sniper',
-    distanceM: 1000,
-    env: { temperatureC: 15, altitudeM: 1000 },  // Higher altitude changes air density
-    // Wind profile with reversed direction in middle layer
+    distanceM: 1500,
+    env: { temperatureC: -10, altitudeM: 2500 },
     windProfile: [
-      { startM: 0, endM: 333, windMps: 5, gustMps: 1 },   // Near: rightward wind
-      { startM: 333, endM: 666, windMps: -6, gustMps: 1.5 }, // Mid: leftward wind (reverses)
-      { startM: 666, endM: 1100, windMps: 8, gustMps: 2 },  // Far: stronger rightward wind
+      { startM: 0, endM: 500, windMps: 10, gustMps: 2.5 },   // Near: strong
+      { startM: 500, endM: 1000, windMps: -12, gustMps: 3 }, // Mid: strong leftward
+      { startM: 1000, endM: 1600, windMps: 16, gustMps: 3.5 }, // Far: very strong
     ],
-    airDensityKgM3: 1.225,
+    airDensityKgM3: 0.9,
     gravityMps2: 9.80665,
-    targetScale: 0.25,
-    maxShots: 4,
-    starThresholds: { one: 8, two: 15, three: 20 },
+    targetScale: 0.18,  // Extremely small target
+    headingDegrees: 45,
+    latitudeDegrees: 70,  // Extreme latitude
+    maxShots: 3,
+    starThresholds: { one: 4, two: 8, three: 12 },
     unlocked: true,
   },
 ];

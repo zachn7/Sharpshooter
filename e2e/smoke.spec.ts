@@ -1549,16 +1549,16 @@ test('wind layers: ELR level shows layered wind cues', async ({ page }) => {
   await page.waitForURL('**/levels');
   await expect(page.getByTestId('levels-page')).toBeVisible();
 
-  // Navigate to Expert Challenge pack
-  await expect(page.getByTestId('expert-challenge')).toBeVisible();
-  await page.getByTestId('expert-challenge').click();
+  // Navigate to ELR Pack
+  await expect(page.getByTestId('elr-pack')).toBeVisible();
+  await page.getByTestId('elr-pack').click();
 
-  // Select ELR Wind Layers level
-  await expect(page.getByTestId('level-elr-wind-layers-1')).toBeVisible();
-  await page.getByTestId('level-elr-wind-layers-1').click();
+  // Select ELR Introduction level
+  await expect(page.getByTestId('level-elr-intro')).toBeVisible();
+  await page.getByTestId('level-elr-intro').click();
 
   // Wait for game page to load
-  await page.waitForURL('/game/elr-wind-layers-1');
+  await page.waitForURL('/game/elr-intro');
   await expect(page.getByTestId('game-page')).toBeVisible();
 
   // Verify layered wind cues are visible
@@ -1575,4 +1575,64 @@ test('wind layers: ELR level shows layered wind cues', async ({ page }) => {
   const windHud = page.getByTestId('wind-cues-layered');
   await expect(windHud).toContainText('Layered Wind');
   await expect(windHud).toContainText('segments');
+});
+
+test('ELR pack: introduction level completes successfully', async ({ page }) => {
+  // Start at main menu
+  await page.goto('/');
+  await expect(page.getByTestId('main-menu')).toBeVisible();
+
+  // Navigate to levels
+  await page.getByTestId('levels-button').click();
+  await page.waitForURL('**/levels');
+  await expect(page.getByTestId('levels-page')).toBeVisible();
+
+  // Navigate to ELR Pack
+  await expect(page.getByTestId('elr-pack')).toBeVisible();
+  await page.getByTestId('elr-pack').click();
+
+  // Verify ELR pack is visible and shows correct name
+  const elrPack = page.getByTestId('elr-pack');
+  await expect(elrPack).toContainText('ELR Pack');
+  
+  // Select ELR Introduction level
+  await expect(page.getByTestId('level-elr-intro')).toBeVisible();
+  await page.getByTestId('level-elr-intro').click();
+
+  // Wait for game page to load
+  await page.waitForURL('/game/elr-intro');
+  await expect(page.getByTestId('game-page')).toBeVisible();
+
+  // Verify level briefing shows correct info
+  await expect(page.locator('text=ELR Introduction')).toBeVisible();
+  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
+
+  // Start the level
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
+
+  // Fire shots at the target
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    // Fire 3 shots at roughly center (600m distance, need some lead for wind)
+    for (let i = 0; i < 3; i++) {
+      // Aim slightly left to compensate for left-to-right wind (2-5 m/s)
+      await canvas.click({ position: { x: box.width / 2 - 30, y: box.height / 2 + 20 } });
+      await page.waitForTimeout(100);
+    }
+    // Fire 2 more shots
+    for (let i = 0; i < 2; i++) {
+      await canvas.click({ position: { x: box.width / 2 - 30, y: box.height / 2 + 20 } });
+      await page.waitForTimeout(100);
+    }
+  }
+
+  // Should see results screen
+  await expect(page.getByTestId('results-screen')).toBeVisible();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  await expect(page.getByTestId('stars-earned')).toBeVisible();
+
+  // Verify shot history is visible
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
 });

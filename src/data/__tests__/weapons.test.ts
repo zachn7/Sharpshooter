@@ -95,4 +95,34 @@ describe('weapons data', () => {
       });
     });
   });
+
+  describe('ELR weapons', () => {
+    it('has at least 3 ELR-specific weapons', () => {
+      const elrWeaponIds = ['dmr-precision', 'elr-sniper', 'dmr-heavy-magnum'];
+      elrWeaponIds.forEach(id => {
+        const weapon = getWeaponById(id);
+        expect(weapon).toBeDefined();
+        expect(weapon?.name).toBeDefined();
+      });
+    });
+
+    it('ELR weapons have tuned stats for long range', () => {
+      const elrWeapons = [
+        getWeaponById('dmr-precision'),
+        getWeaponById('elr-sniper'),
+        getWeaponById('dmr-heavy-magnum'),
+      ].filter(w => w !== undefined);
+
+      // All should have high muzzle velocity
+      elrWeapons.forEach(weapon => {
+        expect(weapon.params.muzzleVelocityMps).toBeGreaterThanOrEqual(880);  // At least 880 m/s
+        expect(weapon.params.dragFactor).toBeLessThan(0.000018);  // Low drag
+        expect(weapon.params.precisionMoaAt100).toBeLessThanOrEqual(1.0);  // Tight groups
+      });
+
+      // ELR Sniper should have highest velocity
+      const elrSniper = getWeaponById('elr-sniper');
+      expect(elrSniper?.params.muzzleVelocityMps).toBeGreaterThanOrEqual(1000);
+    });
+  });
 });

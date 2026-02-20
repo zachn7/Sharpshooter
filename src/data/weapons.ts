@@ -230,6 +230,56 @@ export const WEAPONS_CATALOG: Weapon[] = [
     unlocked: true,
   },
 
+  // ELR (Extended Long Range) Rifles
+  {
+    id: 'dmr-precision',
+    name: 'Precision DMR MK-II',
+    type: 'rifle',
+    description: 'Designated marksman rifle. High velocity, tight groups.',
+    params: {
+      muzzleVelocityMps: 940,
+      massKg: 0.0097,
+      diameterM: 0.0076,
+      dragFactor: 0.000016,
+      defaultOptic: 'scope-8x',
+      recoilRecoveryMs: 180,
+      precisionMoaAt100: 0.75,  // Very tight for DMR
+    },
+    unlocked: true,
+  },
+  {
+    id: 'elr-sniper',
+    name: 'ELR Sniper Horizon',
+    type: 'sniper',
+    description: 'Supreme long-range rifle. Built for 1500m+ engagements.',
+    params: {
+      muzzleVelocityMps: 1020,
+      massKg: 0.0105,
+      diameterM: 0.0080,
+      dragFactor: 0.000014,  // Very low drag for long range
+      defaultOptic: 'scope-12x',
+      recoilRecoveryMs: 280,
+      precisionMoaAt100: 0.6,  // Extremely tight
+    },
+    unlocked: true,
+  },
+  {
+    id: 'dmr-heavy-magnum',
+    name: 'Magnum DMR Tyrant',
+    type: 'rifle',
+    description: 'Heavy magnum cartridge. Resists wind at extreme ranges.',
+    params: {
+      muzzleVelocityMps: 880,
+      massKg: 0.0125,
+      diameterM: 0.0085,
+      dragFactor: 0.000017,
+      defaultOptic: 'scope-12x',
+      recoilRecoveryMs: 320,
+      precisionMoaAt100: 0.9,
+    },
+    unlocked: true,
+  },
+
   // Shotguns (for close-range fun)
   {
     id: 'shotgun-pump',

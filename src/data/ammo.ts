@@ -145,6 +145,38 @@ export const AMMO_CATALOG: AmmoVariant[] = [
     recoilScale: 0.95,
   },
 
+  // ELR ammo (Extended Long Range)
+  {
+    id: 'rifle-elr-match',
+    weaponType: 'rifle',
+    name: 'ELR Match Ultra',
+    description: 'Ultra-low drag match load. Perfect for extreme distances.',
+    muzzleVelocityScale: 1.02,
+    dragScale: 0.90,  // Very low drag
+    dispersionScale: 0.6,
+    recoilScale: 1.02,
+  },
+  {
+    id: 'rifle-elr-budget',
+    weaponType: 'rifle',
+    name: 'ELR Ballistic Tip',
+    description: 'Budget long-range load. Good but not match precision.',
+    muzzleVelocityScale: 0.98,
+    dragScale: 1.05,
+    dispersionScale: 0.85,
+    recoilScale: 0.98,
+  },
+  {
+    id: 'rifle-elr-heavy',
+    weaponType: 'rifle',
+    name: 'ELR Heavy Boat-Tail',
+    description: 'Heavy boat-tail bullet. Excellent wind bucking.',
+    muzzleVelocityScale: 0.95,
+    dragScale: 0.85,
+    dispersionScale: 0.9,
+    recoilScale: 1.15,
+  },
+
   // Shotgun ammo
   {
     id: 'shotgun-budget',

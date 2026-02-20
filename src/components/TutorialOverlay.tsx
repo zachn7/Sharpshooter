@@ -98,6 +98,17 @@ const TUTORIALS: Record<string, TutorialContent> = {
       'Use this to your advantage on moving targets!',
     ],
   },
+  'elr-intro': {
+    title: 'Welcome to ELR!',
+    message: [
+      'Extended Long Range: layered wind, extreme environments, 600m+ shots.',
+      'Watch the 3 flag indicators for wind in NEAR / MID / FAR segments.',
+      'Wind changes as your bullet travels - adjust hold accordingly!',
+      'Longer flight time = more bullet drop at each distance.',
+      'Use higher magnification (4x/8x) to see the target clearly.',
+      'ELR weapons have high velocity and low drag for extreme distances.',
+    ],
+  },
 };
 
 interface TutorialOverlayProps {
