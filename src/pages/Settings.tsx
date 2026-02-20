@@ -106,6 +106,50 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleReticleStyleChange = (style: 'simple' | 'mil' | 'tree') => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      reticle: {
+        ...settings.reticle,
+        style,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleReticleThicknessChange = (thickness: number) => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      reticle: {
+        ...settings.reticle,
+        thickness: Math.max(1, Math.min(5, thickness)),
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleReticleCenterDotToggleChange = () => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      reticle: {
+        ...settings.reticle,
+        centerDot: !settings.reticle.centerDot,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
+  const handleOffsetUnitChange = (unit: 'mil' | 'moa') => {
+    if (!settings) return;
+    const updated = updateGameSettings({
+      display: {
+        ...settings.display,
+        offsetUnit: unit,
+      },
+    });
+    setSettings(updated.settings);
+  };
+
   const handleZeroDistanceChange = async (distance: number) => {
     setZeroDistance(distance as ZeroDistanceOption);
 
@@ -506,6 +550,118 @@ export function Settings() {
               >
                 {settings.vfx.recordShotPath ? 'ON' : 'OFF'}
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Reticle Settings Section */}
+        <div className="settings-section" data-testid="reticle-section">
+          <h3>Reticle</h3>
+          <p className="setting-description">
+            Customize the aiming reticle appearance and display options.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Style</span>
+                <span className="setting-sublabel">
+                  Choose reticle pattern
+                </span>
+              </div>
+              <div className="setting-options">
+                <button
+                  className={`option-button ${settings.reticle.style === 'simple' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('simple')}
+                  data-testid="reticle-style-simple"
+                >
+                  Simple
+                </button>
+                <button
+                  className={`option-button ${settings.reticle.style === 'mil' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('mil')}
+                  data-testid="reticle-style-mil"
+                >
+                  MIL
+                </button>
+                <button
+                  className={`option-button ${settings.reticle.style === 'tree' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('tree')}
+                  data-testid="reticle-style-tree"
+                >
+                  Tree
+                </button>
+              </div>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Thickness</span>
+                <span className="setting-sublabel">
+                  Line thickness: {settings.reticle.thickness}px
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="5"
+                step="1"
+                value={settings.reticle.thickness}
+                onChange={(e) => handleReticleThicknessChange(Number(e.target.value))}
+                className="range-slider"
+                data-testid="reticle-thickness"
+                aria-label="Reticle thickness"
+              />
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Center Dot</span>
+                <span className="setting-sublabel">
+                  Show dot at reticle center
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.reticle.centerDot ? 'on' : 'off'}`}
+                onClick={handleReticleCenterDotToggleChange}
+                data-testid="reticle-center-dot"
+                aria-pressed={settings.reticle.centerDot}
+              >
+                {settings.reticle.centerDot ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Display Settings Section */}
+        <div className="settings-section" data-testid="display-section">
+          <h3>Display</h3>
+          <p className="setting-description">
+            Configure display units and readout preferences.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Offset Units</span>
+                <span className="setting-sublabel">
+                  Unit for impact offset display
+                </span>
+              </div>
+              <div className="setting-options">
+                <button
+                  className={`option-button ${settings.display.offsetUnit === 'mil' ? 'active' : ''}`}
+                  onClick={() => handleOffsetUnitChange('mil')}
+                  data-testid="offset-units-mil"
+                >
+                  MIL
+                </button>
+                <button
+                  className={`option-button ${settings.display.offsetUnit === 'moa' ? 'active' : ''}`}
+                  onClick={() => handleOffsetUnitChange('moa')}
+                  data-testid="offset-units-moa"
+                >
+                  MOA
+                </button>
+              </div>
             </div>
           </div>
         </div>

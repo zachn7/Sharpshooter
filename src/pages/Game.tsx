@@ -8,9 +8,9 @@ import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFA
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, type TurretState } from '../storage';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
-import { getMilSpacingPixels, MAGNIFICATION_LEVELS, type MagnificationLevel } from '../utils/reticle';
+import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { RangeCard } from '../components/RangeCard';
 import { ReplayViewer } from '../components/ReplayViewer';
@@ -53,7 +53,6 @@ interface Impact {
 }
 
 type GameState = 'briefing' | 'running' | 'results';
-type ReticleMode = 'simple' | 'mil';
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
@@ -150,8 +149,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Sway and recoil state
   const [recoilState, setRecoilState] = useState<RecoilState | null>(null);
   
-  // Reticle state
-  const [reticleMode, setReticleMode] = useState<ReticleMode>('simple');
+  // Reticle and magnification state
   const [magnification, setMagnification] = useState<MagnificationLevel>(1);
   
   // Turret state (loaded from storage per weapon)
@@ -758,6 +756,19 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     navigate('/levels');
   }, [navigate]);
 
+  // Cycle through reticle styles
+  const handleReticleStyleCycle = useCallback(() => {
+    const currentStyle = settings.reticle.style;
+    const styles: Array<'simple' | 'mil' | 'tree'> = ['simple', 'mil', 'tree'];
+    const currentIndex = styles.indexOf(currentStyle as 'simple' | 'mil' | 'tree');
+    if (currentIndex === -1) return;
+    const nextIndex = (currentIndex + 1) % styles.length;
+    updateGameSettings({ reticle: { ...settings.reticle, style: styles[nextIndex] } });
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
+  }, [settings.reticle]);
+
   // Update recoil decay over time
   useEffect(() => {
     if (gameState !== 'running') return;
@@ -923,12 +934,15 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
       // Draw reticle
       const reticleCanvas = worldToCanvas(recticlePosition, viewportConfig);
+      const reticleStyle = settings.reticle.style;
+      const reticleThickness = settings.reticle.thickness;
+      const showCenterDot = settings.reticle.centerDot;
 
-      if (reticleMode === 'simple') {
+      if (reticleStyle === 'simple') {
         // Simple crosshair reticle
         const reticleSize = 20;
         ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = reticleThickness;
         ctx.beginPath();
         // Crosshair
         ctx.moveTo(reticleCanvas.x - reticleSize, reticleCanvas.y);
@@ -938,7 +952,13 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         // Circle
         ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleSize / 2, 0, Math.PI * 2);
         ctx.stroke();
-      } else if (reticleMode === 'mil' && level) {
+        // Center dot
+        if (showCenterDot) {
+          ctx.beginPath();
+          ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleThickness, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (reticleStyle === 'mil' && level) {
         // MIL reticle with tick marks
         const milSpacingPixels = getMilSpacingPixels(
           level.distanceM,
@@ -949,13 +969,15 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         );
 
         ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = reticleThickness;
         ctx.fillStyle = '#ff0000';
 
         // Draw center dot
-        ctx.beginPath();
-        ctx.arc(reticleCanvas.x, reticleCanvas.y, 2, 0, Math.PI * 2);
-        ctx.fill();
+        if (showCenterDot) {
+          ctx.beginPath();
+          ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleThickness, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
         // Draw horizontal MIL ticks (left and right from center)
         [-1, 1].forEach((direction) => {
@@ -1024,8 +1046,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     recticlePosition,
     level,
     magnification,
-    reticleMode,
     settings.showHud,
+    settings.reticle,
   ]);
 
   // Show briefing screen
@@ -1269,12 +1291,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         </div>
         <div className="reticle-controls">
           <button
-            onClick={() => setReticleMode(reticleMode === 'simple' ? 'mil' : 'simple')}
+            onClick={handleReticleStyleCycle}
             className="control-button"
             data-testid="reticle-mode-toggle"
             title="Toggle reticle mode"
           >
-            {reticleMode === 'simple' ? 'Crosshair' : 'MIL Reticle'}
+            {settings.reticle.style === 'simple' ? 'Crosshair' : settings.reticle.style === 'mil' ? 'MIL Reticle' : 'Tree Reticle'}
           </button>
           <button
             onClick={() => {
@@ -1475,13 +1497,17 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             <div className="offset-row">
               <span className="offset-label">Elevation:</span>
               <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`}>
-                {impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL
+                {settings.display.offsetUnit === 'moa'
+                  ? `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].elevationMils).toFixed(1)} MOA`
+                  : `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL`}
               </span>
             </div>
             <div className="offset-row">
               <span className="offset-label">Windage:</span>
               <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`}>
-                {impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}{impacts[impacts.length - 1].windageMils.toFixed(1)} MIL
+                {settings.display.offsetUnit === 'moa'
+                  ? `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].windageMils).toFixed(1)} MOA`
+                  : `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].windageMils.toFixed(1)} MIL`}
               </span>
             </div>
           </div>

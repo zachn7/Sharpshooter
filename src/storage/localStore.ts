@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 13;
 
 // Daily Challenge key
 const DAILY_CHALLENGE_KEY = 'sharpshooter_daily_challenge';
@@ -67,6 +67,24 @@ export interface VFXSettings {
   recordShotPath: boolean; // Record shot path for replay (off by default for performance)
 }
 
+// Offset display unit (for readouts only, physics stays MIL-based)
+export type OffsetUnit = 'mil' | 'moa';
+
+// Reticle style options
+export type ReticleStyle = 'simple' | 'mil' | 'tree';
+
+// Reticle customization settings
+export interface ReticleSettings {
+  style: ReticleStyle; // Reticle style to display
+  thickness: number; // Line thickness in pixels (1-5)
+  centerDot: boolean; // Show center dot in reticle
+}
+
+// Offset display settings
+export interface DisplaySettings {
+  offsetUnit: OffsetUnit; // Unit for offset display (MIL/MOA)
+}
+
 // Game settings
 export interface GameSettings {
   realismPreset: RealismPreset;
@@ -79,6 +97,8 @@ export interface GameSettings {
   expertCoriolisEnabled: boolean; // Enable Coriolis effect simulation (Expert only, off by default)
   audio: AudioSettings; // Audio settings
   vfx: VFXSettings; // VFX accessibility settings
+  reticle: ReticleSettings; // Reticle customization
+  display: DisplaySettings; // Display settings (offset units)
 }
 
 // Complete game save data
@@ -249,6 +269,25 @@ const MIGRATIONS: Migration[] = [
       },
     };
   },
+  // v12 -> v13: Add reticle customization and display settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 13,
+      settings: {
+        ...save.settings,
+        reticle: save.settings?.reticle ?? {
+          style: 'mil',
+          thickness: 2,
+          centerDot: true,
+        },
+        display: save.settings?.display ?? {
+          offsetUnit: 'mil',
+        },
+      },
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -345,6 +384,14 @@ function createDefaultSave(): GameSave {
         reducedMotion: false,
         reducedFlash: false,
         recordShotPath: false,
+      },
+      reticle: {
+        style: 'mil',
+        thickness: 2,
+        centerDot: true,
+      },
+      display: {
+        offsetUnit: 'mil',
       },
     },
     turretStates: {},

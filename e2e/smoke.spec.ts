@@ -1031,3 +1031,165 @@ test('Expert extras: HUD badge not visible when Expert extras disabled', async (
   const badge = page.getByTestId('expert-extras-badge');
   await expect(badge).not.toBeVisible();
 });
+
+test('reticle customization: settings page has reticle controls', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify reticle section exists
+  await expect(page.getByTestId('reticle-section')).toBeVisible();
+
+  // Verify reticle style options exist
+  await expect(page.getByTestId('reticle-style-simple')).toBeVisible();
+  await expect(page.getByTestId('reticle-style-mil')).toBeVisible();
+  await expect(page.getByTestId('reticle-style-tree')).toBeVisible();
+
+  // Verify reticle thickness slider exists
+  await expect(page.getByTestId('reticle-thickness')).toBeVisible();
+
+  // Verify center dot toggle exists
+  await expect(page.getByTestId('reticle-center-dot')).toBeVisible();
+});
+
+test('reticle customization: toggle center dot persists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Center dot should be ON by default
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('ON');
+
+  // Toggle it OFF
+  await page.getByTestId('reticle-center-dot').click();
+  await page.waitForTimeout(100);
+
+  // Verify it's OFF
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('OFF');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('OFF');
+
+  // Toggle it back ON
+  await page.getByTestId('reticle-center-dot').click();
+  await page.waitForTimeout(100);
+
+  // Refresh and verify it's ON
+  await page.reload();
+  await expect(page.getByTestId('reticle-center-dot')).toHaveText('ON');
+});
+
+test('reticle customization: adjust thickness persists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Get the thickness slider
+  const thicknessSlider = page.getByTestId('reticle-thickness');
+  await expect(thicknessSlider).toBeVisible();
+
+  // Check default thickness (should be 2)
+  const defaultThickness = await thicknessSlider.inputValue();
+  expect(defaultThickness).toBe('2');
+
+  // Adjust thickness to 5
+  await thicknessSlider.fill('5');
+  await page.waitForTimeout(100);
+
+  // Verify it's 5
+  const newThickness1 = await thicknessSlider.inputValue();
+  expect(newThickness1).toBe('5');
+
+  // Refresh page and verify setting persists
+  await page.reload();
+  const newThickness2 = await thicknessSlider.inputValue();
+  expect(newThickness2).toBe('5');
+});
+
+test('reticle customization: change style persists', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Simple style should be selectable
+  await page.getByTestId('reticle-style-simple').click();
+  await page.waitForTimeout(100);
+
+  // Verify simple is selected
+  await expect(page.getByTestId('reticle-style-simple')).toHaveClass(/active/);
+
+  // Refresh and verify style persists
+  await page.reload();
+  await expect(page.getByTestId('reticle-style-simple')).toHaveClass(/active/);
+
+  // Change to MIL style
+  await page.getByTestId('reticle-style-mil').click();
+  await page.waitForTimeout(100);
+
+  // Verify MIL is selected
+  await expect(page.getByTestId('reticle-style-mil')).toHaveClass(/active/);
+
+  // Refresh and verify style persists
+  await page.reload();
+  await expect(page.getByTestId('reticle-style-mil')).toHaveClass(/active/);
+});
+
+test('display settings: offset unit toggle changes impact offset readout', async ({ page }) => {
+  // Navigate to settings page
+  await page.goto('/settings');
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+
+  // Verify display section exists
+  await expect(page.getByTestId('display-section')).toBeVisible();
+
+  // Verify offset unit options exist
+  await expect(page.getByTestId('offset-units-mil')).toBeVisible();
+  await expect(page.getByTestId('offset-units-moa')).toBeVisible();
+
+  // Change to MOA
+  await page.getByTestId('offset-units-moa').click();
+  await page.waitForTimeout(100);
+
+  // Verify MOA is selected
+  await expect(page.getByTestId('offset-units-moa')).toHaveClass(/active/);
+
+  // Start a game and verify offset shows in MOA
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+
+  // Fire a shot
+  const canvas = page.getByTestId('game-canvas');
+  const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Impact offset panel should show MOA
+  const offsetPanel = page.getByTestId('impact-offset-panel');
+  await expect(offsetPanel).toBeVisible();
+  const offsetText = await offsetPanel.textContent();
+  expect(offsetText).toContain('MOA');
+  expect(offsetText).not.toContain('MIL');
+
+  // Go back to settings and change to MIL
+  await page.getByTestId('back-button').click();
+  await page.goto('/settings');
+  await page.getByTestId('offset-units-mil').click();
+  await page.waitForTimeout(100);
+
+  // Start the game again and verify offset shows in MIL
+  await page.goto('/game/pistol-windy?testMode=1');
+  await page.getByTestId('start-level').click();
+
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Impact offset panel should now show MIL
+  const offsetPanel2 = page.getByTestId('impact-offset-panel');
+  await expect(offsetPanel2).toBeVisible();
+  const offsetText2 = await offsetPanel2.textContent();
+  expect(offsetText2).toContain('MIL');
+  expect(offsetText2).not.toContain('MOA');
+});

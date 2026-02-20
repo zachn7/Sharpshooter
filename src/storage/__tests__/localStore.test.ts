@@ -417,6 +417,14 @@ describe('localStore', () => {
             reducedFlash: false,
             recordShotPath: false,
           },
+          reticle: {
+            style: 'mil',
+            thickness: 2,
+            centerDot: true,
+          },
+          display: {
+            offsetUnit: 'mil',
+          },
         },
         turretStates: {},
         zeroProfiles: {},
@@ -537,7 +545,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(12); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(13); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -742,7 +750,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '3');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(12); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(13); // Migrates all the way to latest version
       expect(loaded?.turretStates).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -925,7 +933,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '4');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(12); // Migrates to latest version
+      expect(loaded?.version).toBe(13); // Migrates to latest version
       expect(loaded?.zeroProfiles).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -1062,6 +1070,123 @@ describe('localStore', () => {
       
       const ammoId = getSelectedAmmoId('pistol-training');
       expect(ammoId).toBe('pistol-budget');
+    });
+  });
+
+  describe('reticle settings', () => {
+    it('returns default reticle settings for new save', () => {
+      const settings = getGameSettings();
+      expect(settings.reticle.style).toBe('mil');
+      expect(settings.reticle.thickness).toBe(2);
+      expect(settings.reticle.centerDot).toBe(true);
+    });
+
+    it('updates reticle style', () => {
+      updateGameSettings({ reticle: { ...getGameSettings().reticle, style: 'simple' } });
+      const settings = getGameSettings();
+      expect(settings.reticle.style).toBe('simple');
+    });
+
+    it('updates reticle thickness', () => {
+      updateGameSettings({ reticle: { ...getGameSettings().reticle, thickness: 4 } });
+      const settings = getGameSettings();
+      expect(settings.reticle.thickness).toBe(4);
+    });
+
+    it('updates center dot toggle', () => {
+      updateGameSettings({ reticle: { ...getGameSettings().reticle, centerDot: false } });
+      const settings = getGameSettings();
+      expect(settings.reticle.centerDot).toBe(false);
+    });
+
+    it('persists reticle settings across function calls', () => {
+      updateGameSettings({
+        reticle: { style: 'tree', thickness: 3, centerDot: false }
+      });
+      const settings1 = getGameSettings();
+      const settings2 = getGameSettings();
+      expect(settings1.reticle.style).toBe('tree');
+      expect(settings2.reticle.style).toBe('tree');
+      expect(settings1.reticle.thickness).toBe(3);
+      expect(settings2.reticle.thickness).toBe(3);
+    });
+  });
+
+  describe('display settings', () => {
+    it('returns default display settings for new save', () => {
+      const settings = getGameSettings();
+      expect(settings.display.offsetUnit).toBe('mil');
+    });
+
+    it('updates offset unit to moa', () => {
+      updateGameSettings({ display: { ...getGameSettings().display, offsetUnit: 'moa' } });
+      const settings = getGameSettings();
+      expect(settings.display.offsetUnit).toBe('moa');
+    });
+
+    it('persists offset unit across function calls', () => {
+      updateGameSettings({ display: { ...getGameSettings().display, offsetUnit: 'moa' } });
+      const settings1 = getGameSettings();
+      const settings2 = getGameSettings();
+      expect(settings1.display.offsetUnit).toBe('moa');
+      expect(settings2.display.offsetUnit).toBe('moa');
+    });
+  });
+
+  describe('reticle and display settings migration', () => {
+    it('migrates v12 to v13 saves', () => {
+      const localStorageMock = {
+        getItem: (key: string) => {
+          if (typeof localStorage === 'undefined') return null;
+          return localStorage.getItem(key);
+        },
+        setItem: (key: string, value: string) => {
+          if (typeof localStorage === 'undefined') return;
+          localStorage.setItem(key, value);
+        },
+      };
+
+      const v12Save = {
+        version: 12,
+        selectedWeaponId: 'pistol-training',
+        levelProgress: {},
+        unlockedWeapons: ['pistol-training'],
+        settings: {
+          realismPreset: 'realistic',
+          showShotTrace: false,
+          showMilOffset: false,
+          showHud: true,
+          showNumericWind: false,
+          zeroRangeShotLimitMode: 'unlimited',
+          expertSpinDriftEnabled: false,
+          expertCoriolisEnabled: false,
+          audio: {
+            masterVolume: 0.5,
+            isMuted: false,
+            reducedAudio: false,
+          },
+          vfx: {
+            reducedMotion: false,
+            reducedFlash: false,
+            recordShotPath: false,
+          },
+        },
+        turretStates: {},
+        zeroProfiles: {},
+        selectedAmmoId: {},
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      } as Record<string, unknown>;
+
+      localStorageMock.setItem('sharpshooter_save', JSON.stringify(v12Save));
+      localStorageMock.setItem('sharpshooter_schema_version', '12');
+      
+      const loaded = loadGameSave();
+      expect(loaded?.version).toBe(13); // Migrates to latest version
+      expect(loaded?.settings).toHaveProperty('reticle');
+      expect(loaded?.settings).toHaveProperty('display');
+      expect(loaded?.settings.reticle.style).toBe('mil');
+      expect(loaded?.settings.display.offsetUnit).toBe('mil');
     });
   });
 });

@@ -381,6 +381,75 @@ body {
   cursor: not-allowed;
 }
 
+/* Option buttons (for selecting from multiple options) */
+.setting-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.option-button {
+  min-width: 60px;
+  padding: 0.5rem 1rem;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  background: white;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.option-button:hover {
+  border-color: #0f3460;
+  color: #0f3460;
+  transform: translateY(-2px);
+}
+
+.option-button.active {
+  background: #0f3460;
+  border-color: #0f3460;
+  color: white;
+}
+
+/* Range slider */
+.range-slider {
+  width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  outline: none;
+  transition: background 0.2s;
+}
+
+.range-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f3460;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.range-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0f3460;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.2s;
+}
+
+.range-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
 .zero-link-button {
   display: block;
   text-align: center;
