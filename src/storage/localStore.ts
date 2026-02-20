@@ -967,6 +967,114 @@ export function getDailyChallengeStreak(): number {
   return streak;
 }
 
+// ==================== TRAINING DRILLS ====================
+
+const DRILLS_KEY = 'sharpshooter_drills';
+
+export interface DrillResult {
+  drillId: string; // Which drill was attempted
+  seed: number; // The seed that was used (determines scenario)
+  score: number; // Total points earned
+  timeSeconds?: number; // Time taken (for timed drills)
+  completedAt: number; // Timestamp when completed
+  shots: Array<{
+    score: number;
+    elevationMils: number;
+    windageMils: number;
+  }>; // Individual shot data for feedback
+}
+
+export interface DrillPersonalBests {
+  [drillId: string]: {
+    bestScore: number;
+    bestTime?: number; // For timed drills
+    completedAt: number;
+  };
+}
+
+export interface DrillStore {
+  results: DrillResult[]; // Full history of attempts
+  personalBests: DrillPersonalBests; // PB per drill
+}
+
+function getDrillStore(): DrillStore | null {
+  const raw = storage.getItem(DRILLS_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as DrillStore;
+  } catch {
+    return null;
+  }
+}
+
+function saveDrillStore(store: DrillStore): void {
+  try {
+    storage.setItem(DRILLS_KEY, JSON.stringify(store));
+  } catch (e) {
+    // Silently fail if storage is unavailable
+  }
+}
+
+/**
+ * Save a drill result attempt
+ */
+export function saveDrillResult(result: DrillResult): void {
+  const store = getDrillStore() || { results: [], personalBests: {} };
+  
+  // Add to results history
+  store.results.push(result);
+  
+  // Keep only last 50 results per drill to prevent storage bloat
+  store.results = store.results.filter(
+    r => r.drillId !== result.drillId || r.completedAt > result.completedAt - 86400000 * 30
+  ).slice(-250);
+  
+  // Update personal best if applicable
+  const existingPb = store.personalBests[result.drillId];
+  const isNewBest = !existingPb || result.score > existingPb.bestScore;
+  const isTimedDrill = result.timeSeconds !== undefined;
+  const isFaster = isTimedDrill && existingPb?.bestTime !== undefined && result.timeSeconds! < existingPb.bestTime;
+  
+  if (isNewBest || isFaster) {
+    store.personalBests[result.drillId] = {
+      bestScore: result.score,
+      bestTime: result.timeSeconds,
+      completedAt: result.completedAt,
+    };
+  }
+  
+  saveDrillStore(store);
+}
+
+/**
+ * Get personal best for a specific drill
+ */
+export function getDrillPersonalBest(drillId: string): DrillPersonalBests[string] | undefined {
+  const store = getDrillStore();
+  return store?.personalBests[drillId];
+}
+
+/**
+ * Get all drill results history
+ */
+export function getDrillResults(drillId?: string): DrillResult[] {
+  const store = getDrillStore();
+  if (!store) return [];
+  
+  const results = drillId
+    ? store.results.filter(r => r.drillId === drillId)
+    : store.results;
+  
+  return results.sort((a, b) => b.completedAt - a.completedAt);
+}
+
+/**
+ * Clear all drill data
+ */
+export function clearDrillData(): void {
+  storage.removeItem(DRILLS_KEY);
+}
+
 // ==================== IMPORT/EXPORT ====================
 
 /**

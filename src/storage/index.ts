@@ -38,8 +38,12 @@ export {
   clearDailyChallengeResults,
   getDailyChallengeBestScore,
   getDailyChallengeStreak,
+  saveDrillResult,
+  getDrillPersonalBest,
+  getDrillResults,
+  clearDrillData,
   serializeAppState,
   deserializeAppState,
   CURRENT_SCHEMA_VERSION,
 } from './localStore';
-export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState, ZeroProfile, ZeroRangeShotLimitMode, DailyChallengeResult, DailyChallengeStore, AppState } from './localStore';
+export type { GameSave, LevelProgress, GameSettings, RealismPreset, TurretState, ZeroProfile, ZeroRangeShotLimitMode, DailyChallengeResult, DailyChallengeStore, DrillResult, DrillPersonalBests, AppState } from './localStore';

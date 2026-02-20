@@ -7,6 +7,7 @@ import { Settings } from './pages/Settings';
 import { Game } from './pages/Game';
 import { ZeroRange } from './pages/ZeroRange';
 import { DailyChallenge } from './pages/DailyChallenge';
+import { Drills } from './pages/Drills';
 
 function InnerApp() {
   return (
@@ -48,6 +49,14 @@ function InnerApp() {
         element={
           <Layout>
             <DailyChallenge />
+          </Layout>
+        }
+      />
+      <Route
+        path="/drills"
+        element={
+          <Layout>
+            <Drills />
           </Layout>
         }
       />

@@ -8,7 +8,8 @@ import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFA
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, type TurretState } from '../storage';
+import { DRILLS, generateDrillScenario, type DrillScenario } from '../data/drills';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, type TurretState } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
 import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
@@ -180,11 +181,48 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const dateOverride = searchParams.get('dateOverride') || undefined;
   const isDailyChallenge = levelIdSafe === 'daily-challenge';
   
+  // Check for drill mode
+  const isDrill = searchParams.get('mode') === 'drill' && DRILLS.some(d => d.id === levelIdSafe);
+  let drillScenario: DrillScenario | undefined;
+  const drill = isDrill ? DRILLS.find(d => d.id === levelIdSafe) : undefined;
+  
   let level: Level | undefined;
   if (isDailyChallenge) {
     const seedParam = searchParams.get('seed');
     const seed = seedParam ? parseInt(seedParam, 10) : seedFromDate(getTodayDate(dateOverride));
     level = generateDailyLevelFromSeed(seed);
+  } else if (isDrill && drill) {
+    // Load drill scenario and convert to level-like structure
+    const seedParam = searchParams.get('seed') || '1';
+    drillScenario = generateDrillScenario(drill.id, parseInt(seedParam, 10));
+    level = {
+      id: drill.id,
+      packId: 'drills',
+      name: drill.name,
+      description: drill.description,
+      difficulty: 'medium',
+      requiredWeaponType: 'any',
+      distanceM: drillScenario.distanceM,
+      windMps: drillScenario.windMps,
+      gustMps: drillScenario.gustMps,
+      windDirectionDeg: drillScenario.windMps >= 0 ? 90 : 270,
+      env: drillScenario.env,
+      airDensityKgM3: 1.225,
+      gravityMps2: 9.81,
+      targetMode: drillScenario.targetMode,
+      targets: drillScenario.plates?.map(p => ({
+        id: p.id,
+        centerY_M: p.x_M,
+        centerZ_M: p.z_M,
+        radiusM: 0.05,
+        points: p.points,
+      })) || [],
+      maxShots: drillScenario.maxShots,
+      timerSeconds: drillScenario.timeLimit,
+      starThresholds: { one: drillScenario.maxShots * 5, two: drillScenario.maxShots * 8, three: drillScenario.maxShots * 10 },
+      targetScale: 1.0,
+      unlocked: true,
+    };
   } else {
     level = getLevelById(levelIdSafe);
   }
@@ -553,6 +591,25 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             ammoId: getSelectedAmmoId(weaponId),
             completedAt: Date.now(),
           });
+        } else if (isDrill && drill && drillScenario) {
+          // Save drill result
+          const drillSeed = parseInt(searchParams.get('seed') || '1', 10);
+          const timeSeconds = level.timerSeconds !== undefined && level.timerSeconds > 0
+            ? Math.max(0, (Date.now() - levelStartedAt) / 1000)
+            : undefined;
+          
+          saveDrillResult({
+            drillId: drill.id,
+            seed: drillSeed,
+            score: finalScore,
+            timeSeconds,
+            completedAt: Date.now(),
+            shots: newImpacts.map((impact) => ({
+              score: impact.score,
+              elevationMils: impact.elevationMils,
+              windageMils: impact.windageMils,
+            })),
+          });
         } else {
           // Save regular level progress
           updateLevelProgress(level.id, finalScore, level.starThresholds);
@@ -582,7 +639,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     timeRemaining,
     dateOverride,
     isDailyChallenge,
-    weaponId,
+    isDrill,
+    drill,
+    drillScenario,
     settings.expertSpinDriftEnabled,
     settings.expertCoriolisEnabled,
     settings.vfx.recordShotPath,
