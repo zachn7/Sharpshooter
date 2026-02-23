@@ -91,6 +91,8 @@ export interface ZeroProfile {
 const STORAGE_KEY = 'sharpshooter_save';
 const VERSION_KEY = 'sharpshooter_schema_version';
 const TUTORIALS_KEY = 'sharpshooter_tutorials_seen';
+const COMPLETED_LESSONS_KEY = 'sharpshooter_completed_lessons';
+const TUTORIAL_SEEN_KEY = 'sharpshooter_tutorial_seen';
 
 // Level progress record
 export interface LevelProgress {
@@ -946,6 +948,76 @@ export function hasTutorialBeenSeen(tutorialId: string): boolean {
  */
 export function clearTutorialsSeen(): void {
   storage.removeItem(TUTORIALS_KEY);
+}
+
+/**
+ * Get completed lessons from localStorage
+ * @returns Set of lesson IDs that have been completed
+ */
+export function getCompletedLessons(): string[] {
+  try {
+    const raw = storage.getItem(COMPLETED_LESSONS_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw) as string[];
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Mark a lesson as completed
+ * @param lessonId - The lesson ID to mark as completed
+ */
+export function setLessonCompleted(lessonId: string): void {
+  const completed = getCompletedLessons();
+  if (!completed.includes(lessonId)) {
+    completed.push(lessonId);
+    storage.setItem(COMPLETED_LESSONS_KEY, JSON.stringify(completed));
+  }
+}
+
+/**
+ * Check if a lesson has been completed
+ * @param lessonId - The lesson ID to check
+ * @returns true if lesson has been completed
+ */
+export function isLessonCompleted(lessonId: string): boolean {
+  return getCompletedLessons().includes(lessonId);
+}
+
+/**
+ * Clear completed lessons (for testing/reset)
+ */
+export function clearCompletedLessons(): void {
+  storage.removeItem(COMPLETED_LESSONS_KEY);
+}
+
+/**
+ * Check if the tutorial has been shown to the user
+ * @returns true if tutorial overlay has been shown before
+ */
+export function getTutorialSeen(): boolean {
+  try {
+    const raw = storage.getItem(TUTORIAL_SEEN_KEY);
+    return raw === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark the tutorial as seen
+ */
+export function setTutorialSeen(): void {
+  storage.setItem(TUTORIAL_SEEN_KEY, 'true');
+}
+
+/**
+ * Reset tutorial seen status (for testing/reset)
+ */
+export function resetTutorialSeen(): void {
+  storage.removeItem(TUTORIAL_SEEN_KEY);
 }
 
 /**

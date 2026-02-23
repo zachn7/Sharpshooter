@@ -10,6 +10,7 @@ import { Game } from './pages/Game';
 import { ZeroRange } from './pages/ZeroRange';
 import { DailyChallenge } from './pages/DailyChallenge';
 import { Drills } from './pages/Drills';
+import { Academy } from './pages/Academy';
 
 function InnerApp() {
   return (
@@ -19,6 +20,14 @@ function InnerApp() {
         element={
           <Layout showBackButton={false}>
             <MainMenu />
+          </Layout>
+        }
+      />
+      <Route
+        path="/academy"
+        element={
+          <Layout>
+            <Academy />
           </Layout>
         }
       />
