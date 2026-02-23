@@ -10,6 +10,7 @@ import {
   resetTurretState,
   computeAdjustmentForOffset,
   quantizeAdjustmentToClicks,
+  recommendDialFromOffset,
   type TurretState,
 } from '../turret';
 
@@ -261,5 +262,124 @@ describe('quantizeAdjustmentToClicks', () => {
   it('uses custom click size', () => {
     expect(quantizeAdjustmentToClicks(0.26, 0.25)).toBe(0.25);
     expect(quantizeAdjustmentToClicks(0.51, 0.25)).toBe(0.5);
+  });
+});
+
+describe('recommendDialFromOffset', () => {
+  it('computes dial correction for high shot at 500m', () => {
+    // At 500m, shot is 0.25m high (0.5 mils offset)
+    // Need to aim LOWER (down)
+    const rec = recommendDialFromOffset(500, 0.25, 0);
+    
+    expect(rec.offsetY_M).toBe(0.25);
+    expect(rec.offsetY_Mils).toBeCloseTo(0.5, 10);
+    
+    // Elevation correction: -0.5 mils (down)
+    expect(rec.elevDeltaMils).toBeCloseTo(-0.5, 10);
+    expect(rec.elevClicks).toBeCloseTo(-5, 10); // 5 clicks DOWN
+    
+    // No windage needed
+    expect(rec.windDeltaMils).toBe(0);
+    expect(rec.windClicks).toBe(0);
+  });
+
+  it('computes dial correction for left shot at 500m', () => {
+    // At 500m, shot is 0.05m left (-0.1 mils offset)
+    // Need to aim RIGHT
+    const rec = recommendDialFromOffset(500, 0, -0.05);
+    
+    expect(rec.offsetZ_M).toBe(-0.05);
+    expect(rec.offsetZ_Mils).toBeCloseTo(-0.1, 10);
+    
+    // No elevation needed
+    expect(rec.elevDeltaMils).toBe(0);
+    expect(rec.elevClicks).toBe(0);
+    
+    // Windage correction: +0.1 mils (right)
+    expect(rec.windDeltaMils).toBeCloseTo(0.1, 10);
+    expect(rec.windClicks).toBeCloseTo(1, 10); // 1 click RIGHT
+  });
+
+  it('combines elevation and windage corrections', () => {
+    // At 600m, shot is 0.15m high, 0.03m left
+    // 0.15m at 600m = 0.25 mils (offset)
+    // 0.03m at 600m = 0.05 mils (offset)
+    const rec = recommendDialFromOffset(600, 0.15, -0.03);
+    
+    // Elev: aim DOWN (-0.2 mils = -2 clicks, quantized from -0.25 mils)
+    expect(rec.elevDeltaMils).toBeCloseTo(-0.2, 10);
+    expect(rec.elevClicks).toBe(-2);
+    
+    // Windage: aim RIGHT (+0.1 mils = +1 click, quantized from +0.05 mils)
+    expect(rec.windDeltaMils).toBeCloseTo(0.1, 10);
+    expect(rec.windClicks).toBe(1);
+  });
+
+  it('quantizes to nearest 0.1 mil click by default', () => {
+    // At 500m, shot is 0.26m high (0.52 mils offset)
+    // Should quantize -0.52 mils correction to -0.5 mils
+    const rec = recommendDialFromOffset(500, 0.26, 0);
+    
+    expect(rec.elevDeltaMils).toBeCloseTo(-0.5, 10);
+    expect(rec.elevClicks).toBeCloseTo(-5, 10); // 5 clicks DOWN
+  });
+
+  it('uses custom click size', () => {
+    // At 500m, shot is 0.26m high (0.52 mils)
+    // With 0.25 mil clicks, -0.52 mils -> -0.5 mils = -2 clicks
+    const rec = recommendDialFromOffset(500, 0.26, 0, 0.25);
+    
+    expect(rec.elevDeltaMils).toBeCloseTo(-0.5, 10);
+    expect(rec.elevClicks).toBeCloseTo(-2, 10); // 2 clicks DOWN (at 0.25 mil each)
+  });
+
+  it('provides hold recommendations in mils', () => {
+    // At 700m, shot is 0.21m high, 0.07m right
+    // 0.21m at 700m = 0.3 mils
+    // 0.07m at 700m = 0.1 mils
+    const rec = recommendDialFromOffset(700, 0.21, 0.07);
+    
+    // Hold is same as correction (aim lower, aim left)
+    expect(rec.holdElevationMils).toBeCloseTo(-0.3, 10);
+    expect(rec.holdWindageMils).toBeCloseTo(-0.1, 10);
+    
+    // But clicks are quantized
+    expect(rec.elevClicks).toBeCloseTo(-3, 10);
+    expect(rec.windClicks).toBeCloseTo(-1, 10);
+  });
+
+  it('handles low and right shots', () => {
+    // At 400m, shot is 0.08m low (-0.2 mils), 0.12m right (0.3 mils)
+    // Need to aim UP (-0.2 correction) and LEFT (-0.3 correction)
+    const rec = recommendDialFromOffset(400, -0.08, 0.12);
+    
+    // Elev: +0.2 mils UP = +2 clicks
+    expect(rec.elevDeltaMils).toBeCloseTo(0.2, 10);
+    expect(rec.elevClicks).toBeCloseTo(2, 10);
+    
+    // Windage: -0.3 mils LEFT = -3 clicks
+    expect(rec.windDeltaMils).toBeCloseTo(-0.3, 10);
+    expect(rec.windClicks).toBeCloseTo(-3, 10);
+  });
+
+  it('handles zero offset (perfect shot)', () => {
+    const rec = recommendDialFromOffset(500, 0, 0);
+    
+    expect(rec.offsetY_M).toBe(0);
+    expect(rec.offsetZ_M).toBe(0);
+    expect(rec.elevDeltaMils).toBe(0);
+    expect(rec.windDeltaMils).toBe(0);
+    expect(rec.elevClicks).toBe(0);
+    expect(rec.windClicks).toBe(0);
+  });
+
+  it('handles wind from left pushing bullets right', () => {
+    // Wind from left (positive) pushes bullets right (positive offset)
+    // At 500m, shot is 0.15m right (0.3 mils offset)
+    // Need to aim LEFT (-0.3 mils)
+    const rec = recommendDialFromOffset(500, 0, 0.15);
+    
+    expect(rec.windDeltaMils).toBeCloseTo(-0.3, 10);
+    expect(rec.windClicks).toBeCloseTo(-3, 10); // Dial LEFT 3 clicks
   });
 });

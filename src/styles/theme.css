@@ -1,0 +1,204 @@
+/**
+ * Sharpshooter Design Tokens
+ * CSS Custom Properties for consistent theming
+ */
+
+:root {
+  /* ============================================
+   * Colors
+   * ============================================ */
+  
+  /* Primary Colors */
+  --color-primary-50: #e3f2fd;
+  --color-primary-100: #bbdefb;
+  --color-primary-200: #90caf9;
+  --color-primary-300: #64b5f6;
+  --color-primary-400: #42a5f5;
+  --color-primary-500: #2196f3;
+  --color-primary-600: #1e88e5;
+  --color-primary-700: #1976d2;
+  --color-primary-800: #1565c0;
+  --color-primary-900: #0d47a1;
+  
+  /* Accent Colors */
+  --color-accent-50: #fff3e0;
+  --color-accent-100: #ffe0b2;
+  --color-accent-200: #ffcc80;
+  --color-accent-300: #ffb74d;
+  --color-accent-400: #ffa726;
+  --color-accent-500: #ff9800;
+  --color-accent-600: #fb8c00;
+  --color-accent-700: #f57c00;
+  --color-accent-800: #ef6c00;
+  --color-accent-900: #e65100;
+  
+  /* Success Colors */
+  --color-success-50: #e8f5e9;
+  --color-success-100: #c8e6c9;
+  --color-success-200: #a5d6a7;
+  --color-success-300: #81c784;
+  --color-success-400: #66bb6a;
+  --color-success-500: #4caf50;
+  --color-success-600: #43a047;
+  --color-success-700: #388e3c;
+  --color-success-800: #2e7d32;
+  --color-success-900: #1b5e20;
+  
+  /* Warning Colors */
+  --color-warning-50: #fff8e1;
+  --color-warning-100: #ffecb3;
+  --color-warning-200: #ffe082;
+  --color-warning-300: #ffd54f;
+  --color-warning-400: #ffca28;
+  --color-warning-500: #ffc107;
+  --color-warning-600: #ffb300;
+  --color-warning-700: #ffa000;
+  --color-warning-800: #ff8f00;
+  --color-warning-900: #ff6f00;
+  
+  /* Error Colors */
+  --color-error-50: #ffebee;
+  --color-error-100: #ffcdd2;
+  --color-error-200: #ef9a9a;
+  --color-error-300: #ef5350;
+  --color-error-400: #e53935;
+  --color-error-500: #f44336;
+  --color-error-600: #d32f2f;
+  --color-error-700: #c62828;
+  --color-error-800: #b71c1c;
+  --color-error-900: #7f0000;
+  
+  /* Semantic Colors */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #666666;
+  --color-text-tertiary: #999999;
+  --color-text-inverse: #ffffff;
+  
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f5f5f5;
+  --color-background-tertiary: #e0e0e0;
+  --color-background-elevated: #ffffff;
+  
+  --color-border-light: #e0e0e0;
+  --color-border-medium: #bdbdbd;
+  --color-border-dark: #9e9e9e;
+  
+  /* Game-Specific Colors */
+  --color-game-dark-blue: #0f3460;
+  --color-game-blue: #1e3a5f;
+  --color-game-light-blue: #4a9eff;
+  --color-game-pink: #e94560;
+  --color-game-orange: #ff6b4a;
+  --color-game-green: #4caf50;
+  
+  /* ============================================
+   * Spacing
+   * ============================================ */
+  --spacing-xs: 0.25rem;   /* 4px */
+  --spacing-sm: 0.5rem;    /* 8px */
+  --spacing-md: 1rem;      /* 16px */
+  --spacing-lg: 1.5rem;    /* 24px */
+  --spacing-xl: 2rem;      /* 32px */
+  --spacing-2xl: 3rem;     /* 48px */
+  --spacing-3xl: 4rem;     /* 64px */
+  --spacing-4xl: 6rem;     /* 96px */
+  
+  /* ============================================
+   * Typography
+   * ============================================ */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+  
+  --font-size-xs: 0.75rem;   /* 12px */
+  --font-size-sm: 0.875rem;  /* 14px */
+  --font-size-md: 1rem;      /* 16px */
+  --font-size-lg: 1.125rem;  /* 18px */
+  --font-size-xl: 1.25rem;   /* 20px */
+  --font-size-2xl: 1.5rem;   /* 24px */
+  --font-size-3xl: 1.875rem; /* 30px */
+  --font-size-4xl: 2.25rem;  /* 36px */
+  --font-size-5xl: 3rem;     /* 48px */
+  
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  	aletter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+  
+  /* ============================================
+   * Border Radius
+   * ============================================ */
+  --radius-sm: 0.25rem;   /* 4px */
+  --radius-md: 0.5rem;    /* 8px */
+  --radius-lg: 0.75rem;   /* 12px */
+  --radius-xl: 1rem;      /* 16px */
+  --radius-2xl: 1.5rem;   /* 24px */
+  --radius-full: 9999px;
+  
+  /* ============================================
+   * Shadows
+   * ============================================ */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  
+  /* ============================================
+   * Transitions
+   * ============================================ */
+  --transition-fast: 150ms ease-in-out;
+  --transition-normal: 200ms ease-in-out;
+  --transition-slow: 300ms ease-in-out;
+  
+  /* ============================================
+   * Z-Index Scale
+   * ============================================ */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  
+  /* ============================================
+   * Layout
+   * ============================================ */
+  --max-container: 1200px;
+  --max-content: 800px;
+  
+  /* Safe area for mobile devices */
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
+  --safe-area-left: env(safe-area-inset-left);
+  --safe-area-right: env(safe-area-inset-right);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #b0b0b0;
+    --color-text-tertiary: #808080;
+    --color-text-inverse: #1a1a1a;
+    
+    --color-background-primary: #1a1a1a;
+    --color-background-secondary: #2a2a2a;
+    --color-background-tertiary: #3a3a3a;
+    --color-background-elevated: #2a2a2a;
+    
+    --color-border-light: #3a3a3a;
+    --color-border-medium: #4a4a4a;
+    --color-border-dark: #5a5a5a;
+  }
+}

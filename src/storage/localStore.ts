@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 15;
+export const CURRENT_SCHEMA_VERSION = 18;
 
 // Stats tracked from gameplay telemetry
 export interface PlayerStats {
@@ -91,6 +91,8 @@ export interface ZeroProfile {
 const STORAGE_KEY = 'sharpshooter_save';
 const VERSION_KEY = 'sharpshooter_schema_version';
 const TUTORIALS_KEY = 'sharpshooter_tutorials_seen';
+const COMPLETED_LESSONS_KEY = 'sharpshooter_completed_lessons';
+const TUTORIAL_SEEN_KEY = 'sharpshooter_tutorial_seen';
 
 // Level progress record
 export interface LevelProgress {
@@ -143,6 +145,9 @@ export interface MobileSettings {
   thumbAimMode: boolean; // Enable thumb aim (virtual joystick/drag region)
 }
 
+// HUD display mode
+export type HUDMode = 'basic' | 'advanced';
+
 // Game settings
 export interface GameSettings {
   realismPreset: RealismPreset;
@@ -150,6 +155,10 @@ export interface GameSettings {
   showMilOffset: boolean;
   showHud: boolean;
   showNumericWind: boolean; // Show numeric wind values (arcade default true, others false)
+  hudMode: HUDMode; // HUD display mode: basic (default) vs advanced
+  aimSmoothingEnabled: boolean; // Enable aim smoothing for reduced input jitter (off by default)
+  aimSmoothingFactor: number; // Smoothing factor 0.0-0.9 (lower = smoother, higher = more responsive)
+  arcadeCoachEnabled: boolean; // Show coach suggestions in Arcade mode (off by default)
   zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
   expertSpinDriftEnabled: boolean; // Enable spin drift simulation (Expert only, off by default)
   expertCoriolisEnabled: boolean; // Enable Coriolis effect simulation (Expert only, off by default)
@@ -196,6 +205,7 @@ const MIGRATIONS: Migration[] = [
         showMilOffset: false,
         showHud: true,
         showNumericWind: false,
+        hudMode: 'basic',
         zeroRangeShotLimitMode: 'unlimited',
         expertSpinDriftEnabled: false,
         expertCoriolisEnabled: false,
@@ -389,6 +399,43 @@ const MIGRATIONS: Migration[] = [
       reticleSkinId: save.reticleSkinId || 'classic',
     };
   },
+  // v15 -> v16: Add arcadeCoachEnabled setting
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 16,
+      settings: {
+        ...save.settings,
+        arcadeCoachEnabled: save.settings.arcadeCoachEnabled ?? false, // Default to off
+      } as GameSettings,
+    };
+  },
+  // v16 -> v17: Add hudMode setting
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 17,
+      settings: {
+        ...save.settings,
+        hudMode: save.settings.hudMode ?? 'basic', // Default to basic (minimal HUD)
+      } as GameSettings,
+    };
+  },
+  // v17 -> v18: Add aim smoothing settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 18,
+      settings: {
+        ...save.settings,
+        aimSmoothingEnabled: save.settings.aimSmoothingEnabled ?? false, // Default to off for responsive aiming
+        aimSmoothingFactor: save.settings.aimSmoothingFactor ?? 0.3, // Moderate smoothing when enabled
+      } as GameSettings,
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -473,6 +520,10 @@ function createDefaultSave(): GameSave {
       showMilOffset: false,
       showHud: true,
       showNumericWind: false, // Default to false for realistic preset
+      hudMode: 'basic', // Basic HUD by default (minimal, not overwhelming)
+      aimSmoothingEnabled: false, // Aim smoothing off by default for responsive input
+      aimSmoothingFactor: 0.3, // Moderate smoothing factor when enabled
+      arcadeCoachEnabled: false, // Coach suggestions off by default (Tutorial always shows)
       zeroRangeShotLimitMode: 'unlimited',
       expertSpinDriftEnabled: false, // Expert extras off by default
       expertCoriolisEnabled: false, // Expert extras off by default
@@ -946,6 +997,76 @@ export function hasTutorialBeenSeen(tutorialId: string): boolean {
  */
 export function clearTutorialsSeen(): void {
   storage.removeItem(TUTORIALS_KEY);
+}
+
+/**
+ * Get completed lessons from localStorage
+ * @returns Set of lesson IDs that have been completed
+ */
+export function getCompletedLessons(): string[] {
+  try {
+    const raw = storage.getItem(COMPLETED_LESSONS_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw) as string[];
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Mark a lesson as completed
+ * @param lessonId - The lesson ID to mark as completed
+ */
+export function setLessonCompleted(lessonId: string): void {
+  const completed = getCompletedLessons();
+  if (!completed.includes(lessonId)) {
+    completed.push(lessonId);
+    storage.setItem(COMPLETED_LESSONS_KEY, JSON.stringify(completed));
+  }
+}
+
+/**
+ * Check if a lesson has been completed
+ * @param lessonId - The lesson ID to check
+ * @returns true if lesson has been completed
+ */
+export function isLessonCompleted(lessonId: string): boolean {
+  return getCompletedLessons().includes(lessonId);
+}
+
+/**
+ * Clear completed lessons (for testing/reset)
+ */
+export function clearCompletedLessons(): void {
+  storage.removeItem(COMPLETED_LESSONS_KEY);
+}
+
+/**
+ * Check if the tutorial has been shown to the user
+ * @returns true if tutorial overlay has been shown before
+ */
+export function getTutorialSeen(): boolean {
+  try {
+    const raw = storage.getItem(TUTORIAL_SEEN_KEY);
+    return raw === 'true';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark the tutorial as seen
+ */
+export function setTutorialSeen(): void {
+  storage.setItem(TUTORIAL_SEEN_KEY, 'true');
+}
+
+/**
+ * Reset tutorial seen status (for testing/reset)
+ */
+export function resetTutorialSeen(): void {
+  storage.removeItem(TUTORIAL_SEEN_KEY);
 }
 
 /**

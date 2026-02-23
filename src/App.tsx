@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { getGameSettings } from './storage/localStore';
 import { MainMenu } from './pages/MainMenu';
 import { Weapons } from './pages/Weapons';
 import { Levels } from './pages/Levels';
@@ -10,6 +12,7 @@ import { Game } from './pages/Game';
 import { ZeroRange } from './pages/ZeroRange';
 import { DailyChallenge } from './pages/DailyChallenge';
 import { Drills } from './pages/Drills';
+import { Academy } from './pages/Academy';
 
 function InnerApp() {
   return (
@@ -19,6 +22,14 @@ function InnerApp() {
         element={
           <Layout showBackButton={false}>
             <MainMenu />
+          </Layout>
+        }
+      />
+      <Route
+        path="/academy"
+        element={
+          <Layout>
+            <Academy />
           </Layout>
         }
       />
@@ -92,6 +103,43 @@ function InnerApp() {
 }
 
 function App() {
+  // Apply reduced motion class based on settings and system preference
+  useEffect(() => {
+    const root = document.getElementById('root');
+    if (!root) return;
+
+    const applyReducedMotion = () => {
+      const settings = getGameSettings();
+      const systemPrefersReduced = window.matchMedia('(prefers-reduced-motion: reduced)').matches;
+      
+      if (settings.vfx.reducedMotion || systemPrefersReduced) {
+        root.classList.add('reduced-motion');
+      } else {
+        root.classList.remove('reduced-motion');
+      }
+    };
+
+    // Apply initially and listen for settings/changes
+    applyReducedMotion();
+    
+    // Listen for system changes
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduced)');
+    mediaQuery.addEventListener('change', applyReducedMotion);
+    
+    // Listen for storage changes (settings updates)
+    const handleStorageChange = () => {
+      applyReducedMotion();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('game-settings-changed', handleStorageChange);
+    
+    return () => {
+      mediaQuery.removeEventListener('change', applyReducedMotion);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('game-settings-changed', handleStorageChange);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <InnerApp />

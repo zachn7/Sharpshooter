@@ -164,6 +164,12 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleSettingChange = <K extends keyof GameSettings>(key: K, value: GameSettings[K]) => {
+    if (!settings) return;
+    const updated = updateGameSettings({ [key]: value });
+    setSettings(updated.settings);
+  };
+
   const handleMobileToggleChange = (key: 'showFireButton' | 'thumbAimMode') => {
     if (!settings) return;
     const currentValue = settings.mobile[key];
@@ -277,7 +283,7 @@ export function Settings() {
 
   if (!settings) {
     return (
-      <div className="settings-page" data-testid="settings-page">
+      <div className="settings-page page-transition" data-testid="settings-page">
         <div className="page-header">
           <Link to="/" className="back-button" data-testid="back-button">
             ← Back
@@ -415,6 +421,80 @@ export function Settings() {
           </div>
         </div>
 
+        {/* HUD Display Mode Section */}
+        <div className="settings-section" data-testid="hud-mode-section">
+          <h3>HUD Display Mode</h3>
+          <p className="setting-description">
+            Choose how much information to show during gameplay. Start with Basic and switch to Advanced for detailed metrics.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">HUD Mode</span>
+                <span className="setting-sublabel">
+                  Basic shows only essential info (range, wind, shots). Advanced adds detailed metrics.
+                </span>
+              </div>
+              <div className="button-group" data-testid="hud-mode-toggle">
+                <button
+                  className={`group-button ${settings.hudMode === 'basic' ? 'active' : ''}`}
+                  onClick={() => handleSettingChange('hudMode', 'basic')}
+                  data-testid="hud-mode-basic"
+                  aria-pressed={settings.hudMode === 'basic'}
+                >
+                  Basic
+                </button>
+                <button
+                  className={`group-button ${settings.hudMode === 'advanced' ? 'active' : ''}`}
+                  onClick={() => handleSettingChange('hudMode', 'advanced')}
+                  data-testid="hud-mode-advanced"
+                  aria-pressed={settings.hudMode === 'advanced'}
+                >
+                  Advanced
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Input section */}
+        <div className="settings-section" data-testid="input-settings">
+          <h3>Input Preferences</h3>
+          <p className="setting-description">
+            Customize how pointer input is processed for a more comfortable aiming experience.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Aim Smoothing</span>
+                <span className="setting-sublabel">
+                  Reduces input jitter and makes aiming feel more controlled. May feel less responsive but more stable. Recommended for touch devices.
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.aimSmoothingEnabled ? 'on' : 'off'}`}
+                onClick={() => handleToggleChange('aimSmoothingEnabled')}
+                data-testid="toggle-aim-smoothing"
+                aria-pressed={settings.aimSmoothingEnabled}
+              >
+                {settings.aimSmoothingEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Smoothing Intensity</span>
+                <span className="setting-sublabel">
+                  How much to smooth the reticle movement. Lower = smoother/slower, Higher = less smoothing/more responsive.
+                </span>
+              </div>
+              <div className="setting-value">
+                {Math.round(settings.aimSmoothingFactor * 100)}%
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Expert Sim Extras Section */}
         {settings.realismPreset === 'expert' && (
           <div className="settings-section" data-testid="expert-extras-section">
@@ -454,6 +534,34 @@ export function Settings() {
                   aria-pressed={settings.expertCoriolisEnabled}
                 >
                   {settings.expertCoriolisEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Arcade Coach Section */}
+        {settings.realismPreset === 'arcade' && (
+          <div className="settings-section" data-testid="arcade-coach-section">
+            <h3>Arcade Coach</h3>
+            <p className="setting-description">
+              In-game ballistics assistant to help you learn aiming fundamentals.
+            </p>
+            <div className="settings-list">
+              <div className="setting-item">
+                <div className="setting-info">
+                  <span className="setting-label">Coach Suggestions</span>
+                  <span className="setting-sublabel">
+                    Show dial/hold recommendations after each shot
+                  </span>
+                </div>
+                <button
+                  className={`toggle-button ${settings.arcadeCoachEnabled ? 'on' : 'off'}`}
+                  onClick={() => handleToggleChange('arcadeCoachEnabled')}
+                  data-testid="toggle-arcade-coach"
+                  aria-pressed={settings.arcadeCoachEnabled}
+                >
+                  {settings.arcadeCoachEnabled ? 'ON' : 'OFF'}
                 </button>
               </div>
             </div>
