@@ -4,6 +4,7 @@ import { getWeaponsByType, type WeaponType } from '../data/weapons';
 import { getAmmoByWeaponType } from '../data/ammo';
 import { setSelectedWeapon, getSelectedWeaponId, setSelectedAmmoId, getSelectedAmmoId } from '../storage';
 import { formatAmmoSummary } from '../physics/ammo';
+import { Lock, Check, Target, Gauge, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 
 export function Weapons() {
   const [activeTab, setActiveTab] = useState<WeaponType>('pistol');
@@ -69,36 +70,61 @@ export function Weapons() {
               data-testid={`weapon-${weapon.id}`}
               onClick={() => weapon.unlocked && handleWeaponSelect(weapon.id)}
             >
-              <div className="weapon-header">
-                <h3 className="weapon-name">{weapon.name}</h3>
-                {!weapon.unlocked && <span className="locked-badge">🔒</span>}
-                {isSelected && weapon.unlocked && (
-                  <span className="selected-badge">✓</span>
-                )}
+              {/* Weapon Header */}
+              <div className="weapon-card-header">
+                <div className="weapon-header-left">
+                  {!weapon.unlocked && (
+                    <Lock size={18} className="lock-icon" />
+                  )}
+                  <div className="weapon-header-content">
+                    <h3 className="weapon-name">{weapon.name}</h3>
+                    <p className="weapon-type-badge">{activeTab.toUpperCase()}</p>
+                  </div>
+                </div>
+                <div className="weapon-header-right">
+                  {isSelected && weapon.unlocked && (
+                    <Check size={20} className="selected-badge" />
+                  )}
+                  {weapon.unlocked && (
+                    <span className="expand-icon">
+                      {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Weapon Description */}
               <p className="weapon-description">{weapon.description}</p>
+              
+              {/* Weapon Stats */}
               {weapon.unlocked && (
                 <>
                   <div className="weapon-stats">
                     <div className="stat-row">
-                      <span className="stat-label">Velocity:</span>
+                      <span className="stat-label">
+                        <Zap size={16} /> Velocity
+                      </span>
                       <span className="stat-value">{weapon.params.muzzleVelocityMps} m/s</span>
                     </div>
                     <div className="stat-row">
-                      <span className="stat-label">Accuracy:</span>
+                      <span className="stat-label">
+                        <Target size={16} /> Accuracy
+                      </span>
                       <span className="stat-value">
                         {weapon.params.dragFactor < 0.00002 ? 'High' : weapon.params.dragFactor < 0.00003 ? 'Medium' : 'Low'}
                       </span>
                     </div>
                     <div className="stat-row">
-                      <span className="stat-label">Default Optic:</span>
+                      <span className="stat-label">
+                        <Gauge size={16} /> Optic
+                      </span>
                       <span className="stat-value">{formatOpticType(weapon.params.defaultOptic)}</span>
                     </div>
                   </div>
 
                   {/* Ammo Selector */}
                   {isExpanded && (
-                    <div className="ammo-selector" data-testid={`ammo-selector-${weapon.id}`}>
+                    <div className="ammo-selector" data-testid={`ammo-selector-${weapon.id}`} onClick={(e) => e.stopPropagation()}>
                       <h4 className="ammo-selector-label">Ammunition</h4>
                       <div className="ammo-options">
                         {weaponAmmoOptions.map((ammo) => (
@@ -107,16 +133,13 @@ export function Weapons() {
                             className={`ammo-option ${
                               selectedAmmoId === ammo.id ? 'selected' : ''
                             }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAmmoSelect(weapon.id, ammo.id);
-                            }}
+                            onClick={() => handleAmmoSelect(weapon.id, ammo.id)}
                             data-testid={`ammo-option-${ammo.id}`}
                           >
                             <div className="ammo-header">
                               <span className="ammo-name">{ammo.name}</span>
                               {selectedAmmoId === ammo.id && (
-                                <span className="ammo-selected-badge">✓</span>
+                                <Check size={16} className="ammo-selected-badge" />
                               )}
                             </div>
                             <p className="ammo-description">{ammo.description}</p>
