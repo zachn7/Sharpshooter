@@ -243,3 +243,57 @@ test.describe('HUD Readability', () => {
     await expect(page.getByTestId('academy-button')).toBeVisible();
   });
 });
+
+// Input polishing and accessibility tests
+test.describe('Input Polish', () => {
+  test('aim smoothing can be enabled in settings', async ({ page }) => {
+    await page.goto('/settings');
+    await expect(page.getByTestId('settings-page')).toBeVisible();
+    
+    // Find input settings section
+    await expect(page.getByTestId('input-settings')).toBeVisible();
+    
+    // Aim smoothing should be off by default
+    await expect(page.getByTestId('toggle-aim-smoothing')).toHaveAttribute('aria-pressed', 'false');
+    
+    // Enable aim smoothing
+    await page.getByTestId('toggle-aim-smoothing').click();
+    await expect(page.getByTestId('toggle-aim-smoothing')).toHaveAttribute('aria-pressed', 'true');
+  });
+  
+  test('game canvas has proper touch-action for mobile', async ({ page }) => {
+    await page.goto('/game/level-1');
+    await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Game canvas should have touch-action: none to prevent pointercancel
+    const canvas = page.getByTestId('game-canvas');
+    const touchAction = await canvas.evaluate((el: HTMLElement) => {
+      return window.getComputedStyle(el).touchAction;
+    });
+    expect(touchAction).toBe('none');
+  });
+  
+  test('canvas is properly sized', async ({ page }) => {
+    await page.goto('/game/level-1');
+    await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    const canvas = page.getByTestId('game-canvas');
+    
+    // Canvas should have actual dimensions set
+    const bounds = await canvas.boundingBox();
+    expect(bounds).toBeTruthy();
+    
+    // Canvas should have width and height attributes (DPR-aware)
+    const widthAttr = await canvas.getAttribute('width');
+    const heightAttr = await canvas.getAttribute('height');
+    expect(widthAttr).toBeTruthy();
+    expect(heightAttr).toBeTruthy();
+    
+    const width = parseInt(widthAttr || '0', 10);
+    const height = parseInt(heightAttr || '0', 10);
+    
+    // Canvas dimensions should be positive
+    expect(width).toBeGreaterThan(0);
+    expect(height).toBeGreaterThan(0);
+  });
+});

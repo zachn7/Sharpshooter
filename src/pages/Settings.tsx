@@ -457,6 +457,44 @@ export function Settings() {
           </div>
         </div>
 
+        {/* Input section */}
+        <div className="settings-section" data-testid="input-settings">
+          <h3>Input Preferences</h3>
+          <p className="setting-description">
+            Customize how pointer input is processed for a more comfortable aiming experience.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Aim Smoothing</span>
+                <span className="setting-sublabel">
+                  Reduces input jitter and makes aiming feel more controlled. May feel less responsive but more stable. Recommended for touch devices.
+                </span>
+              </div>
+              <button
+                className={`toggle-button ${settings.aimSmoothingEnabled ? 'on' : 'off'}`}
+                onClick={() => handleToggleChange('aimSmoothingEnabled')}
+                data-testid="toggle-aim-smoothing"
+                aria-pressed={settings.aimSmoothingEnabled}
+              >
+                {settings.aimSmoothingEnabled ? 'ON' : 'OFF'}
+              </button>
+            </div>
+
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">Smoothing Intensity</span>
+                <span className="setting-sublabel">
+                  How much to smooth the reticle movement. Lower = smoother/slower, Higher = less smoothing/more responsive.
+                </span>
+              </div>
+              <div className="setting-value">
+                {Math.round(settings.aimSmoothingFactor * 100)}%
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Expert Sim Extras Section */}
         {settings.realismPreset === 'expert' && (
           <div className="settings-section" data-testid="expert-extras-section">

@@ -405,6 +405,8 @@ describe('localStore', () => {
           showHud: true,
           showNumericWind: false,
           hudMode: 'basic',
+          aimSmoothingEnabled: false,
+          aimSmoothingFactor: 0.3,
           arcadeCoachEnabled: false,
           zeroRangeShotLimitMode: 'unlimited',
           expertSpinDriftEnabled: false,
@@ -567,7 +569,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '1');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(17); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(18); // Migrates all the way to latest version
       expect(loaded?.settings.realismPreset).toBe('realistic');
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -772,7 +774,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '3');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(17); // Migrates all the way to latest version
+      expect(loaded?.version).toBe(18); // Migrates all the way to latest version
       expect(loaded?.turretStates).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -955,7 +957,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '4');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(17); // Migrates to latest version
+      expect(loaded?.version).toBe(18); // Migrates to latest version
       expect(loaded?.zeroProfiles).toEqual({});
       expect(loaded?.settings).toHaveProperty('showNumericWind');
     });
@@ -1204,7 +1206,7 @@ describe('localStore', () => {
       localStorageMock.setItem('sharpshooter_schema_version', '12');
       
       const loaded = loadGameSave();
-      expect(loaded?.version).toBe(17); // Migrates to latest version
+      expect(loaded?.version).toBe(18); // Migrates to latest version
       expect(loaded?.settings).toHaveProperty('reticle');
       expect(loaded?.settings).toHaveProperty('display');
       expect(loaded?.settings.reticle.style).toBe('mil');

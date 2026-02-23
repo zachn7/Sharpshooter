@@ -38,6 +38,7 @@ import {
   type RecoilState,
 } from '../physics/sway';
 import { drawWindCues, drawLayeredWindCues, shouldUseLayeredWindCues } from '../physics/windCues';
+import { AimSmoother, createAimSmoother } from '../utils/aimSmoothing';
 
 interface Impact {
   x: number;
@@ -142,6 +143,13 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
+  // DPR-aware canvas sizing
+  const [dpr, setDpr] = useState(1);
+  const [canvasDisplaySize, setCanvasDisplaySize] = useState({ width: 800, height: 600 });
+  
+  // Aim smoothing state
+  const aimSmootherRef = useRef<AimSmoother | null>(null);
+  
   // Turret button refs for press-and-hold
   const elevationUpRef = useRef<HTMLButtonElement>(null);
   const elevationDownRef = useRef<HTMLButtonElement>(null);
@@ -154,7 +162,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const [showReplay, setShowReplay] = useState(false);
   const [levelStartedAt, setLevelStartedAt] = useState(Date.now());
   const [gameState, setGameState] = useState<GameState>('briefing');
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
   const [groupSizeMeters, setGroupSizeMeters] = useState(0);
@@ -330,21 +337,61 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Target configuration based on level's targetScale
   const targetConfig = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
 
-  // Handle canvas resize
+  // Handle canvas resize with DPR-aware sizing
   useEffect(() => {
     const updateCanvasSize = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        setCanvasSize({
-          width: Math.floor(rect.width),
-          height: Math.floor(rect.height),
-        });
+        const displayWidth = Math.floor(rect.width);
+        const displayHeight = Math.floor(rect.height);
+        const pixelRatio = window.devicePixelRatio || 1;
+        
+        setDpr(pixelRatio);
+        setCanvasDisplaySize({ width: displayWidth, height: displayHeight });
+        
+        // Set actual canvas size in device pixels for crisp rendering
+        if (canvasRef.current) {
+          canvasRef.current.width = displayWidth * pixelRatio;
+          canvasRef.current.height = displayHeight * pixelRatio;
+        }
       }
     };
 
     updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
+    
+    // Use ResizeObserver if available, fall back to window resize event
+    let cleanup: (() => void) | null = null;
+    
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObserver = new ResizeObserver(updateCanvasSize);
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+      }
+      cleanup = () => resizeObserver.disconnect();
+    } else {
+      // Fallback for test environments without ResizeObserver
+      window.addEventListener('resize', updateCanvasSize);
+      cleanup = () => window.removeEventListener('resize', updateCanvasSize);
+    }
+    
+    return cleanup;
+  }, []);
+  
+  // Initialize aim smoother when settings change
+  useEffect(() => {
+    if (settings.aimSmoothingEnabled) {
+      aimSmootherRef.current = createAimSmoother(settings.aimSmoothingFactor);
+    } else {
+      aimSmootherRef.current = null;
+    }
+  }, [settings.aimSmoothingEnabled, settings.aimSmoothingFactor]);
+
+  // Pointer up handler
+  const handlePointerUp = useCallback(() => {
+    // Reset aim smoother when pointer is released
+    if (aimSmootherRef.current) {
+      aimSmootherRef.current.reset();
+    }
   }, []);
 
   // Pointer move handler
@@ -362,14 +409,18 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       const worldPoint = canvasToWorld(canvasPoint, {
         worldWidth: WORLD_WIDTH,
         worldHeight: WORLD_HEIGHT,
-        canvasWidth: canvasSize.width,
-        canvasHeight: canvasSize.height,
+        canvasWidth: canvasDisplaySize.width,
+        canvasHeight: canvasDisplaySize.height,
       });
 
-      setReticlePosition({ x: worldPoint.x, y: worldPoint.y });
-    },
-    [canvasSize]
-  );
+      // Apply aim smoothing if enabled
+      if (aimSmootherRef.current) {
+        const smoothed = aimSmootherRef.current.update(worldPoint);
+        setReticlePosition({ x: smoothed.x, y: smoothed.y });
+      } else {
+        setReticlePosition({ x: worldPoint.x, y: worldPoint.y });
+      }
+    }, [canvasDisplaySize.width, canvasDisplaySize.height]);
 
   // Convert physics path (Vec3[]) to telemetry path (PathPoint[])
   // Physics uses: x=downrange, y=up, z=right
@@ -546,8 +597,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       
       shotgunPellets = pellets.map(pellet => {
         // Convert pellet offset from meters to canvas pixels
-        const pelletOffsetX = (pellet.dZ / level.distanceM) * (canvasSize.width / 2); // Z = horizontal on canvas
-        const pelletOffsetY = -(pellet.dY / level.distanceM) * (canvasSize.height / 2); // Y = vertical, inverted
+        const pelletOffsetX = (pellet.dZ / level.distanceM) * (canvasDisplaySize.width / 2); // Z = horizontal on canvas
+        const pelletOffsetY = -(pellet.dY / level.distanceM) * (canvasDisplaySize.height / 2); // Y = vertical, inverted
         
         const pelletCanvasX = baseX + pelletOffsetX;
         const pelletCanvasY = baseY + pelletOffsetY;
@@ -766,8 +817,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     settings.expertCoriolisEnabled,
     settings.vfx.recordShotPath,
     settings.arcadeCoachEnabled,
-    canvasSize.width,
-    canvasSize.height,
+    canvasDisplaySize.width,
+    canvasDisplaySize.height,
     tutorialLessonId,
     convertPhysicsPath,
   ]);
@@ -984,25 +1035,28 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
     // Track start time for frame-rate independent animations
     const startTime = performance.now();
 
     const draw = (timestamp: number) => {
+      // Apply DPR scaling
+      ctx.scale(dpr, dpr);
+      
       // Calculate time in seconds for animations (frame-rate independent)
       const timeS = (timestamp - startTime) / 1000;
       
-      // Clear canvas
+      // Clear canvas (use display size, not device pixel size)
       ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
+      ctx.fillRect(0, 0, canvasDisplaySize.width, canvasDisplaySize.height);
 
       const viewportConfig = {
         worldWidth: WORLD_WIDTH,
         worldHeight: WORLD_HEIGHT,
-        canvasWidth: canvasSize.width,
-        canvasHeight: canvasSize.height,
+        canvasWidth: canvasDisplaySize.width,
+        canvasHeight: canvasDisplaySize.height,
       };
 
       // Draw wind cues (flags and mirage) if there's any wind
@@ -1039,8 +1093,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               scaledContext,
               level.distanceM,
               timeS,
-              canvasSize.width,
-              canvasSize.height,
+              canvasDisplaySize.width,
+              canvasDisplaySize.height,
               WORLD_WIDTH,
               WORLD_HEIGHT,
               true // Show mirage
@@ -1052,8 +1106,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               ctx,
               visualWind,
               timeS,
-              canvasSize.width,
-              canvasSize.height,
+              canvasDisplaySize.width,
+              canvasDisplaySize.height,
               WORLD_WIDTH,
               WORLD_HEIGHT,
               true // Show mirage
@@ -1070,7 +1124,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             { x: WORLD_WIDTH / 2 + plate.centerZ_M, y: WORLD_HEIGHT / 2 - plate.centerY_M },
             viewportConfig
           );
-          const radiusPixels = plate.radiusM * (canvasSize.width / WORLD_WIDTH);
+          const radiusPixels = plate.radiusM * (canvasDisplaySize.width / WORLD_WIDTH);
 
           // Draw plate circle
           ctx.strokeStyle = '#ffffff';
@@ -1114,7 +1168,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             { x: targetConfig.centerX, y: targetConfig.centerY },
             viewportConfig
           );
-          const radiusPixels = ring.radius * (canvasSize.width / WORLD_WIDTH) * (level?.targetScale || 1);
+          const radiusPixels = ring.radius * (canvasDisplaySize.width / WORLD_WIDTH) * (level?.targetScale || 1);
 
           // Alternate colors for rings
           const ringIndex = targetConfig.rings.findIndex((r) => r.radius === ring.radius);
@@ -1179,7 +1233,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           level.distanceM,
           1,
           WORLD_WIDTH,
-          canvasSize.width,
+          canvasDisplaySize.width,
           magnification
         );
 
@@ -1241,9 +1295,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         // Draw thin crosshair lines to edges
         ctx.beginPath();
         ctx.moveTo(0, reticleCanvas.y);
-        ctx.lineTo(canvasSize.width, reticleCanvas.y);
+        ctx.lineTo(canvasDisplaySize.width, reticleCanvas.y);
         ctx.moveTo(reticleCanvas.x, 0);
-        ctx.lineTo(reticleCanvas.x, canvasSize.height);
+        ctx.lineTo(reticleCanvas.x, canvasDisplaySize.height);
         ctx.stroke();
       }
 
@@ -1255,7 +1309,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     return () => cancelAnimationFrame(animationId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    canvasSize,
+    canvasDisplaySize,
     impacts,
     targetConfig,
     recticlePosition,
@@ -1488,9 +1542,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                   <ReplayViewer
                     shots={shotTelemetry}
                     canvasRef={canvasRef}
-                    metersToPixelsRatio={canvasSize.width / WORLD_WIDTH}
-                    centerX={canvasSize.width / 2}
-                    centerY={canvasSize.height / 2}
+                    metersToPixelsRatio={canvasDisplaySize.width / WORLD_WIDTH}
+                    centerX={canvasDisplaySize.width / 2}
+                    centerY={canvasDisplaySize.height / 2}
                     visible={true}
                     onToggle={() => setShowReplay(false)}
                   />
@@ -1911,12 +1965,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       <div className="game-container" ref={containerRef}>
         <canvas
           ref={canvasRef}
-          width={canvasSize.width}
-          height={canvasSize.height}
+          width={canvasDisplaySize.width * dpr}
+          height={canvasDisplaySize.height * dpr}
           className="game-canvas"
           data-testid="game-canvas"
           onPointerMove={handlePointerMove}
           onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          style={{ width: `${canvasDisplaySize.width}px`, height: `${canvasDisplaySize.height}px` }}
         />
         
         {/* Time's Up Banner */}

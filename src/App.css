@@ -17,6 +17,16 @@ body {
   min-height: 100vh;
 }
 
+/* Canvas touch-action: Prevent browser default touch behavior (scrolling, zooming, pan)
+ * This prevents pointercancel events during gameplay on touch devices.
+ * Explanation: Without touch-action: none, the browser may attempt to handle
+e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel events,
+ * breaking pointer capture and making the game unplayable on mobile devices.
+ */
+.game-container {
+  touch-action: none;
+}
+
 /* App Layout */
 .app-layout {
   display: flex;

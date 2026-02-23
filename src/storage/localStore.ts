@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 17;
+export const CURRENT_SCHEMA_VERSION = 18;
 
 // Stats tracked from gameplay telemetry
 export interface PlayerStats {
@@ -156,6 +156,8 @@ export interface GameSettings {
   showHud: boolean;
   showNumericWind: boolean; // Show numeric wind values (arcade default true, others false)
   hudMode: HUDMode; // HUD display mode: basic (default) vs advanced
+  aimSmoothingEnabled: boolean; // Enable aim smoothing for reduced input jitter (off by default)
+  aimSmoothingFactor: number; // Smoothing factor 0.0-0.9 (lower = smoother, higher = more responsive)
   arcadeCoachEnabled: boolean; // Show coach suggestions in Arcade mode (off by default)
   zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
   expertSpinDriftEnabled: boolean; // Enable spin drift simulation (Expert only, off by default)
@@ -421,6 +423,19 @@ const MIGRATIONS: Migration[] = [
       } as GameSettings,
     };
   },
+  // v17 -> v18: Add aim smoothing settings
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 18,
+      settings: {
+        ...save.settings,
+        aimSmoothingEnabled: save.settings.aimSmoothingEnabled ?? false, // Default to off for responsive aiming
+        aimSmoothingFactor: save.settings.aimSmoothingFactor ?? 0.3, // Moderate smoothing when enabled
+      } as GameSettings,
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -506,6 +521,8 @@ function createDefaultSave(): GameSave {
       showHud: true,
       showNumericWind: false, // Default to false for realistic preset
       hudMode: 'basic', // Basic HUD by default (minimal, not overwhelming)
+      aimSmoothingEnabled: false, // Aim smoothing off by default for responsive input
+      aimSmoothingFactor: 0.3, // Moderate smoothing factor when enabled
       arcadeCoachEnabled: false, // Coach suggestions off by default (Tutorial always shows)
       zeroRangeShotLimitMode: 'unlimited',
       expertSpinDriftEnabled: false, // Expert extras off by default
