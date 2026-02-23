@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LESSONS, LESSON_CATEGORIES, getLessonsByCategory } from '../data/lessons';
 import LessonOverlay from '../components/LessonOverlay';
 import type { Lesson } from '../data/lessons';
 import { getCompletedLessons, setLessonCompleted } from '../storage';
 
 export function Academy() {
+  const navigate = useNavigate();
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const completedLessons = getCompletedLessons();
@@ -38,6 +40,25 @@ export function Academy() {
   const handleSkip = () => {
     if (activeLesson) {
       handleClose();
+    }
+  };
+
+  const handleStepAction = () => {
+    if (!activeLesson) return;
+
+    const currentStep = activeLesson.steps[currentStepIndex];
+    
+    // If this is an interactive practice step and lesson has a tutorialId, launch game
+    if (currentStep.action && activeLesson.tutorialId) {
+      // Launch the game with the tutorial parameter
+      // The game will use the tutorial scenario for this lesson
+      // Note: We use 'tutorial' as a placeholder levelId since tutorialId determines the level
+      navigate(`/game/tutorial?tutorialId=${activeLesson.tutorialId}&testMode=true`);
+      // Close the overlay since we're navigating away
+      setActiveLesson(null);
+    } else {
+      // Otherwise, just go to next step
+      handleNext();
     }
   };
 
@@ -228,6 +249,7 @@ export function Academy() {
           onPrevious={handlePrevious}
           onClose={handleClose}
           onSkip={handleSkip}
+          onAction={handleStepAction}
         />
       )}
     </div>

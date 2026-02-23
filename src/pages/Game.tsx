@@ -15,6 +15,7 @@ import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHol
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
 import { samplePelletImpacts, type ShotgunPatternConfig, type PelletImpact } from '../physics/shotgun';
 import { TutorialOverlay } from '../components/TutorialOverlay';
+import { generateTutorialScenario, getTutorialLevel, getTutorialSeed } from '../data/tutorialScenarios';
 import { RangeCard } from '../components/RangeCard';
 import { ReplayViewer } from '../components/ReplayViewer';
 import { AudioManager, initAudioOnInteraction, isTestMode as audioIsTestMode } from '../audio';
@@ -163,17 +164,36 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Reticle and magnification state
   const [magnification, setMagnification] = useState<MagnificationLevel>(1);
   
+  // Tutorial lesson ID
+  const tutorialLessonId = useMemo(() => searchParams.get('tutorialId') || undefined, [searchParams]);
+  
   // Turret state (loaded from storage per weapon)
-  const weaponId = getSelectedWeaponId() || DEFAULT_WEAPON_ID;
+  let weaponId = getSelectedWeaponId() || DEFAULT_WEAPON_ID;
+  let tutorialScenario;
+  
+  // Load tutorial scenario to get weapon/ammo overrides
+  if (tutorialLessonId) {
+    try {
+      tutorialScenario = generateTutorialScenario(tutorialLessonId);
+      weaponId = tutorialScenario.weaponId;
+    } catch (error) {
+      console.error('Failed to load tutorial scenario:', error);
+    }
+  }
   const [turretState, setTurretState] = useState<TurretState>(() => getTurretState(weaponId));
   
   const settings = useState(() => getGameSettings())[0];
   const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
   // Get test seed from URL params for deterministic testing
+  // Use tutorial seed if in tutorial mode for consistent behavior
   // Use useState with lazy initializer - only executed once
   const [testSeed] = useState(() => {
     const seedParam = searchParams.get('seed');
+    const tutorialId = searchParams.get('tutorialId');
+    if (tutorialId) {
+      return getTutorialSeed(tutorialId);
+    }
     return seedParam ? parseInt(seedParam, 10) : Date.now();
   });
   
@@ -186,6 +206,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   
   // Check for drill mode
   const isDrill = searchParams.get('mode') === 'drill' && DRILLS.some(d => d.id === levelIdSafe);
+  
   let drillScenario: DrillScenario | undefined;
   const drill = isDrill ? DRILLS.find(d => d.id === levelIdSafe) : undefined;
   
@@ -194,6 +215,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const seedParam = searchParams.get('seed');
     const seed = seedParam ? parseInt(seedParam, 10) : seedFromDate(getTodayDate(dateOverride));
     level = generateDailyLevelFromSeed(seed);
+  } else if (tutorialLessonId) {
+    // Load tutorial scenario level
+    level = getTutorialLevel(tutorialLessonId);
   } else if (isDrill && drill) {
     // Load drill scenario and convert to level-like structure
     const seedParam = searchParams.get('seed') || '1';
@@ -291,12 +315,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Load weapon data
   const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
   
-  // Load selected ammo for weapon
-  const selectedAmmoId = getSelectedAmmoId(weaponId);
-  const selectedAmmo = selectedAmmoId ? getAmmoById(selectedAmmoId) : null;
-  
-  // If no ammo selected, try to get match grade for weapon type as fallback
-  const effectiveAmmo = selectedAmmo || (weapon ? getAmmoByWeaponType(weapon.type).find(a => a.name.includes('Match')) || null : null);
+  // Load selected ammo for weapon (or use tutorial ammo)
+  let effectiveAmmo;
+  if (tutorialLessonId && tutorialScenario) {
+    effectiveAmmo = getAmmoById(tutorialScenario.ammoId) || null;
+  } else {
+    const selectedAmmoId = getSelectedAmmoId(weaponId);
+    const selectedAmmo = selectedAmmoId ? getAmmoById(selectedAmmoId) : null;
+    // If no ammo selected, try to get match grade for weapon type as fallback
+    effectiveAmmo = selectedAmmo || (weapon ? getAmmoByWeaponType(weapon.type).find(a => a.name.includes('Match')) || null : null);
+  }
   
   // Target configuration based on level's targetScale
   const targetConfig = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
@@ -682,8 +710,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               windageMils: impact.windageMils,
             })),
           });
-        } else {
-          // Save regular level progress
+        } else if (!tutorialLessonId) {
+          // Save regular level progress (not for drills or tutorials)
           updateLevelProgress(level.id, finalScore, level.starThresholds);
         }
       }
@@ -1760,7 +1788,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         {effectiveAmmo && (
           <span data-testid="ammo-name">Ammo: {effectiveAmmo.name}</span>
         )}
-        <span>{level.distanceM}m</span>
+        <span data-testid="hud-distance">{level.distanceM}m</span>
         <span>Range: {level.difficulty}</span>
         {targetMode === 'plates' && plates.length > 0 && (
           <span data-testid="plate-hit-count">
@@ -1781,7 +1809,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           <div className="impact-offset-values">
             <div className="offset-row">
               <span className="offset-label">Elevation:</span>
-              <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`}>
+              <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`} data-testid="hud-offset-elevation">
                 {settings.display.offsetUnit === 'moa'
                   ? `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].elevationMils).toFixed(1)} MOA`
                   : `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL`}
@@ -1789,7 +1817,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             </div>
             <div className="offset-row">
               <span className="offset-label">Windage:</span>
-              <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`}>
+              <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`} data-testid="hud-offset-windage">
                 {settings.display.offsetUnit === 'moa'
                   ? `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].windageMils).toFixed(1)} MOA`
                   : `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].windageMils.toFixed(1)} MIL`}

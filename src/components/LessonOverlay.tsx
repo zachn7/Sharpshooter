@@ -8,6 +8,7 @@ interface LessonOverlayProps {
   onPrevious: () => void;
   onClose: () => void;
   onSkip?: () => void;
+  onAction?: () => void; // Handle step action (e.g., launch game)
 }
 
 export function LessonOverlay({
@@ -17,20 +18,22 @@ export function LessonOverlay({
   onPrevious,
   onClose,
   onSkip,
+  onAction,
 }: LessonOverlayProps) {
   const currentStep = lesson.steps[currentStepIndex];
   const isLastStep = currentStepIndex === lesson.steps.length - 1;
   const isFirstStep = currentStepIndex === 0;
+  const hasAction = !!currentStep.action && !!onAction;
 
-  // If highlightTestId is set, add a highlight ring around the element
+  // If highlightTestIds is set, scroll to first element
   useEffect(() => {
-    if (currentStep.highlightTestId) {
-      const element = document.querySelector(`[data-testid="${currentStep.highlightTestId}"]]`);
+    if (currentStep.highlightTestIds && currentStep.highlightTestIds.length > 0) {
+      const element = document.querySelector(`[data-testid="${currentStep.highlightTestIds[0]}"]`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
-  }, [currentStepIndex, currentStep.highlightTestId]);
+  }, [currentStepIndex, currentStep.highlightTestIds]);
 
   return (
     <>
@@ -114,7 +117,7 @@ export function LessonOverlay({
               color: '#333',
             }}
           >
-            {currentStep.body}
+            {currentStep.content}
           </p>
         </div>
 
@@ -176,8 +179,30 @@ export function LessonOverlay({
             </button>
           )}
 
-          {/* Next/Close button */}
-          {isLastStep ? (
+          {/* Action button (for practice steps) */}
+          {hasAction && !isLastStep ? (
+            <button
+              onClick={onAction}
+              style={{
+                padding: '0.625rem 1.25rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                backgroundColor: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#059669';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#10b981';
+              }}
+            >
+              {currentStep.action || 'Practice'}
+            </button>
+          ) : isLastStep ? (
             <button
               onClick={onClose}
               style={{

@@ -1,23 +1,21 @@
-/**
- * Tutorial lesson definitions and types.
- * Lessons teach game mechanics in a structured, interactive way.
- */
+import type { TutorialId } from './tutorialScenarios';
 
-export type LessonStep = {
-  id: string;
+export interface LessonStep {
   title: string;
-  body: string;
-  highlightTestId?: string; // data-testid of element to highlight
-  action?: 'click' | 'close' | 'next'; // Expected user action to proceed
-};
+  content: string;
+  highlightTestIds?: string[]; // Elements to highlight in the UI
+  action?: string; // What user should do at this step
+  successCondition?: string; // What to check for proceeding to next step
+}
 
-export type Lesson = {
+export interface Lesson {
   id: string;
   title: string;
   description: string;
   category: string;
+  prerequisite?: string; // ID of lesson that must be completed first
+  tutorialId?: TutorialId; // Links to game tutorial scenario
   steps: LessonStep[];
-  prerequisite?: string; // Optional: lesson that must be completed first
 }
 
 export const LESSON_CATEGORIES = [
@@ -35,148 +33,195 @@ export const LESSONS: Lesson[] = [
     category: 'Getting Started',
     steps: [
       {
-        id: 'welcome-1',
-        title: 'Welcome!',
-        body: 'Sharpshooter is a ballistics simulation game where you learn to account for wind, distance, and environment to hit targets accurately.',
-        action: 'next',
+        title: 'Welcome',
+        content:
+          'Sharpshooter is a ballistics simulation game where you take long-range shots at targets. Your goal is to adjust your aim and turret dials to hit the target center.',
       },
       {
-        id: 'welcome-2',
-        title: 'Your Goal',
-        body: 'Each mission has targets at specific distances. You must compensate for bullet drop and wind to hit the bullseye. Complete levels to earn stars and unlock more challenges.',
-        action: 'next',
+        title: 'How It Works',
+        content:
+          "You'll read wind, calculate bullet drop, and adjust your scope's turret dials. Each shot shows you where it landed and how far from center it was.",
       },
       {
-        id: 'welcome-3',
-        title: 'Getting Help',
-        body: 'Look for (i) or ? icons throughout the app to learn about game mechanics. The Glossary explains all terms like Range, Wind, MILs, and more.',
-        action: 'close',
+        title: 'Ready to Learn',
+        content:
+          'Start with "HUD Basics" to learn about the heads-up display, then progress through the lessons. Each lesson includes interactive practice!',
       },
     ],
   },
+
   {
-    id: 'basics-aiming',
-    title: 'Basic Aiming',
-    description: 'Learn how to aim at targets and fire shots',
-    category: 'Controls & Aiming',
+    id: 'hud-basics',
+    title: 'HUD Basics',
+    description: 'Learn to read distance, wind, and turret dials',
+    category: 'Getting Started',
     prerequisite: 'welcome',
+    tutorialId: 'lesson-hud-basics',
     steps: [
       {
-        id: 'aiming-1',
-        title: 'The Reticle',
-        body: 'The crosshair in the center is your reticle. Place it on the target center. At close ranges, simply pointing at the target works. At longer ranges, you need to compensate for drop and wind.',
-        action: 'next',
+        title: 'The Distance Display',
+        content:
+          'The distance display (at the top of the screen) shows how far away the target is, measured in meters. In this lesson, the target is at 400 meters.',
       },
       {
-        id: 'aiming-2',
-        title: 'Firing',
-        body: 'Click the canvas to fire a shot. Your projectile travels to the target and is affected by ballistics. Watch the impact marker to see where your shot landed.',
-        action: 'next',
+        title: 'The Wind Indicator',
+        content:
+          'Wind pushes your bullet sideways. The HUD shows wind speed in m/s (meters per second). An arrow shows direction (→ or ←). Try starting a game to see it in action.',
+        action: 'Start interactive practice',
       },
       {
-        id: 'aiming-3',
-        title: 'Reading the Result',
-        body: 'After firing, see your score and where you hit. The impact marker shows your shot position (in MILs from center). Adjust your aim based on where shots land.',
-        action: 'close',
+        title: 'Turret Dials',
+        content:
+          'Your scope has two turret dials: Elevation (up/down) and Windage (left/right). Each click adjusts the scope by 0.1 mils. Fire one shot to see how your bullet drops!',
+        action: 'Fire a shot to continue',
+      },
+      {
+        title: 'Impact Offset',
+        content:
+          'After each shot, you will see an offset panel showing how far your shot was from center in mils. Positive values mean "aim needed more", negative means "aimed too far".',
       },
     ],
   },
+
   {
-    id: 'turret-adjustments',
-    title: 'Turret Adjustments',
-    description: 'Use turret clicks to compensate for drop and wind',
+    id: 'mils-explained',
+    title: 'Understanding MILs',
+    description: 'Learn what a MIL is and how to use it',
     category: 'Controls & Aiming',
-    prerequisite: 'basics-aiming',
+    prerequisite: 'hud-basics',
+    tutorialId: 'lesson-mils-explained',
     steps: [
       {
-        id: 'turret-1',
-        title: 'What Are Turrets?',
-        body: 'Turrets are the dials on your scope. They adjust your point of impact. Elevation turret (up/down) compensates for bullet drop. Windage turret (left/right) compensates for wind.',
-        action: 'next',
+        title: 'What is a MIL?',
+        content:
+          'A MIL (milliradian) is an angular measurement in your scope. At any distance, 1 mil always equals 1/1000 of that distance.',
       },
       {
-        id: 'turret-2',
-        title: 'Making Adjustments',
-        body: 'Click the turret buttons in game to make adjustments. Each click moves your impact point by a specific amount (usually 0.25 MILs). Fire a shot, see where it lands, then adjust.',
-        action: 'next',
+        title: 'Calculating MIL to Distance',
+        content:
+          'At 600 meters, 1 mil equals 60 cm (600 × 0.001 = 0.6 meters). At 1000 meters, 1 mil equals 100 cm (1000 × 0.001 = 1 meter).',
       },
       {
-        id: 'turret-3',
-        title: 'Saving Your Zero',
-        body: 'Once dialed in for a specific distance, save your zero profile. This stores your turret adjustments so you can return to the same settings later. Use different zeros for different weapons.',
-        action: 'close',
+        title: 'Practical Example',
+        content:
+          'If your shot lands 2 mils low at 600 meters, that is 120 cm (2 × 60 cm) below center. You need to adjust your elevation up 2 mils.',
+      },
+      {
+        title: 'Practice',
+        content:
+          'Start the game and practice reading the offset in mils. Calculate what correction you would need, then apply it using the turret dials.',
+        action: 'Complete practice to continue',
       },
     ],
   },
+
   {
-    id: 'wind-reading',
-    title: 'Reading Wind',
-    description: 'Understand how wind affects your shots',
-    category: 'Ballistics',
-    prerequisite: 'turret-adjustments',
+    id: 'turret-clicks',
+    title: 'Turret Clicks',
+    description: 'Learn dialing corrections in 0.1 mil increments',
+    category: 'Controls & Aiming',
+    prerequisite: 'mils-explained',
+    tutorialId: 'lesson-turret-clicks',
     steps: [
       {
-        id: 'wind-1',
+        title: 'Scope Turret Dials',
+        content:
+          'Your scope has two dials: Elevation (up/down) and Windage (left/right). The values show your current adjustment in mils.',
+      },
+      {
+        title: '0.1 MIL Per Click',
+        content:
+          'Each click adjusts the scope by 0.1 mils. At 500 meters, 0.1 mils = 5 cm. So 10 clicks = 1 mil = 50 cm at 500 meters.',
+      },
+      {
+        title: 'Dialing Corrections',
+        content:
+          'When your shot shows an offset of +1.5 mils, dial your turret 15 clicks in the same direction. This moves your point of aim 1.5 mils toward the correction.',
+      },
+      {
+        title: 'Practice',
+        content:
+          'Fire a shot, read the offset, and dial the correction using the turret buttons. Then fire again to see improvement!',
+        action: 'Hit the target center to continue',
+      },
+    ],
+  },
+
+  {
+    id: 'wind-hold-dial',
+    title: 'Wind Hold & Dial',
+    description: 'Apply wind corrections using hold-off or dialing',
+    category: 'Ballistics',
+    prerequisite: 'turret-clicks',
+    tutorialId: 'lesson-wind-hold-dial',
+    steps: [
+      {
         title: 'Wind Effects',
-        body: 'Wind is the crosswind speed in m/s. Positive values push right, negative values push left. Higher wind speeds push your shot more. Gusts create variation in wind speed.',
-        action: 'next',
+        content:
+          'Wind pushes your bullet sideways as it flies to the target. Stronger wind = more deflection. Longer distance = more time for wind to push.',
       },
       {
-        id: 'wind-2',
-        title: 'Reading the Flag',
-        body: 'Wind flags show current wind speed and direction. Flags flutter faster at higher wind. The wind arrow shows wind direction (pointing TO where wind blows FROM).',
-        action: 'next',
+        title: 'Wind Direction',
+        content:
+          'Wind is always shown relative to your line of sight. "+5 m/s" means wind pushes from your left to right (tougher!). "-3 m/s" pushes from right to left.',
       },
       {
-        id: 'wind-3',
-        title: 'Adapting to Wind',
-        body: 'Account for wind by adjusting your windage turret. If wind blows right, hold left or adjust windage left. Practice reading wind indicators to improve accuracy.',
-        action: 'close',
+        title: 'Two Ways to Correct Wind',
+        content:
+          '1) Dialing: Adjust your windage turret. 2) Hold-off: Aim your crosshair slightly into the wind. Both achieve the same result.',
+      },
+      {
+        title: 'Practice',
+        content:
+          'In this lesson, you have a 5 m/s wind. Fire a shot, read the windage offset, and apply your correction. Then hit the target!',
+        action: 'Hit the target center to continue',
       },
     ],
   },
+
   {
-    id: 'ballistics-basics',
-    title: 'Ballistics Basics',
-    description: 'Understand how projectile physics work',
+    id: 'zeroing',
+    title: 'Zeroing Your Rifle',
+    description: 'Save and restore your turret settings',
     category: 'Ballistics',
-    prerequisite: 'wind-reading',
+    prerequisite: 'wind-hold-dial',
+    tutorialId: 'lesson-zeroing',
     steps: [
       {
-        id: 'ballistics-1',
-        title: 'Bullet Drop',
-        body: 'Projectiles slow down and fall over distance due to drag (air resistance). At longer ranges, you must aim higher to compensate. The range card shows how much drop to expect.',
-        action: 'next',
+        title: 'What is Zeroing?',
+        content:
+          '"Zeroing" means adjusting your scope so that when your crosshair is on the target center, your bullet hits the center at that specific distance.',
       },
       {
-        id: 'ballistics-2',
-        title: 'Distance Matters',
-        body: 'Longer distance = more time in air = more drop and wind drift. A 100m shot has minimal effects, but a 500m shot requires significant compensation. Always check your target distance.',
-        action: 'next',
+        title: 'Save Zero Profile',
+        content:
+          'Once you have dialed in your turret for a specific distance/condition, use "Save Zero" to store those settings. You can save multiple zero profiles.',
       },
       {
-        id: 'ballistics-3',
-        title: 'Using the Range Card',
-        body: 'The range card (toggle in HUD) shows ballistic data for your current distance: drop in MILs, wind drift, and more. Use this to plan your turret adjustments before firing.',
-        action: 'close',
+        title: 'Return to Zero',
+        content:
+          'Use "Return to Zero" to quickly restore your saved turret settings. This is useful when playing different levels or starting a new session.',
+      },
+      {
+        title: 'Practice',
+        content:
+          'In this lesson: 1) Dial your turret to hit the target center 2) Save the zero profile 3) Change your turret dials 4) Return to zero 5) Verify your saved settings are restored!',
+        action: 'Complete zeroing practice to continue',
       },
     ],
   },
 ];
 
-export function getLessonById(id: string): Lesson | undefined {
-  return LESSONS.find((lesson) => lesson.id === id);
-}
-
+/**
+ * Get lessons by category
+ */
 export function getLessonsByCategory(category: string): Lesson[] {
   return LESSONS.filter((lesson) => lesson.category === category);
 }
 
-export function getFirstUncompletedLesson(completedIds: string[]): Lesson | undefined {
-  for (const lesson of LESSONS) {
-    if (completedIds.includes(lesson.id)) continue;
-    if (lesson.prerequisite && !completedIds.includes(lesson.prerequisite)) continue;
-    return lesson;
-  }
-  return undefined;
+/**
+ * Get lesson by ID
+ */
+export function getLessonById(id: string): Lesson | undefined {
+  return LESSONS.find((lesson) => lesson.id === id);
 }
