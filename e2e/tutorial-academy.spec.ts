@@ -187,7 +187,7 @@ test.describe('Glossary', () => {
 test.describe('HUD Readability', () => {
   test('basic HUD renders by default', async ({ page }) => {
     // Start a game directly with a simple level (testMode for determinism)
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Basic HUD should be visible
@@ -216,7 +216,7 @@ test.describe('HUD Readability', () => {
     await expect(page.getByTestId('hud-mode-advanced')).toHaveAttribute('aria-pressed', 'true');
     
     // Start a game
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Advanced HUD should be visible
@@ -232,7 +232,7 @@ test.describe('HUD Readability', () => {
   test('return to main menu', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('start-button').click();
-    await expect(page.getByTestId('game-page')).toBeVisible();
+    await expect(page.getByTestId('levels-page')).toBeVisible();
     
     // Navigate back to main menu
     await page.getByTestId('back-button').click();
@@ -262,7 +262,7 @@ test.describe('Input Polish', () => {
   });
   
   test('game canvas has proper touch-action for mobile', async ({ page }) => {
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Game canvas should have touch-action: none to prevent pointercancel
@@ -274,7 +274,7 @@ test.describe('Input Polish', () => {
   });
   
   test('canvas is properly sized', async ({ page }) => {
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     const canvas = page.getByTestId('game-canvas');
@@ -315,7 +315,7 @@ test.describe('Game Feel Polish', () => {
   
   test('results screen shows polished UI', async ({ page }) => {
     // Navigate directly to game results by using a test URL with session state
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     await page.mouse.click(400, 300); // Start game
     
     // Click 3 more times to finish
