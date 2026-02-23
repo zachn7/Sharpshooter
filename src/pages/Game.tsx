@@ -276,6 +276,13 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   
   const levelMaxShots = level?.maxShots ?? 3;
   
+  // Guard: Redirect to /levels if accessed without a valid level (not special mode)
+  useEffect(() => {
+    if (!level && !isDailyChallenge && !tutorialLessonId && !isDrill) {
+      navigate('/levels', { replace: true, state: { notice: 'Select a level to start' } });
+    }
+  }, [level, isDailyChallenge, tutorialLessonId, isDrill, navigate]);
+  
   // Compute environment data from level env preset or use defaults
   const levelEnv = level?.env || DEFAULT_ENVIRONMENT;
   const computedAirDensity = level ? computeAirDensity(levelEnv) : 1.225;

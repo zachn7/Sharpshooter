@@ -60,11 +60,11 @@ export function MainMenu() {
         {/* Main Actions */}
         <div className="menu-primary-actions">
           <MenuItem
-            to="/play"
+            to="/levels"
             testId="start-button"
             icon={<Crosshair size={24} />}
             title="Start Game"
-            description="Jump into action with your unlocked weapons"
+            description="Select a level to start playing"
             isPrimary
           />
         </div>
