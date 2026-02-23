@@ -161,3 +161,123 @@ export function quantizeAdjustmentToClicks(
 ): number {
   return quantizeToClick(adjustment, clickSize);
 }
+
+/**
+ * Result type for dial recommendation from shot offset
+ */
+export interface DialRecommendation {
+  /**
+   * Current impact offset in meters
+   * - offsetY_M: positive = shot high (above target center)
+   * - offsetZ_M: positive = shot right (to the right of target center)
+   */
+  offsetY_M: number;
+  offsetZ_M: number;
+  
+  /**
+   * Current impact offset in mils at target distance
+   */
+  offsetY_Mils: number;
+  offsetZ_Mils: number;
+  
+  /**
+   * Recommended elevation correction in mils
+   * - Positive: aim HIGHER (dial UP)
+   * - Negative: aim LOWER (dial DOWN)
+   */
+  elevDeltaMils: number;
+  
+  /**
+   * Recommended windage correction in mils
+   * - Positive: aim RIGHT (dial RIGHT)
+   * - Negative: aim LEFT (dial LEFT)
+   */
+  windDeltaMils: number;
+  
+  /**
+   * Recommended number of clicks on elevation turret
+   * - Positive: dial UP (add clicks)
+   * - Negative: dial DOWN (remove clicks)
+   */
+  elevClicks: number;
+  
+  /**
+   * Recommended number of clicks on windage turret
+   * - Positive: dial RIGHT (add clicks)
+   * - Negative: dial LEFT (remove clicks)
+   */
+  windClicks: number;
+  
+  /**
+   * Recommended hold in mils (same as correction values)
+   * - Positive hold: move point-of-aim UP/RIGHT on reticle
+   * - Negative hold: move point-of-aim DOWN/LEFT on reticle
+   */
+  holdElevationMils: number;
+  holdWindageMils: number;
+}
+
+/**
+ * Compute recommended dial/hold correction from shot offset
+ * This is a pure function used by the Tutorial Coach overlay
+ * 
+ * @param distanceM - Target distance in meters
+ * @param offsetY_M - Vertical offset from target center in meters (positive = shot high)
+ * @param offsetZ_M - Horizontal offset from target center in meters (positive = shot right)
+ * @param clickSizeMils - Click size in mils (default 0.1)
+ * @returns Dial recommendation with quantized clicks and hold values
+ * 
+ * Example:
+ * - At 500m, shot 0.25m high, 0.05m left
+ * - Offset: +0.25m (high), -0.05m (left)
+ * - Correction: aim LOWER (-0.5 mils), aim RIGHT (+0.1 mils)
+ * - Elevation: -5 clicks DOWN (to compensate for high shot)
+ * - Windage: +1 click RIGHT (to compensate for left shot)
+ */
+export function recommendDialFromOffset(
+  distanceM: number,
+  offsetY_M: number,
+  offsetZ_M: number,
+  clickSizeMils: number = 0.1
+): DialRecommendation {
+  // Convert offset to mils
+  const offsetY_Mils = metersToMils(distanceM, offsetY_M);
+  const offsetZ_Mils = metersToMils(distanceM, offsetZ_M);
+  
+  // Compute correction: opposite direction of offset
+  // If shot is high (positive Y), aim lower (negative elevation)
+  // If shot is left (negative Z), aim right (positive windage)
+  const elevDeltaMils = -offsetY_Mils;
+  const windDeltaMils = -offsetZ_Mils;
+  
+  // Quantize to clicks
+  const quantizedElev = quantizeToClick(elevDeltaMils, clickSizeMils);
+  const quantizedWind = quantizeToClick(windDeltaMils, clickSizeMils);
+  const elevClicks = quantizedElev / clickSizeMils;
+  const windClicks = quantizedWind / clickSizeMils;
+  
+  // Convert -0 to 0 to avoid -0 issues
+  const elevClicksNormalized = elevClicks === 0 ? 0 : elevClicks;
+  const windClicksNormalized = windClicks === 0 ? 0 : windClicks;
+  
+  // Normalize quantized values too
+  const normalizedQuantizedElev = Object.is(quantizedElev, -0) ? 0 : quantizedElev;
+  const normalizedQuantizedWind = Object.is(quantizedWind, -0) ? 0 : quantizedWind;
+  
+  // Hold recommendation (same as correction, mils from reticle center)
+  const holdElevationMils = Object.is(elevDeltaMils, -0) ? 0 : elevDeltaMils;
+  const holdWindageMils = Object.is(windDeltaMils, -0) ? 0 : windDeltaMils;
+  
+  return {
+    offsetY_M,
+    offsetZ_M,
+    offsetY_Mils,
+    offsetZ_Mils,
+    elevDeltaMils: normalizedQuantizedElev,
+    windDeltaMils: normalizedQuantizedWind,
+    elevClicks: elevClicksNormalized,
+    windClicks: windClicksNormalized,
+    holdElevationMils,
+    holdWindageMils,
+  };
+}

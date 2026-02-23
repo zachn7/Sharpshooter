@@ -10,7 +10,7 @@ import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
 import { DRILLS, generateDrillScenario, type DrillScenario } from '../data/drills';
 import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, type TurretState } from '../storage';
-import { applyTurretOffset, nextClickValue, metersToMils, computeAdjustmentForOffset, quantizeAdjustmentToClicks } from '../utils/turret';
+import { applyTurretOffset, nextClickValue, metersToMils, recommendDialFromOffset, type DialRecommendation } from '../utils/turret';
 import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
 import { samplePelletImpacts, type ShotgunPatternConfig, type PelletImpact } from '../physics/shotgun';
@@ -149,6 +149,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const windageRightRef = useRef<HTMLButtonElement>(null);
   const [recticlePosition, setReticlePosition] = useState({ x: 0.5, y: 0.5 });
   const [impacts, setImpacts] = useState<Impact[]>([]);
+  const [coachRecommendation, setCoachRecommendation] = useState<DialRecommendation | null>(null);
   const [shotTelemetry, setShotTelemetry] = useState<ShotTelemetry[]>([]);
   const [showReplay, setShowReplay] = useState(false);
   const [levelStartedAt, setLevelStartedAt] = useState(Date.now());
@@ -637,6 +638,22 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setImpacts(newImpacts);
     const newShotCount = shotCount - 1;
     setShotCount(newShotCount);
+    
+    // Update Coach recommendation for tutorial/arcade modes
+    const shouldShowCoach = tutorialLessonId || (settings.realismPreset === 'arcade' && settings.arcadeCoachEnabled);
+    if (shouldShowCoach && level) {
+      // Calculate offset in meters (finalImpactZ and finalImpactY are already relative to target center)
+      // Note: finalImpactY is vertical offset (positive = above target center), finalImpactZ is horizontal (positive = right)
+      const recommendation = recommendDialFromOffset(
+        level.distanceM,
+        finalImpactY,
+        finalImpactZ,
+        0.1 // 0.1 mil click size
+      );
+      setCoachRecommendation(recommendation);
+    } else {
+      setCoachRecommendation(null);
+    }
 
     // Record shot telemetry
     const telemetry: ShotTelemetry = {
@@ -748,6 +765,10 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     settings.expertSpinDriftEnabled,
     settings.expertCoriolisEnabled,
     settings.vfx.recordShotPath,
+    settings.arcadeCoachEnabled,
+    canvasSize.width,
+    canvasSize.height,
+    tutorialLessonId,
     convertPhysicsPath,
   ]);
 
@@ -834,34 +855,20 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }, [weaponId]);
 
   const handleApplyCorrection = useCallback(() => {
-    // Get last shot's offset
-    const lastImpact = impacts[impacts.length - 1];
-    if (!lastImpact || !level) return;
-
-    // Calculate correction needed (opposite of offset)
-    const correction = computeAdjustmentForOffset(
-      lastImpact.elevationMils * level.distanceM * 0.001, // Convert mils back to meters
-      lastImpact.windageMils * level.distanceM * 0.001,
-      level.distanceM
-    );
-
-    // Apply correction quantized to 0.1 mil clicks
-    const newElevation = quantizeAdjustmentToClicks(
-      turretState.elevationMils + correction.elevationMils,
-      0.1
-    );
-    const newWindage = quantizeAdjustmentToClicks(
-      turretState.windageMils + correction.windageMils,
-      0.1
-    );
-
+    if (!coachRecommendation) return;
+    
+    if (!audioIsTestMode()) {
+      AudioManager.playSound('click');
+    }
+    
+    // Apply the recommended correction
     const newTurretState = {
-      elevationMils: newElevation,
-      windageMils: newWindage,
+      elevationMils: turretState.elevationMils + coachRecommendation.elevDeltaMils,
+      windageMils: turretState.windageMils + coachRecommendation.windDeltaMils,
     };
     setTurretState(newTurretState);
     updateTurretState(weaponId, newTurretState);
-  }, [impacts, level, turretState, weaponId]);
+  }, [coachRecommendation, turretState, weaponId]);
 
   // Reset level handler
   const handleReset = useCallback(() => {
@@ -1824,16 +1831,77 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               </span>
             </div>
           </div>
-          {/* Apply Correction button - only available in Arcade mode */}
-          {settings.realismPreset === 'arcade' && (
+        </div>
+      )}
+      
+      {/* Coach Card - shows dial/hold recommendations */}
+      {coachRecommendation && settings.showHud && (
+        <div className="coach-card" data-testid="coach-card">
+          <div className="coach-header">
+            <span className="coach-title">🎯 Coach Recommendation</span>
+            <span className="coach-mode">
+              {tutorialLessonId ? 'Tutorial Mode' : 'Arcade Mode'}
+            </span>
+          </div>
+          <div className="coach-content">
+            <div className="coach-section">
+              <div className="coach-section-title">Dial Adjustment</div>
+              <div className="coach-recommendation">
+                <div className="coach-row">
+                  <span className="coach-label">Elevation:</span>
+                  <span className={`coach-value ${coachRecommendation.elevDeltaMils > 0 ? 'positive' : coachRecommendation.elevDeltaMils < 0 ? 'negative' : 'zero'}`}>
+                    {coachRecommendation.elevDeltaMils > 0 ? '+' : ''}{coachRecommendation.elevDeltaMils.toFixed(1)} MIL
+                  </span>
+                  <span className="coach-clicks">
+                    ({coachRecommendation.elevClicks > 0 ? '+' : ''}{coachRecommendation.elevClicks} clicks)
+                  </span>
+                </div>
+                <div className="coach-row">
+                  <span className="coach-label">Windage:</span>
+                  <span className={`coach-value ${coachRecommendation.windDeltaMils > 0 ? 'positive' : coachRecommendation.windDeltaMils < 0 ? 'negative' : 'zero'}`}>
+                    {coachRecommendation.windDeltaMils > 0 ? '+' : ''}{coachRecommendation.windDeltaMils.toFixed(1)} MIL
+                  </span>
+                  <span className="coach-clicks">
+                    ({coachRecommendation.windClicks > 0 ? '+' : ''}{coachRecommendation.windClicks} clicks)
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {coachRecommendation.elevDeltaMils !== 0 || coachRecommendation.windDeltaMils !== 0 && (
+              <div className="coach-section">
+                <div className="coach-section-title">Hold Correction</div>
+                <div className="coach-hold">
+                  Use reticle at <span className="coach-highlight">{Math.abs(coachRecommendation.holdElevationMils).toFixed(1)} MIL</span> {coachRecommendation.holdElevationMils < 0 ? 'below' : 'above'}
+                  {coachRecommendation.holdWindageMils !== 0 && (
+                    <span>, <span className="coach-highlight">{Math.abs(coachRecommendation.holdWindageMils).toFixed(1)} MIL</span> {coachRecommendation.holdWindageMils < 0 ? 'left' : 'right'}</span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {coachRecommendation.elevDeltaMils === 0 && coachRecommendation.windDeltaMils === 0 && (
+              <div className="coach-perfect">
+                ✨ Perfect shot! No adjustment needed.
+              </div>
+            )}
+          </div>
+          
+          {/* Apply button - Tutorial mode only; Arcade mode is suggestion-only */}
+          {(coachRecommendation.elevDeltaMils !== 0 || coachRecommendation.windDeltaMils !== 0) && tutorialLessonId && (
             <button
               onClick={handleApplyCorrection}
-              className="apply-correction-button"
-              data-testid="apply-correction"
-              title="Apply correction to turret (Arcade only)"
+              className="coach-apply-button"
+              data-testid="coach-apply"
             >
               Apply Correction
             </button>
+          )}
+          
+          {!tutorialLessonId && (coachRecommendation.elevDeltaMils !== 0 || coachRecommendation.windDeltaMils !== 0) && (
+            <div className="coach-hint">
+              Adjustment suggestion only. Dial yourself for better learning.
+            </div>
           )}
         </div>
       )}

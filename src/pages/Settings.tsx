@@ -460,6 +460,34 @@ export function Settings() {
           </div>
         )}
 
+        {/* Arcade Coach Section */}
+        {settings.realismPreset === 'arcade' && (
+          <div className="settings-section" data-testid="arcade-coach-section">
+            <h3>Arcade Coach</h3>
+            <p className="setting-description">
+              In-game ballistics assistant to help you learn aiming fundamentals.
+            </p>
+            <div className="settings-list">
+              <div className="setting-item">
+                <div className="setting-info">
+                  <span className="setting-label">Coach Suggestions</span>
+                  <span className="setting-sublabel">
+                    Show dial/hold recommendations after each shot
+                  </span>
+                </div>
+                <button
+                  className={`toggle-button ${settings.arcadeCoachEnabled ? 'on' : 'off'}`}
+                  onClick={() => handleToggleChange('arcadeCoachEnabled')}
+                  data-testid="toggle-arcade-coach"
+                  aria-pressed={settings.arcadeCoachEnabled}
+                >
+                  {settings.arcadeCoachEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Audio Settings Section */}
         <div className="settings-section" data-testid="audio-section">
           <h3>Audio</h3>

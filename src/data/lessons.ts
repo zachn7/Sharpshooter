@@ -136,12 +136,12 @@ export const LESSONS: Lesson[] = [
       {
         title: 'Dialing Corrections',
         content:
-          'When your shot shows an offset of +1.5 mils, dial your turret 15 clicks in the same direction. This moves your point of aim 1.5 mils toward the correction.',
+          'When your shot shows an offset of +1.5 mils, dial your turret 15 clicks in the same direction. This moves your point of aim 1.5 mils toward the correction. The Coach card will show you exactly how many clicks to adjust!',
       },
       {
         title: 'Practice',
         content:
-          'Fire a shot, read the offset, and dial the correction using the turret buttons. Then fire again to see improvement!',
+          'Fire a shot, check the Coach card for the recommended dial adjustment, and use the Apply button to auto-correct. Then fire again to see improvement!',
         action: 'Hit the target center to continue',
       },
     ],
@@ -168,12 +168,12 @@ export const LESSONS: Lesson[] = [
       {
         title: 'Two Ways to Correct Wind',
         content:
-          '1) Dialing: Adjust your windage turret. 2) Hold-off: Aim your crosshair slightly into the wind. Both achieve the same result.',
+          '1) Dialing: Adjust your windage turret. 2) Hold-off: Aim your crosshair slightly into the wind. The Coach card shows you BOTH the dial adjustment AND the hold correction in mils!',
       },
       {
         title: 'Practice',
         content:
-          'In this lesson, you have a 5 m/s wind. Fire a shot, read the windage offset, and apply your correction. Then hit the target!',
+          'In this lesson, you have a 5 m/s wind. Fire a shot, check the Coach card for recommendations, dial the correction or use hold, and hit the target!',
         action: 'Hit the target center to continue',
       },
     ],

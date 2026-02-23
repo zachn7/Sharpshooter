@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 15;
+export const CURRENT_SCHEMA_VERSION = 16;
 
 // Stats tracked from gameplay telemetry
 export interface PlayerStats {
@@ -152,6 +152,7 @@ export interface GameSettings {
   showMilOffset: boolean;
   showHud: boolean;
   showNumericWind: boolean; // Show numeric wind values (arcade default true, others false)
+  arcadeCoachEnabled: boolean; // Show coach suggestions in Arcade mode (off by default)
   zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
   expertSpinDriftEnabled: boolean; // Enable spin drift simulation (Expert only, off by default)
   expertCoriolisEnabled: boolean; // Enable Coriolis effect simulation (Expert only, off by default)
@@ -391,6 +392,18 @@ const MIGRATIONS: Migration[] = [
       reticleSkinId: save.reticleSkinId || 'classic',
     };
   },
+  // v15 -> v16: Add arcadeCoachEnabled setting
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 16,
+      settings: {
+        ...save.settings,
+        arcadeCoachEnabled: save.settings.arcadeCoachEnabled ?? false, // Default to off
+      } as GameSettings,
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -475,6 +488,7 @@ function createDefaultSave(): GameSave {
       showMilOffset: false,
       showHud: true,
       showNumericWind: false, // Default to false for realistic preset
+      arcadeCoachEnabled: false, // Coach suggestions off by default (Tutorial always shows)
       zeroRangeShotLimitMode: 'unlimited',
       expertSpinDriftEnabled: false, // Expert extras off by default
       expertCoriolisEnabled: false, // Expert extras off by default

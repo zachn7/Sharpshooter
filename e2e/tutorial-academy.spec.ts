@@ -109,6 +109,48 @@ test.describe('Tutorial Academy', () => {
     await page.getByText('Got It!').click();
     await expect(page.getByTestId('lesson-overlay')).not.toBeVisible();
   });
+
+  test('Lesson 3 shows Coach card and applies correction', async ({ page }) => {
+    // Start at academy
+    await page.goto('/academy');
+    
+    // Click on Turret Clicks lesson (Lesson 3)
+    await page.getByTestId('lesson-turret-clicks').click();
+    await expect(page.getByTestId('lesson-overlay')).toBeVisible();
+    
+    // Navigate to practice step
+    await page.getByText('Next').click();
+    await page.getByText('Next').click();
+    await page.getByText('Next').click();
+    await expect(page.getByText('Practice')).toBeVisible();
+    
+    // Start practice game
+    await page.getByRole('button', { name: /Start interactive practice/ }).click();
+    await expect(page).toHaveURL(/.*\/game\/tutorial\?tutorialId=lesson-turret-clicks.*/);
+    await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Fire a shot
+    await page.mouse.click(400, 300); // Click in center
+    await expect(page.getByTestId('impact-offset-panel')).toBeVisible();
+    
+    // Coach card should appear in tutorial mode
+    await expect(page.getByTestId('coach-card')).toBeVisible();
+    await expect(page.getByText('Coach Recommendation')).toBeVisible();
+    await expect(page.getByText('Tutorial Mode')).toBeVisible();
+    
+    // Apply button should be visible
+    await expect(page.getByTestId('coach-apply')).toBeVisible();
+    
+    // Click Apply to auto-correct
+    await page.getByTestId('coach-apply').click();
+    
+    // Verify turret values are displayed
+    await expect(page.getByTestId('elevation-value')).toBeVisible();
+    
+    // Navigate back to academy
+    await page.getByTestId('back-button').click();
+    await expect(page).toHaveURL('/academy');
+  });
 });
 
 test.describe('Glossary', () => {
