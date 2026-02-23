@@ -183,3 +183,63 @@ test.describe('Glossary', () => {
     await expect(page.getByTestId('academy-button')).toBeVisible();
   });
 });
+
+test.describe('HUD Readability', () => {
+  test('basic HUD renders by default', async ({ page }) => {
+    // Start a game directly with a simple level
+    await page.goto('/game/level-1');
+    await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Basic HUD should be visible
+    await expect(page.getByTestId('hud-basic')).toBeVisible();
+    
+    // Basic HUD shows: Shots, Score (timer and plates mode may or may not be present)
+    await expect(page.getByTestId('shot-count')).toBeVisible();
+    
+    // Start game
+    await page.mouse.click(400, 300);
+    
+    // Wind cue should be visible (always in Basic mode)
+    await expect(page.getByTestId('wind-cues')).toBeVisible();
+    
+    // Advanced HUD elements should NOT be visible
+    await expect(page.getByTestId('env-summary')).not.toBeVisible();
+  });
+  
+  test('switch to advanced HUD shows additional info', async ({ page }) => {
+    // Navigate to settings
+    await page.goto('/settings');
+    await expect(page.getByTestId('settings-page')).toBeVisible();
+    
+    // Switch to Advanced HUD mode
+    await page.getByTestId('hud-mode-advanced').click();
+    await expect(page.getByTestId('hud-mode-advanced')).toHaveAttribute('aria-pressed', 'true');
+    
+    // Start a game
+    await page.goto('/game/level-1');
+    await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Advanced HUD should be visible
+    await expect(page.getByTestId('hud-advanced')).toBeVisible();
+    
+    // Start game to trigger HUD elements
+    await page.mouse.click(400, 300);
+    
+    // Advanced HUD shows Environment info
+    await expect(page.getByTestId('env-summary')).toBeVisible();
+  });
+  
+  test('return to main menu', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('start-button').click();
+    await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Navigate back to main menu
+    await page.getByTestId('back-button').click();
+    await expect(page.getByTestId('main-menu')).toBeVisible();
+    
+    // All menu items should be visible
+    await expect(page.getByTestId('start-button')).toBeVisible();
+    await expect(page.getByTestId('academy-button')).toBeVisible();
+  });
+});

@@ -1573,7 +1573,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           ← Back
         </button>
         <h2>{level.name}</h2>
-        <div className="game-stats">
+        <div className="game-stats" data-testid={settings.hudMode === 'basic' ? 'hud-basic' : 'hud-advanced'}>
           <span className="stat" data-testid="shot-count">
             {isZeroRange && shotLimitMode === 'unlimited'
               ? 'Shots: ∞'
@@ -1617,7 +1617,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         </div>
       </div>
       
-      {/* Wind HUD Panel */}
+      {/* Wind HUD Panel - always shown in Basic and Advanced */}
       {level && settings.showHud && (
         <div className={level.windProfile ? "wind-hud layered" : "wind-hud"} data-testid={level.windProfile ? "wind-cues-layered" : "wind-cues"}>
           <div className="wind-display">
@@ -1651,8 +1651,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
             </div>
           </div>
-          {/* Environment HUD - shows temperature and altitude */}
-          <div className="env-hud" data-testid="env-summary">
+          {/* Environment HUD - Advanced mode only */}
+          {settings.hudMode === 'advanced' && (
+            <div className="env-hud" data-testid="env-summary">
             <div className="env-header">
               <span>Environment</span>
             </div>
@@ -1669,10 +1670,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 <span className="env-visual">Std conditions</span>
               )}
             </div>
-          </div>
+            </div>
+          )}
           
-          {/* Expert Extras Badge - shown when any expert extra is enabled */}
-          {settings.realismPreset === 'expert' && (settings.expertSpinDriftEnabled || settings.expertCoriolisEnabled) && (
+          {/* Expert Extras Badge - Advanced mode only */}
+          {settings.hudMode === 'advanced' && settings.realismPreset === 'expert' && (settings.expertSpinDriftEnabled || settings.expertCoriolisEnabled) && (
             <div className="expert-extras-badge" data-testid="expert-extras-badge" title="Expert Sim Extras enabled: gameplay approximations for additional challenge">
               <div className="expert-extras-header">
                 <span>🎯 Expert Extras</span>
@@ -1804,8 +1806,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         )}
       </div>
       
-      {/* Impact Offset Panel */}
-      {impacts.length > 0 && settings.showHud && (
+      {/* Impact Offset Panel - Advanced mode only */}
+      {settings.hudMode === 'advanced' && impacts.length > 0 && settings.showHud && (
         <div className="impact-offset-panel" data-testid="impact-offset-panel">
           <div className="impact-offset-header">
             <span>Impact Offset</span>

@@ -1,5 +1,5 @@
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
 
 // Stats tracked from gameplay telemetry
 export interface PlayerStats {
@@ -145,6 +145,9 @@ export interface MobileSettings {
   thumbAimMode: boolean; // Enable thumb aim (virtual joystick/drag region)
 }
 
+// HUD display mode
+export type HUDMode = 'basic' | 'advanced';
+
 // Game settings
 export interface GameSettings {
   realismPreset: RealismPreset;
@@ -152,6 +155,7 @@ export interface GameSettings {
   showMilOffset: boolean;
   showHud: boolean;
   showNumericWind: boolean; // Show numeric wind values (arcade default true, others false)
+  hudMode: HUDMode; // HUD display mode: basic (default) vs advanced
   arcadeCoachEnabled: boolean; // Show coach suggestions in Arcade mode (off by default)
   zeroRangeShotLimitMode: ZeroRangeShotLimitMode;
   expertSpinDriftEnabled: boolean; // Enable spin drift simulation (Expert only, off by default)
@@ -199,6 +203,7 @@ const MIGRATIONS: Migration[] = [
         showMilOffset: false,
         showHud: true,
         showNumericWind: false,
+        hudMode: 'basic',
         zeroRangeShotLimitMode: 'unlimited',
         expertSpinDriftEnabled: false,
         expertCoriolisEnabled: false,
@@ -404,6 +409,18 @@ const MIGRATIONS: Migration[] = [
       } as GameSettings,
     };
   },
+  // v16 -> v17: Add hudMode setting
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 17,
+      settings: {
+        ...save.settings,
+        hudMode: save.settings.hudMode ?? 'basic', // Default to basic (minimal HUD)
+      } as GameSettings,
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -488,6 +505,7 @@ function createDefaultSave(): GameSave {
       showMilOffset: false,
       showHud: true,
       showNumericWind: false, // Default to false for realistic preset
+      hudMode: 'basic', // Basic HUD by default (minimal, not overwhelming)
       arcadeCoachEnabled: false, // Coach suggestions off by default (Tutorial always shows)
       zeroRangeShotLimitMode: 'unlimited',
       expertSpinDriftEnabled: false, // Expert extras off by default

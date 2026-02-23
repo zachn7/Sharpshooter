@@ -2802,3 +2802,48 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Button Group for Mode Selection */
+.button-group {
+  display: inline-flex;
+  border: 1px solid var(--color-border-medium);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-background-primary);
+}
+
+.group-button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.group-button:not(:last-child) {
+  border-right: 1px solid var(--color-border-medium);
+}
+
+.group-button:hover:not(:disabled) {
+  background: var(--color-background-secondary);
+  color: var(--color-text-primary);
+}
+
+.group-button.active {
+  background: var(--color-primary-600);
+  color: var(--color-text-inverse);
+}
+
+.group-button.active:hover {
+  background: var(--color-primary-700);
+}
+
+.group-button:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: -2px;
+  z-index: 1;
+}

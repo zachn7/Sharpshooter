@@ -164,6 +164,12 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
+  const handleSettingChange = <K extends keyof GameSettings>(key: K, value: GameSettings[K]) => {
+    if (!settings) return;
+    const updated = updateGameSettings({ [key]: value });
+    setSettings(updated.settings);
+  };
+
   const handleMobileToggleChange = (key: 'showFireButton' | 'thumbAimMode') => {
     if (!settings) return;
     const currentValue = settings.mobile[key];
@@ -411,6 +417,42 @@ export function Settings() {
               >
                 {settings.showNumericWind ? 'ON' : 'OFF'}
               </button>
+            </div>
+          </div>
+        </div>
+
+        {/* HUD Display Mode Section */}
+        <div className="settings-section" data-testid="hud-mode-section">
+          <h3>HUD Display Mode</h3>
+          <p className="setting-description">
+            Choose how much information to show during gameplay. Start with Basic and switch to Advanced for detailed metrics.
+          </p>
+          <div className="settings-list">
+            <div className="setting-item">
+              <div className="setting-info">
+                <span className="setting-label">HUD Mode</span>
+                <span className="setting-sublabel">
+                  Basic shows only essential info (range, wind, shots). Advanced adds detailed metrics.
+                </span>
+              </div>
+              <div className="button-group" data-testid="hud-mode-toggle">
+                <button
+                  className={`group-button ${settings.hudMode === 'basic' ? 'active' : ''}`}
+                  onClick={() => handleSettingChange('hudMode', 'basic')}
+                  data-testid="hud-mode-basic"
+                  aria-pressed={settings.hudMode === 'basic'}
+                >
+                  Basic
+                </button>
+                <button
+                  className={`group-button ${settings.hudMode === 'advanced' ? 'active' : ''}`}
+                  onClick={() => handleSettingChange('hudMode', 'advanced')}
+                  data-testid="hud-mode-advanced"
+                  aria-pressed={settings.hudMode === 'advanced'}
+                >
+                  Advanced
+                </button>
+              </div>
             </div>
           </div>
         </div>
