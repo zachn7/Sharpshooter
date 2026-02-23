@@ -283,7 +283,7 @@ export function Settings() {
 
   if (!settings) {
     return (
-      <div className="settings-page" data-testid="settings-page">
+      <div className="settings-page page-transition" data-testid="settings-page">
         <div className="page-header">
           <Link to="/" className="back-button" data-testid="back-button">
             ← Back

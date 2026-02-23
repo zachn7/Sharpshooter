@@ -44,7 +44,7 @@ export function MainMenu() {
   const [showGlossary, setShowGlossary] = useState(false);
 
   return (
-    <div className="main-menu" data-testid="main-menu">
+    <div className="main-menu page-transition" data-testid="main-menu">
       <div className="menu-container">
         {/* Header */}
         <header className="menu-header">

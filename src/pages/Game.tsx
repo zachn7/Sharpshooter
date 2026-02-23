@@ -59,6 +59,15 @@ interface Impact {
   pellets?: Array<{ x: number; y: number; score: number }>; // Individual pellet impacts and scores
 }
 
+// Active impact animation for visual feedback
+interface ImpactAnimation {
+  x: number; // Canvas X coordinate
+  y: number; // Canvas Y coordinate
+  score: number;
+  startTime: number;
+  duration: number; // Animation duration in ms
+}
+
 type GameState = 'briefing' | 'running' | 'results';
 
 const WORLD_WIDTH = 1.0; // meters
@@ -165,6 +174,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
   const [groupSizeMeters, setGroupSizeMeters] = useState(0);
+  
+  // Impact animation state for visual feedback
+  const [impactAnimations, setImpactAnimations] = useState<ImpactAnimation[]>([]);
   
   // Sway and recoil state
   const [recoilState, setRecoilState] = useState<RecoilState | null>(null);
@@ -690,6 +702,26 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const newShotCount = shotCount - 1;
     setShotCount(newShotCount);
     
+    // Add impact animation for visual feedback (if not reduced motion)
+    if (!settings.vfx.reducedMotion) {
+      // Convert impact world position to canvas coordinates for animation
+      const viewportConfig = {
+        worldWidth: WORLD_WIDTH,
+        worldHeight: WORLD_HEIGHT,
+        canvasWidth: canvasDisplaySize.width,
+        canvasHeight: canvasDisplaySize.height,
+      };
+      const canvasPoint = worldToCanvas({ x: impact.x, y: impact.y }, viewportConfig);
+      
+      setImpactAnimations(prev => [...prev, {
+        x: canvasPoint.x,
+        y: canvasPoint.y,
+        score: impact.score,
+        startTime: Date.now(),
+        duration: 1000, // 1 second animation
+      }]);
+    }
+    
     // Update Coach recommendation for tutorial/arcade modes
     const shouldShowCoach = tutorialLessonId || (settings.realismPreset === 'arcade' && settings.arcadeCoachEnabled);
     if (shouldShowCoach && level) {
@@ -798,6 +830,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     isZeroRange,
     isTestMode,
     settings.realismPreset,
+    settings.vfx.reducedMotion,
     magnification,
     recoilState,
     effectiveAmmo,
@@ -1201,6 +1234,54 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         ctx.fillText(impact.score.toString(), canvasPoint.x + 12, canvasPoint.y - 12);
       });
 
+      // Draw impact animations (feedback effects)
+      if (!settings.vfx.reducedMotion) {
+        const now = Date.now();
+        impactAnimations.forEach((anim) => {
+          const elapsed = now - anim.startTime;
+          if (elapsed > anim.duration) return; // Skip expired animations
+
+          const progress = elapsed / anim.duration;
+          
+          // Draw impact ring pulse (expands and fades)
+          if (progress < 0.4) {
+            const ringProgress = progress / 0.4;
+            const ringRadius = 15 * ringProgress + (progress < 0.1 ? 15 : 0);
+            const ringAlpha = 1 - ringProgress;
+            
+            ctx.beginPath();
+            ctx.arc(anim.x, anim.y, ringRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = `rgba(255, 68, 68, ${ringAlpha})`; // Red ring
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+          
+          // Draw score popup (floats up and fades)
+          const floatDistance = 32 * progress;
+          const popupY = anim.y - floatDistance;
+          const popupScale = 1 - progress * 0.1;
+          const popupAlpha = 1 - progress;
+          
+          ctx.save();
+          ctx.translate(anim.x, popupY);
+          ctx.scale(popupScale, popupScale);
+          
+          // Score text
+          ctx.fillStyle = `rgba(255, 255, 255, ${popupAlpha})`;
+          ctx.font = 'bold 24px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`+${anim.score}`, 0, 0);
+          
+          ctx.restore();
+        });
+        
+        // Cleanup expired animations
+        if (impactAnimations.length > 0 && now - impactAnimations[0].startTime > 1000) {
+          setImpactAnimations(prev => prev.filter(a => now - a.startTime < a.duration));
+        }
+      }
+
       // Draw reticle
       const reticleCanvas = worldToCanvas(recticlePosition, viewportConfig);
       const reticleStyle = settings.reticle.style;
@@ -1405,7 +1486,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
     return (
-      <div className="game-page" data-testid="game-page">
+      <div className="game-page page-transition" data-testid="game-page">
         <div className="game-header">
           <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
             ← Back
@@ -1473,7 +1554,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   if (gameState === 'results' && level) {
     const nextLevel = getNextLevel();
     return (
-      <div className="game-page" data-testid="game-page">
+      <div className="game-page page-transition" data-testid="game-page">
         <div className="game-header">
           <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
             ← Back
@@ -1485,17 +1566,19 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           <div className="results-screen" data-testid="results-screen">
             <h3>Results</h3>
             
-            <div className="score-display">
+            <div className="results-card score-display">
               <div className="total-score">
                 <span className="score-label">Total Score</span>
                 <span className="score-value" data-testid="total-score">{totalScore}</span>
               </div>
               
               {!isZeroRange && (
-                <div className="stars-display">
+                <div className="stars-display results-stars">
                   <span className="score-label">Stars Earned</span>
                   <span className="stars-value" data-testid="stars-earned">
-                    {earnedStars > 0 ? '★'.repeat(earnedStars) : '☆☆☆'}
+                    {earnedStars > 0 && earnedStars <= 3
+                      ? '★'.repeat(earnedStars) + '☆'.repeat(3 - earnedStars)
+                      : '☆☆☆'}
                   </span>
                 </div>
               )}
@@ -1563,7 +1646,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               </button>
             )}
 
-            <div className="results-actions">
+            <div className="results-card results-actions">
               <button
                 onClick={handleRetry}
                 className="results-button retry-button"
@@ -1598,7 +1681,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   if (!level || !weapon) {
     return (
-      <div className="game-page" data-testid="game-page">
+      <div className="game-page page-transition" data-testid="game-page">
         <div className="game-header">
           <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
             ← Back

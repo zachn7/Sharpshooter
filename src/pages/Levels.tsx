@@ -52,7 +52,7 @@ export function Levels() {
   const allLevelIds = LEVELS.map(l => l.id);
 
   return (
-    <div className="levels-page" data-testid="levels-page">
+    <div className="levels-page page-transition" data-testid="levels-page">
       <div className="page-header">
         <Link to="/" className="back-button" data-testid="back-button">
           ← Back

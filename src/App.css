@@ -2857,3 +2857,202 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
   outline-offset: -2px;
   z-index: 1;
 }
+
+/* ==========================================
+   POLISH: Page Transitions
+   ========================================== */
+
+/* Page fade transition - smooth route changes without blank flashes */
+.page-transition {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Overlay/modal transition */
+.modal-overlay {
+  animation: fadeInOverlay 0.15s ease-out;
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ==========================================
+   POLISH: Shot Impact Feedback
+   ========================================== */
+
+/* Impact ring pulse animation */
+.impact-ring {
+  animation: impactPulse 0.4s ease-out;
+}
+
+@keyframes impactPulse {
+  0% {
+    transform: scale(0);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Score popup animation */
+.score-popup {
+  animation: scorePop 1s ease-out forwards;
+}
+
+@keyframes scorePop {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  20% {
+    transform: translateY(-8px) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-32px) scale(0.9);
+  }
+}
+
+/* Hit marker animation */
+.hit-marker {
+  animation: hitMarkerPulse 0.3s ease-out;
+}
+
+@keyframes hitMarkerPulse {
+  0% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ==========================================
+   POLISH: Results Screen
+   ========================================== */
+
+/* Results screen cards */
+.results-card {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Stagger animations for results elements */
+.results-score {
+  animation-delay: 0.1s;
+}
+
+.results-stars {
+  animation-delay: 0.2s;
+}
+
+.results-actions {
+  animation-delay: 0.3s;
+}
+
+/* Star burst animation */
+.star-award {
+  animation: starBurst 0.5s ease-out;
+}
+
+@keyframes starBurst {
+  0% {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2) rotate(10deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* ==========================================
+   POLISH: Accessibility - Reduced Motion
+   ========================================== */
+
+/* Respect user's reduced motion preference */
+@media (prefers-reduced-motion: reduced) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .page-transition,
+  .modal-overlay,
+  .modal-content,
+  .results-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Respect app-level reduced motion settings */
+.reduced-motion .page-transition,
+.reduced-motion .modal-overlay,
+.reduced-motion .modal-content,
+.reduced-motion .results-card,
+.reduced-motion .impact-ring,
+.reduced-motion .score-popup,
+.reduced-motion .hit-marker,
+.reduced-motion .star-award {
+  animation: none !important;
+  transition: none !important;
+}
+
+.reduced-motion .score-popup {
+  opacity: 1;
+  transform: none;
+}
