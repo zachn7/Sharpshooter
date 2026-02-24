@@ -20,9 +20,8 @@ export const RETICLE_SKINS: ReticleSkin[] = [
   {
     id: 'tactical-green',
     name: 'Tactical Green',
-    description: 'Military-inspired green reticle. Unlocks with Pistols pack completion.',
-    achievementId: null,
-    packId: 'pistols', // Unlock by completing Pistols pack
+    description: 'Military-inspired green reticle.',
+    achievementId: 'novice', // Complete 5 levels
     colorPrimary: '#4caf50', // Army green
     colorSecondary: '#c8e6c9', // Light green
     thickness: 0,

@@ -1684,3 +1684,38 @@ test('weapon identity and cosmetics unlock flow', async ({ page }) => {
   await page.reload();
   await expect(page.getByTestId('reticle-skin-select')).toBeVisible();
 });
+
+test('contracts mode: generate and view contract summary', async ({ page }) => {
+  // Navigate to contracts page
+  await page.goto('/contracts');
+  await expect(page.getByTestId('contracts-page')).toBeVisible();
+  
+  // Verify three difficulty buttons exist
+  await expect(page.getByTestId('difficulty-easy')).toBeVisible();
+  await expect(page.getByTestId('difficulty-medium')).toBeVisible();
+  await expect(page.getByTestId('difficulty-hard')).toBeVisible();
+  
+  // Set seed for deterministic contract generation
+  await page.getByTestId('seed-override').fill('12345');
+  
+  // Click easy difficulty
+  await page.getByTestId('difficulty-easy').click();
+  
+  // Generate contract
+  await page.getByTestId('generate-contract').click();
+  
+  // Wait for contract preview to appear
+  await expect(page.getByTestId('contract-preview')).toBeVisible({ timeout: 5000 });
+  
+  // Verify contract details are shown
+  const previewContent = await page.getByTestId('contract-preview').textContent();
+  expect(previewContent).toContain('Stages:');\  expect(previewContent).toContain('Par Score:');
+  expect(previewContent).toContain('Rewards:');
+  
+  // Verify contract start button exists
+  await expect(page.getByTestId('contract-start')).toBeVisible();
+  
+  // Note: We don't actually start the contract in this test as it would
+  // require completing all stages. This test validates the flow up to
+  // contract generation and preview.
+});

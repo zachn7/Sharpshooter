@@ -94,6 +94,13 @@ export function MainMenu() {
               title="Daily Challenge"
               description="Compete for the best score today"
             />
+            <MenuItem
+              to="/contracts"
+              testId="contracts-button"
+              icon={<Trophy size={24} />}
+              title="Contracts"
+              description="Mini-campaign runs with rewards"
+            />
           </div>
         </section>
 

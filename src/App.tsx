@@ -13,6 +13,8 @@ import { ZeroRange } from './pages/ZeroRange';
 import { DailyChallenge } from './pages/DailyChallenge';
 import { Drills } from './pages/Drills';
 import { Academy } from './pages/Academy';
+import { Contracts } from './pages/Contracts';
+import { ContractSummary } from './pages/ContractSummary';
 
 function InnerApp() {
   return (
@@ -70,6 +72,22 @@ function InnerApp() {
         element={
           <Layout>
             <Drills />
+          </Layout>
+        }
+      />
+      <Route
+        path="/contracts"
+        element={
+          <Layout>
+            <Contracts />
+          </Layout>
+        }
+      />
+      <Route
+        path="/contract-summary"
+        element={
+          <Layout>
+            <ContractSummary />
           </Layout>
         }
       />

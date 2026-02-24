@@ -3106,3 +3106,410 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
   opacity: 1;
   transform: none;
 }
+/* Contracts Page Styles */
+
+.contracts-content {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.contracts-intro {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+.contract-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.contract-selection h2 {
+  margin-bottom: 1rem;
+}
+
+.difficulty-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.difficulty-button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.difficulty-button.selected {
+  border-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.difficulty-indicator {
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  background: #888;
+}
+
+.difficulty-easy {
+  background: #4caf50;
+}
+
+.difficulty-medium {
+  background: #ff9800;
+}
+
+.difficulty-hard {
+  background: #f44336;
+}
+
+.difficulty-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.difficulty-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.difficulty-desc {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.contract-seed-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.contract-seed-input label {
+  font-weight: 600;
+}
+
+.form-input {
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  color: white;
+  font-size: 1rem;
+}
+
+.generate-button {
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.generate-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Contract Preview */
+.contract-preview {
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.contract-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.contract-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.contract-description {
+  margin-bottom: 1.5rem;
+  opacity: 0.9;
+}
+
+.contract-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.contract-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-label {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.detail-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.contract-rewards {
+  margin-bottom: 1.5rem;
+}
+
+.contract-rewards h4 {
+  margin-bottom: 0.75rem;
+}
+
+.reward-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 4px solid #888;
+}
+
+.reward-item.rarity-common {
+  border-left-color: #9e9e9e;
+}
+
+.reward-item.rarity-rare {
+  border-left-color: #2196f3;
+}
+
+.reward-item.rarity-epic {
+  border-left-color: #9c27b0;
+}
+
+.reward-item.rarity-legendary {
+  border-left-color: #ff9800;
+}
+
+.reward-icon {
+  font-size: 1.5rem;
+}
+
+.reward-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.reward-name {
+  font-weight: 600;
+}
+
+.reward-type {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  text-transform: capitalize;
+}
+
+/* Contract Summary */
+.contract-summary-content {
+  padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.summary-header {
+  text-align: center;
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.summary-header.completed {
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.2), rgba(139, 195, 74, 0.1));
+  border: 2px solid rgba(76, 175, 80, 0.5);
+}
+
+.summary-header.abandoned {
+  background: linear-gradient(135deg, rgba(244, 67, 54, 0.2), rgba(239, 83, 80, 0.1));
+  border: 2px solid rgba(244, 67, 54, 0.5);
+}
+
+.summary-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value_large {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stat-value_small {
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
+.shot-highlight {
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border-left: 4px solid;
+}
+
+.shot-highlight.best-shot {
+  border-left-color: #4caf50;
+}
+
+.shot-highlight.worst-shot {
+  border-left-color: #f44336;
+}
+
+.shot-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.shot-distance {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.shot-info {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.rewards-section {
+  margin-bottom: 2rem;
+}
+
+.rewards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.reward-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  border-left: 4px solid;
+}
+
+.reward-card.rarity-common {
+  border-left-color: #9e9e9e;
+}
+
+.reward-card.rarity-rare {
+  border-left-color: #2196f3;
+}
+
+.reward-card.rarity-epic {
+  border-left-color: #9c27b0;
+}
+
+.reward-card.rarity-legendary {
+  border-left-color: #ff9800;
+}
+
+.reward-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reward-desc {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.no-rewards {
+  text-align: center;
+  opacity: 0.7;
+  padding: 1rem;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.share-section {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.icon-button {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .contracts-content,
+  .contract-summary-content {
+    padding: 1rem;
+  }
+
+  .summary-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .contract-details {
+    grid-template-columns: 1fr 1fr;
+  }
+}
