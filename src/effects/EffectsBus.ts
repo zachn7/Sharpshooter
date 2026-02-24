@@ -77,7 +77,6 @@ export interface EffectsState {
   hitstop: {
     active: boolean;
     remainingTime: number; // milliseconds
-    startTime: number;    // timestamp
   };
   // Screen shake state
   shake: {
@@ -171,7 +170,6 @@ class EffectsBusClass {
       hitstop: {
         active: false,
         remainingTime: 0,
-        startTime: 0,
       },
       shake: {
         amplitude: 0,
@@ -310,14 +308,14 @@ class EffectsBusClass {
    */
   private processImpact(payload: ImpactPayload): void {
     // Hitstop (disabled by reduced motion)
+    // duration is in milliseconds, convert to seconds (e.g., 30ms = 0.03s)
     if (!this.reducedMotion) {
       const duration = Math.min(
         payload.duration ?? EFFECTS_CONFIG.DEFAULT_HITSTOP_DURATION,
         EFFECTS_CONFIG.MAX_HITSTOP_DURATION
-      );
+      ) / 1000; // Convert ms to seconds for update method
       this.state.hitstop.active = true;
       this.state.hitstop.remainingTime = duration;
-      this.state.hitstop.startTime = performance.now();
     }
 
     // Screen shake
@@ -360,10 +358,9 @@ class EffectsBusClass {
       const duration = Math.min(
         EFFECTS_CONFIG.DEFAULT_HITSTOP_DURATION * 1.5,
         EFFECTS_CONFIG.MAX_HITSTOP_DURATION
-      );
+      ) / 1000; // Convert ms to seconds for update method
       this.state.hitstop.active = true;
       this.state.hitstop.remainingTime = duration;
-      this.state.hitstop.startTime = performance.now();
     }
 
     // Stronger shake
@@ -511,21 +508,20 @@ class EffectsBusClass {
    * Update all effects for the current frame
    */
   update(deltaTime: number): number {
-    const currentTime = performance.now();
-
-    // Handle hitstop
+    // Handle hitstop (decrement remainingTime by deltaTime)
     if (this.state.hitstop.active) {
-      const elapsed = currentTime - this.state.hitstop.startTime;
-      if (elapsed >= this.state.hitstop.remainingTime) {
+      this.state.hitstop.remainingTime -= deltaTime;
+      if (this.state.hitstop.remainingTime <= 0) {
         this.state.hitstop.active = false;
+        this.state.hitstop.remainingTime = 0;
         this.timeScale = 1.0;
       } else {
         this.timeScale = 0.0; // Time stops during hitstop
-        return 0; // Return 0 to indicate no update needed
+        // Don't return early - still process shake/pulse/particles
       }
+    } else {
+      this.timeScale = 1.0;
     }
-
-    this.timeScale = 1.0;
 
     // Update screen shake with decay
     if (this.state.shake.amplitude > EFFECTS_CONFIG.MIN_SHAKE_AMPLITUDE) {
