@@ -3,7 +3,7 @@ import { type ReticleSkin } from './localStore';
 /**
  * Cosmetic Reticle Skins
  * 
- * Each skin has a unique colorway and may require an achievement to unlock.
+ * Each skin has a unique colorway and may require a pack completion or achievement to unlock.
  * Skins are purely visual - no gameplay advantage.
  */
 export const RETICLE_SKINS: ReticleSkin[] = [
@@ -16,11 +16,12 @@ export const RETICLE_SKINS: ReticleSkin[] = [
     colorSecondary: '#ffcdd2', // Light red
     thickness: 0, // Use setting
   },
+  // Pistols Pack skins
   {
     id: 'tactical-green',
     name: 'Tactical Green',
-    description: 'Military-inspired green reticle. Blends with forest environments.',
-    achievementId: 'sharpshooter', // Hit a bullseye
+    description: 'Military-inspired green reticle.',
+    achievementId: 'novice', // Complete 5 levels
     colorPrimary: '#4caf50', // Army green
     colorSecondary: '#c8e6c9', // Light green
     thickness: 0,
