@@ -29,7 +29,6 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    continue-on-error: true  # Allow 9 pre-existing EffectsBus test failures
     steps:
       - name: Checkout
         uses: actions/checkout@v4

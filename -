@@ -1,0 +1,8 @@
+
+> sharpshooter@1.1.0 test:e2e
+> playwright test
+
+
+Error: http://localhost:5173 is already used, make sure that nothing is running on the port/url or set reuseExistingServer:true in config.webServer.
+
+
