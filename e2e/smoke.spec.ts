@@ -1709,7 +1709,8 @@ test('contracts mode: generate and view contract summary', async ({ page }) => {
   
   // Verify contract details are shown
   const previewContent = await page.getByTestId('contract-preview').textContent();
-  expect(previewContent).toContain('Stages:');\  expect(previewContent).toContain('Par Score:');
+  expect(previewContent).toContain('Stages:');
+  expect(previewContent).toContain('Par Score:');
   expect(previewContent).toContain('Rewards:');
   
   // Verify contract start button exists
