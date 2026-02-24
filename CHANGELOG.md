@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.1.0 - 2026-02-23
+
+- Tutorial Academy: interactive lessons explaining HUD stats and aiming mechanics
+- Coach overlay (tutorial/Arcade) for suggested dial/hold from offsets
+- HUD readability: Basic vs Advanced + tap-to-explain glossary
+- Input polish: pointer capture, touch-action improvements, crisp DPR scaling
+- Visual identity + game-feel polish pass
+- Stabilized navigation and regression tests
+
 ## v1.0.0 - 2025-02-20
 
 - First playable release: levels + stars + progression

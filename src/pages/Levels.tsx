@@ -1,10 +1,12 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LEVEL_PACKS, getLevelsByPackWithUnlock, calculateStars, LEVELS } from '../data/levels';
 import { getLevelProgress, getPackStars, getPackMaxStars } from '../storage';
 import { Target, Lock, Star, Wind } from 'lucide-react';
 
 export function Levels() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const notice = location.state?.notice as string | undefined;
 
   const handleLevelClick = (levelId: string) => {
     navigate(`/game/${levelId}`);
@@ -59,6 +61,13 @@ export function Levels() {
         </Link>
         <h2>Levels</h2>
       </div>
+      
+      {/* Notice banner for when user is redirected from invalid route */}
+      {notice && (
+        <div className="notice-banner" data-testid="notice-banner">
+          {notice}
+        </div>
+      )}
       
       <div className="level-packs-container">
         {LEVEL_PACKS.map((pack) => {

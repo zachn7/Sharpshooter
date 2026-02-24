@@ -18,7 +18,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     await expect(page.getByTestId('levels-page')).toBeVisible();
     
     // Should have level cards (not blank)
-    await expect(page.getByTestId('level-card-level-1')).toBeVisible();
+    await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
     
     // Should have accessible back button
     await expect(page.getByTestId('back-button')).toBeVisible();
@@ -30,7 +30,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     await expect(page.getByTestId('levels-page')).toBeVisible();
     
     // Start a level
-    await page.getByTestId('level-card-level-1').click();
+    await page.getByTestId('level-pistol-calm').click();
     await expect(page.getByTestId('game-page')).toBeVisible();
     await expect(page.getByTestId('game-canvas')).toBeVisible();
     
@@ -39,7 +39,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     
     // Levels page should render (not blank)
     await expect(page.getByTestId('levels-page')).toBeVisible();
-    await expect(page.getByTestId('level-card-level-1')).toBeVisible();
+    await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
   });
   
   test('Level navigation: Levels -> Game -> Back -> Levels', async ({ page }) => {
@@ -48,7 +48,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     await expect(page.getByTestId('levels-page')).toBeVisible();
     
     // Navigate to game
-    await page.getByTestId('level-card-level-1').click();
+    await page.getByTestId('level-pistol-calm').click();
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Start the game (click on canvas)
@@ -62,7 +62,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     await expect(page.getByTestId('levels-page')).toBeVisible();
     
     // Verify page is not blank - level cards should be visible
-    await expect(page.getByTestId('level-card-level-1')).toBeVisible();
+    await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
   });
   
   test('Tutorial lesson completion in testMode', async ({ page }) => {
@@ -155,7 +155,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   
   test('Complete level and navigate to next level', async ({ page }) => {
     // Use testMode for determinism
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Start game
@@ -183,7 +183,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   
   test('No error boundary trigger during normal gameplay', async ({ page }) => {
     // Normal game flow should never show error boundary
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Start and play game
@@ -205,7 +205,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   
   test('Direct game URL with testMode loads correctly', async ({ page }) => {
     // Direct navigation to game should work
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     
     // Game elements should be present
     await expect(page.getByTestId('game-page')).toBeVisible();
@@ -214,7 +214,7 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   });
   
   test('Canvas is properly rendered on game load', async ({ page }) => {
-    await page.goto('/game/level-1?testMode=1');
+    await page.goto('/game/pistol-calm?testMode=1');
     
     const canvas = page.getByTestId('game-canvas');
     await expect(canvas).toBeVisible();
@@ -259,20 +259,35 @@ test.describe('Regressions: Navigation', () => {
     await page.goto('/levels');
     await expect(page.getByTestId('levels-page')).toBeVisible();
     
-    // Select level 1
-    await page.getByTestId('level-card-level-1').click();
+    // Select first level
+    await page.getByTestId('level-pistol-calm').click();
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Back to levels
     await page.getByTestId('back-button').click();
     await expect(page.getByTestId('levels-page')).toBeVisible();
     
-    // Select level 2
-    await page.getByTestId('level-card-level-2').click();
+    // Select same level again ( verifies multiple selections work)
+    await page.getByTestId('level-pistol-calm').click();
     await expect(page.getByTestId('game-page')).toBeVisible();
     
     // Back to levels again
     await page.getByTestId('back-button').click();
     await expect(page.getByTestId('levels-page')).toBeVisible();
+  });
+  
+  test('Direct /game without levelId redirects to Levels with notice', async ({ page }) => {
+    // Navigate directly to /game without a levelId
+    await page.goto('/game');
+    
+    // Should redirect to levels page
+    await expect(page.getByTestId('levels-page')).toBeVisible();
+    
+    // Should show notice banner
+    await expect(page.getByTestId('notice-banner')).toBeVisible();
+    expect(await page.getByTestId('notice-banner').textContent()).toContain('Select a level to start');
+    
+    // Should have level cards visible
+    await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
   });
 });

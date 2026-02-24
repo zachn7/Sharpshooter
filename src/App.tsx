@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { getGameSettings } from './storage/localStore';
 import { MainMenu } from './pages/MainMenu';
@@ -26,6 +26,16 @@ function InnerApp() {
             <MainMenu />
           </Layout>
         }
+      />
+      {/* Legacy route: /play redirects to /levels */}
+      <Route
+        path="/play"
+        element={<Navigate to="/levels" replace state={{ notice: "Select a level to start" }} />}
+      />
+      {/* Guard: /game without levelId redirects to /levels */}
+      <Route
+        path="/game"
+        element={<Navigate to="/levels" replace state={{ notice: "Select a level to start" }} />}
       />
       <Route
         path="/academy"
