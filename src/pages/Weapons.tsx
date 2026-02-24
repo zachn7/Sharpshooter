@@ -6,6 +6,11 @@ import { setSelectedWeapon, getSelectedWeaponId, setSelectedAmmoId, getSelectedA
 import { formatAmmoSummary } from '../physics/ammo';
 import { Lock, Check, Target, Gauge, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 
+// Helper to normalize a value to a 0-1 scale for bar display
+function normalizeToBar(value: number, min: number, max: number): number {
+  return Math.max(0, Math.min(1, (value - min) / (max - min)));
+}
+
 export function Weapons() {
   const [activeTab, setActiveTab] = useState<WeaponType>('pistol');
   const [selectedWeaponId, setSelectedWeaponIdState] = useState(() => getSelectedWeaponId());
@@ -63,6 +68,11 @@ export function Weapons() {
           const selectedAmmoId = selectedAmmoIdState[weapon.id] || getSelectedAmmoId(weapon.id);
           const weaponAmmoOptions = getAmmoByWeaponType(weapon.type);
           
+          // Calculate feel metrics for visual bars
+          const recoilScore = normalizeToBar(weapon.params.recoilKick, 0, 4); // 0-4 MIL range
+          const stabilityScore = 1 - normalizeToBar(weapon.params.swayScale || 0, 0, 1.5); // Higher = more stable
+          const precisionScore = 1 - normalizeToBar(weapon.params.precisionMoaAt100, 0, 5); // Higher = more precise
+          
           return (
             <div
               key={weapon.id}
@@ -95,6 +105,40 @@ export function Weapons() {
 
               {/* Weapon Description */}
               <p className="weapon-description">{weapon.description}</p>
+              
+              {/* Weapon Feel Bars (Stability/Recoil/Precision) */}
+              <div className="weapon-feel-bars" data-testid="weapon-feel-bars">
+                <div className="feel-bar-container">
+                  <span className="feel-label">Recoil</span>
+                  <div className="feel-bar-track">
+                    <div 
+                      className="feel-bar-fill recoil" 
+                      style={{ width: `${recoilScore * 100}%` }}
+                      title={`Recoil: ${(recoilScore * 100).toFixed(0)}%`}
+                    />
+                  </div>
+                </div>
+                <div className="feel-bar-container">
+                  <span className="feel-label">Stability</span>
+                  <div className="feel-bar-track">
+                    <div 
+                      className="feel-bar-fill stability" 
+                      style={{ width: `${stabilityScore * 100}%` }}
+                      title={`Stability: ${(stabilityScore * 100).toFixed(0)}%`}
+                    />
+                  </div>
+                </div>
+                <div className="feel-bar-container">
+                  <span className="feel-label">Precision</span>
+                  <div className="feel-bar-track">
+                    <div 
+                      className="feel-bar-fill precision" 
+                      style={{ width: `${precisionScore * 100}%` }}
+                      title={`Precision: ${(precisionScore * 100).toFixed(0)}%`}
+                    />
+                  </div>
+                </div>
+              </div>
               
               {/* Weapon Stats */}
               {weapon.unlocked && (

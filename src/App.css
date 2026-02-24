@@ -2571,6 +2571,56 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
   line-height: var(--line-height-normal);
 }
 
+/* Weapon Feel Bars */
+.weapon-feel-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-background-secondary);
+  border-radius: var(--radius-md);
+}
+
+.feel-bar-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.feel-label {
+  min-width: 70px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.feel-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-background-primary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.feel-bar-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: var(--radius-sm);
+}
+
+.feel-bar-fill.recoil {
+  background: linear-gradient(90deg, #10b98120%, #ef4444 100%);
+}
+
+.feel-bar-fill.stability {
+  background: linear-gradient(90deg, #f59e0b 0%, #10b981 100%);
+}
+
+.feel-bar-fill.precision {
+  background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%);
+}
+
 .weapon-stats {
   display: flex;
   flex-direction: column;
