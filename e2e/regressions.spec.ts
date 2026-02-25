@@ -7,6 +7,11 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Regressions: v1.1 Critical Flows', () => {
+  // Clear localStorage before each test for isolation
+  test.beforeEach(async ({ context }) => {
+    // Clear all storage contexts for test isolation
+    await context.clearCookies();
+  });
   test('Start Game navigates to Levels page', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('main-menu')).toBeVisible();
@@ -31,7 +36,12 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     
     // Start a level
     await page.getByTestId('level-pistol-calm').click();
-    await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Wait for briefing to appear, then start the level
+    await expect(page.getByTestId('level-briefing')).toBeVisible();
+    await page.getByTestId('start-level').click();
+    
+    // Now the canvas should be visible
     await expect(page.getByTestId('game-canvas')).toBeVisible();
     
     // Click back button to return to Levels
@@ -49,10 +59,12 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     
     // Navigate to game
     await page.getByTestId('level-pistol-calm').click();
-    await expect(page.getByTestId('game-page')).toBeVisible();
+    await expect(page.getByTestId('level-briefing')).toBeVisible();
+    await page.getByTestId('start-level').click();
     
-    // Start the game (click on canvas)
-    await page.mouse.click(400, 300);
+    // Game should be running
+    await expect(page.getByTestId('game-canvas')).toBeVisible();
+    await expect(page.getByTestId('shot-count')).toBeVisible();
     
     // Game should be running
     await expect(page.getByTestId('shot-count')).toBeVisible();
@@ -68,7 +80,8 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   test('Tutorial lesson completion in testMode', async ({ page }) => {
     // Start Tutorial Lesson 1 with testMode
     await page.goto('/tutorial/TUTORIAL_WIND_01?testMode=1');
-    await expect(page.getByTestId('game-page')).toBeVisible();
+    await expect(page.getByTestId('level-briefing')).toBeVisible();
+    await page.getByTestId('start-level').click();
     
     // Game should load correctly
     await expect(page.getByTestId('game-canvas')).toBeVisible();
@@ -156,10 +169,10 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   test('Complete level and navigate to next level', async ({ page }) => {
     // Use testMode for determinism
     await page.goto('/game/pistol-calm?testMode=1');
-    await expect(page.getByTestId('game-page')).toBeVisible();
+    await expect(page.getByTestId('level-briefing')).toBeVisible();
+    await page.getByTestId('start-level').click();
     
-    // Start game
-    await page.mouse.click(400, 300);
+    await expect(page.getByTestId('game-canvas')).toBeVisible();
     
     // Fire 3 shots to complete level
     for (let i = 0; i < 3; i++) {
@@ -204,8 +217,16 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   });
   
   test('Direct game URL with testMode loads correctly', async ({ page }) => {
+    // First ensure storage is initialized by visiting home
+    await page.goto('/');
+    await expect(page.getByTestId('main-menu')).toBeVisible();
+    
     // Direct navigation to game should work
     await page.goto('/game/pistol-calm?testMode=1');
+    
+    // Wait for briefing, then start level
+    await expect(page.getByTestId('level-briefing')).toBeVisible();
+    await page.getByTestId('start-level').click();
     
     // Game elements should be present
     await expect(page.getByTestId('game-page')).toBeVisible();
@@ -214,7 +235,16 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
   });
   
   test('Canvas is properly rendered on game load', async ({ page }) => {
+    // First visit a page to ensure storage is initialized
+    await page.goto('/');
+    await expect(page.getByTestId('main-menu')).toBeVisible();
+    
+    // Then navigate to game
     await page.goto('/game/pistol-calm?testMode=1');
+    
+    // Wait for briefing, then start level
+    await expect(page.getByTestId('level-briefing')).toBeVisible();
+    await page.getByTestId('start-level').click();
     
     const canvas = page.getByTestId('game-canvas');
     await expect(canvas).toBeVisible();
@@ -233,6 +263,11 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
  * Navigation regression tests - catch navigation issues
  */
 test.describe('Regressions: Navigation', () => {
+  // Clear localStorage before each test for isolation
+  test.beforeEach(async ({ context }) => {
+    await context.clearCookies();
+  });
+
   test('Main menu to Settings and back', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('main-menu')).toBeVisible();

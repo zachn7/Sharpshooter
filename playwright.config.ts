@@ -5,16 +5,29 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Use specified workers env var (default to 2 in CI for speed, or use detected CPU count)
+  workers: process.env.PWTEST_WORKERS ? parseInt(process.env.PWTEST_WORKERS) : (process.env.CI ? 2 : undefined),
   reporter: 'html',
+  // Global timeout for each test
+   timeout: 30 * 1000, // 30 seconds per test
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    // Capture screenshots only on failure
+    screenshot: 'only-on-failure',
+    // Capture video only on failure in CI
+    video: process.env.CI ? 'retain-on-failure' : 'off',
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        // Force test mode for determinism
+        launchOptions: {
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        }
+      },
     },
   ],
   webServer: {

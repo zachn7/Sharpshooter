@@ -195,9 +195,10 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   if (tutorialLessonId) {
     try {
       tutorialScenario = generateTutorialScenario(tutorialLessonId);
-      weaponId = tutorialScenario.weaponId;
+      weaponId = tutorialScenario.weaponId || weaponId; // Use tutorial weapon if available, otherwise keep default
     } catch (error) {
       console.error('Failed to load tutorial scenario:', error);
+      // Keep the default weaponId that was set above
     }
   }
   const [turretState, setTurretState] = useState<TurretState>(() => getTurretState(weaponId));
@@ -339,8 +340,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const plates = useMemo(() => level?.targets || [], [level?.targets]);
   const targetMode = level?.targetMode || 'bullseye';
   
-  // Load weapon data
-  const weapon = getWeaponById(weaponId) || getWeaponById(DEFAULT_WEAPON_ID);
+  // Load weapon data - ensure we always have a valid weapon
+  const weapon = getWeaponById(weaponId || DEFAULT_WEAPON_ID) || getWeaponById(DEFAULT_WEAPON_ID);
   
   // Load selected ammo for weapon (or use tutorial ammo)
   let effectiveAmmo;
