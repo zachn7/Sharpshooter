@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { getGameSettings } from './storage/localStore';
 import { MainMenu } from './pages/MainMenu';
@@ -16,6 +16,22 @@ import { Academy } from './pages/Academy';
 import { Contracts } from './pages/Contracts';
 import { ContractSummary } from './pages/ContractSummary';
 
+// Tutorial route redirect component
+// Redirects /tutorial/:id to /game/:id with query params preserved and tutorialId added
+function TutorialRedirect() {
+  const { tutorialId } = useParams();
+  const location = useLocation();
+  
+  // Build new search params with tutorialId added
+  const newSearchParams = new URLSearchParams(location.search);
+  newSearchParams.set('tutorialId', tutorialId || '');
+  
+  // Preserve all query params (testMode, seed, dateOverride, etc.) and add tutorialId
+  const to = { pathname: `/game/${tutorialId}`, search: newSearchParams.toString() };
+  
+  return <Navigate to={to} replace />;
+}
+
 function InnerApp() {
   return (
     <Routes>
@@ -26,6 +42,11 @@ function InnerApp() {
             <MainMenu />
           </Layout>
         }
+      />
+      {/* Tutorial route alias - redirects to game with proper params */}
+      <Route
+        path="/tutorial/:tutorialId"
+        element={<TutorialRedirect />}
       />
       {/* Legacy route: /play redirects to /levels */}
       <Route
