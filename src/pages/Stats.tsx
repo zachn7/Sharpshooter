@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+
 import { getPlayerStats } from '../storage';
 
 export function Stats() {
@@ -26,12 +26,7 @@ export function Stats() {
 
   return (
     <div className="page" data-testid="stats-page">
-      <div className="page-header">
-        <Link to="/" className="back-button" data-testid="back-button">
-          ← Back
-        </Link>
-        <h2>Player Statistics</h2>
-      </div>
+      <h2>Player Statistics</h2>
 
       <div className="stats-container">
         <div className="stats-section" data-testid="stats-accuracy">

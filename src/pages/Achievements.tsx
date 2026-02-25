@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+
 import { getPlayerAchievements, getUnlockedAchievementIds } from '../storage';
 import { ACHIEVEMENT_DEFINITIONS, getAchievementsByType } from '../storage/achievements';
 import { type AchievementType } from '../storage';
@@ -12,12 +12,7 @@ export function Achievements() {
 
   return (
     <div className="page" data-testid="achievements-page">
-      <div className="page-header">
-        <Link to="/" className="back-button" data-testid="back-button">
-          ← Back
-        </Link>
-        <h2>Achievements & Cosmetics</h2>
-      </div>
+      <h2>Achievements & Cosmetics</h2>
 
       <div className="achievements-container">
         <div className="achievements-summary" data-testid="achievements-summary">
