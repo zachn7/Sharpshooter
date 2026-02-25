@@ -11,7 +11,10 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:preflight": "playwright test e2e/regressions.spec.ts --project=chromium",
+    "test:e2e:ci": "playwright test --project=chromium",
+    "test:e2e:full": "playwright test"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
