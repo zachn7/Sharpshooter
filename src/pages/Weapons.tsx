@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { getWeaponsByType, type WeaponType } from '../data/weapons';
 import { getAmmoByWeaponType } from '../data/ammo';
 import { setSelectedWeapon, getSelectedWeaponId, setSelectedAmmoId, getSelectedAmmoId } from '../storage';
@@ -41,12 +40,7 @@ export function Weapons() {
 
   return (
     <div className="weapons-page" data-testid="weapons-page">
-      <div className="page-header">
-        <Link to="/" className="back-button" data-testid="back-button">
-          ← Back
-        </Link>
-        <h2>Weapons</h2>
-      </div>
+      <h2>Weapons</h2>
       
       <div className="weapon-tabs">
         {weaponTypes.map((type) => (

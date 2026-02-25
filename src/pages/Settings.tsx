@@ -284,12 +284,7 @@ export function Settings() {
   if (!settings) {
     return (
       <div className="settings-page page-transition" data-testid="settings-page">
-        <div className="page-header">
-          <Link to="/" className="back-button" data-testid="back-button">
-            ← Back
-          </Link>
-          <h2>Settings</h2>
-        </div>
+        <h2>Settings</h2>
         <div className="settings-container">
           <p>Loading settings...</p>
         </div>
@@ -299,12 +294,7 @@ export function Settings() {
 
   return (
     <div className="settings-page" data-testid="settings-page">
-      <div className="page-header">
-        <Link to="/" className="back-button" data-testid="back-button">
-          ← Back
-        </Link>
-        <h2>Settings</h2>
-      </div>
+      <h2>Settings</h2>
 
       <div className="settings-container">
         {/* Realism Presets Section */}

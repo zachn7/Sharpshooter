@@ -1,4 +1,4 @@
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LEVEL_PACKS, getLevelsByPackWithUnlock, calculateStars, LEVELS } from '../data/levels';
 import { getLevelProgress, getPackStars, getPackMaxStars } from '../storage';
 import { Target, Lock, Star, Wind } from 'lucide-react';
@@ -55,12 +55,7 @@ export function Levels() {
 
   return (
     <div className="levels-page page-transition" data-testid="levels-page">
-      <div className="page-header">
-        <Link to="/" className="back-button" data-testid="back-button">
-          ← Back
-        </Link>
-        <h2>Levels</h2>
-      </div>
+      <h2>Levels</h2>
       
       {/* Notice banner for when user is redirected from invalid route */}
       {notice && (
