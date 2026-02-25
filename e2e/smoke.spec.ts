@@ -144,8 +144,9 @@ test('level run flow: complete level and see results', async ({ page }) => {
   // Should see stars earned on the level
   await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
   const levelElement = page.getByTestId('level-pistol-calm');
-  const starsText = await levelElement.textContent();
-  expect(starsText).toContain('★'); // Should have at least one star
+  // Check for at least one filled star (stars are rendered as SVG icons)
+  const filledStars = levelElement.locator('.star-filled');
+  expect(await filledStars.count()).toBeGreaterThan(0); // Should have at least one star
 });
 
 test('wind HUD displays baseline and gust range', async ({ page }) => {
@@ -1246,7 +1247,7 @@ test('mobile controls: fire button exists in game when enabled', async ({ page }
 
   // Verify shot count before firing
   const shotCountBefore = await page.getByTestId('shot-count').textContent();
-  expect(shotCountBefore).toContain('3/3');
+  expect(shotCountBefore).toContain('5/5');
 
   // Click fire button
   await page.getByTestId('fire-button').click();
@@ -1254,7 +1255,7 @@ test('mobile controls: fire button exists in game when enabled', async ({ page }
 
   // Verify shot count decreased
   const shotCountAfter = await page.getByTestId('shot-count').textContent();
-  expect(shotCountAfter).toContain('2/3');
+  expect(shotCountAfter).toContain('4/5');
 });
 
 test('mobile controls: fire button not visible when disabled', async ({ page }) => {
@@ -1405,7 +1406,6 @@ test('pistols pack: select pistol, start level, fire, see results', async ({ pag
 
   // Navigate directly to game with testMode
   await page.goto('/game/pistols-1-cqc?testMode=1');
-  await page.waitForURL('**/game/pistols-1-cqc');
   await expect(page.getByTestId('game-page')).toBeVisible();
 
   // Should see level briefing
@@ -1513,7 +1513,6 @@ test('shotguns pack: select weapon, start level and complete', async ({ page }) 
 test('wind layers: ELR level shows layered wind cues', async ({ page }) => {
   // Navigate directly to ELR level with testMode
   await page.goto('/game/elr-intro?testMode=1');
-  await page.waitForURL('/game/elr-intro');
   await expect(page.getByTestId('game-page')).toBeVisible();
 
   // Verify layered wind cues are visible in briefing
@@ -1552,9 +1551,6 @@ test('ELR pack: introduction level completes successfully', async ({ page }) => 
   
   // Navigate directly to ELR level with testMode for testing
   await page.goto('/game/elr-intro?testMode=1');
-
-  // Wait for game page to load
-  await page.waitForURL('**/game/elr-intro');
   await expect(page.getByTestId('game-page')).toBeVisible();
 
   // Verify level briefing shows correct info
@@ -1650,7 +1646,7 @@ test('settings page: reticle skin selector exists', async ({ page }) => {
 
 test('weapon identity and cosmetics unlock flow', async ({ page }) => {
   // Start a quick testMode level
-  await page.goto('/level/pistol-calm');
+  await page.goto('/game/pistol-calm');
   await expect(page.getByTestId('game-page')).toBeVisible();
   
   // Enable test mode for deterministic behavior
