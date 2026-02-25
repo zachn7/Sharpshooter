@@ -278,7 +278,7 @@ export function getContractById(id: string): Contract | undefined {
     if (stored) {
       return JSON.parse(stored);
     }
-  } catch (_e) {
+  } catch {
     // Ignore parse errors
   }
   return undefined;
@@ -290,7 +290,7 @@ export function getContractById(id: string): Contract | undefined {
 export function saveContract(contract: Contract): void {
   try {
     localStorage.setItem(`contract-${contract.id}`, JSON.stringify(contract));
-  } catch (_e) {
+  } catch {
     // Ignore storage errors
   }
 }

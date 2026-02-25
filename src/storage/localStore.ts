@@ -722,6 +722,7 @@ export function loadGameSave(): GameSave | null {
 export function saveGameSave(save: GameSave): boolean {
   try {
     if (!validateGameSave(save)) {
+      console.error('[Storage] saveGameSave failed: invalid save data');
       return false;
     }
     
@@ -733,7 +734,8 @@ export function saveGameSave(save: GameSave): boolean {
     storage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     storage.setItem(VERSION_KEY, CURRENT_SCHEMA_VERSION.toString());
     return true;
-  } catch {
+  } catch (error) {
+    console.error('[Storage] saveGameSave failed:', error);
     return false;
   }
 }
