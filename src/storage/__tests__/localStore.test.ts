@@ -1100,7 +1100,7 @@ describe('localStore', () => {
   describe('reticle settings', () => {
     it('returns default reticle settings for new save', () => {
       const settings = getGameSettings();
-      expect(settings.reticle.style).toBe('mil');
+      expect(settings.reticle.style).toBe('simple');
       expect(settings.reticle.thickness).toBe(2);
       expect(settings.reticle.centerDot).toBe(true);
     });

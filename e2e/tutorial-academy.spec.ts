@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/base';
 
 test.describe('Tutorial Academy', () => {
   test('complete Lesson 1 flow end-to-end', async ({ page }) => {
