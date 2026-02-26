@@ -398,9 +398,8 @@ test('level unlock progression: next level unlocks on star', async ({ page }) =>
   await page.waitForURL('**/levels');
 
   // Second level should now be unlocked
-  await expect(page.getByTestId('level-pistol-windy')).toBeVisible();
   const pistolWindyAfter = page.getByTestId('level-pistol-windy');
-  const windyTextAfter = await pistolWindyAfter.textContent();
+  await expect(pistolWindyAfter).toBeVisible();
   await expect(pistolWindyAfter).not.toHaveClass(/\blocked\b/); // Should not be locked
 });
 

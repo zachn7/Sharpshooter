@@ -9,7 +9,7 @@ import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
 import { DRILLS, generateDrillScenario, type DrillScenario } from '../data/drills';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, type TurretState } from '../storage';
+import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, type TurretState, type GameSettings } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, recommendDialFromOffset, type DialRecommendation } from '../utils/turret';
 import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
@@ -1720,16 +1720,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
           ← Back
         </button>
-        <h2>{level.name}</h2>
+        <h2>{isZeroRange ? 'Zero Range' : level?.name ?? 'Unknown Level'}</h2>
         <div className="game-stats" data-testid={settings.hudMode === 'basic' ? 'hud-basic' : 'hud-advanced'}>
           <span className="stat" data-testid="shot-count">
             {isZeroRange && shotLimitMode === 'unlimited'
               ? 'Shots: ∞'
               : isZeroRange && shotLimitMode === 'three'
               ? `Shots: ${shotCount}/3`
-              : `Shots: ${shotCount}/${level.maxShots}`}
+              : `Shots: ${shotCount}/${level?.maxShots ?? 10}`}
           </span>
-          <span className="stat">Score: {!isZeroRange ? impacts.reduce((sum, i) => sum + i.score, 0) : impacts.reduce((sum, i) => sum + i.score, 0)}</span>
+          <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
           {timeRemaining !== null && (
             <span className="stat" data-testid="timer">
               Time: <span className={timeRemaining <= 5 ? 'timer-warning' : ''}>{
@@ -1943,12 +1943,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       )}
       
       <div className="level-info-bar" data-testid="level-info-bar">
-        <span>Weapon: {weapon.name}</span>
+        <span>Weapon: {weapon?.name ?? 'Unknown Weapon'}</span>
         {effectiveAmmo && (
           <span data-testid="ammo-name">Ammo: {effectiveAmmo.name}</span>
         )}
-        <span data-testid="hud-distance">{level.distanceM}m</span>
-        <span>Range: {level.difficulty}</span>
+        <span data-testid="hud-distance">{level?.distanceM ?? 100}m</span>
+        <span>Range: {level?.difficulty ?? 'Easy'}</span>
         {targetMode === 'plates' && plates.length > 0 && (
           <span data-testid="plate-hit-count">
             Plate Hits: {Object.values(plateHits).reduce((sum, count) => sum + count, 0)}/{impacts.filter(i => i.plateId).length}

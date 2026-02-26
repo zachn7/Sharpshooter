@@ -4,8 +4,8 @@ import { test as base, expect } from '@playwright/test';
  * Base fixture that clears storage before each test to ensure test isolation.
  * Prevents settings leakage between tests when running in parallel.
  */
-export const test = base.extend<{}, { clearStorage: void }>({
-  clearStorage: [async ({}, use) => {
+export const test = base.extend<object, object>({
+  clearStorage: [async (_ctx, use) => {
     // This runs before each test
     await use();
   }],
