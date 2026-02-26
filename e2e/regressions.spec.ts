@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/base';
 
 /**
  * Regression tests for v1.1 critical user flows.

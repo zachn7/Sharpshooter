@@ -538,7 +538,7 @@ function createDefaultSave(): GameSave {
         recordShotPath: false,
       },
       reticle: {
-        style: 'mil',
+        style: 'simple',
         thickness: 2,
         centerDot: true,
       },

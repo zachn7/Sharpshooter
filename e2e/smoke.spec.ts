@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/base';
 
 test('smoke test: navigate through pages', async ({ page }) => {
   // Start at main menu
@@ -375,10 +375,9 @@ test('level unlock progression: next level unlocks on star', async ({ page }) =>
   await expect(page.getByTestId('level-pistol-calm')).toBeVisible();
   await expect(page.getByTestId('level-pistol-windy')).toBeVisible();
   
-  // Check that pistol-windy is locked (has lock icon)
+  // Check that pistol-windy is locked (has locked class)
   const pistolWindy = page.getByTestId('level-pistol-windy');
-  const windyText = await pistolWindy.textContent();
-  expect(windyText).toContain('🔒');
+  await expect(pistolWindy).toHaveClass(/\blocked\b/);
 
   // Complete first level
   await page.getByTestId('level-pistol-calm').click();
@@ -402,7 +401,7 @@ test('level unlock progression: next level unlocks on star', async ({ page }) =>
   await expect(page.getByTestId('level-pistol-windy')).toBeVisible();
   const pistolWindyAfter = page.getByTestId('level-pistol-windy');
   const windyTextAfter = await pistolWindyAfter.textContent();
-  expect(windyTextAfter).not.toContain('🔒'); // Should not have lock icon
+  await expect(pistolWindyAfter).not.toHaveClass(/\blocked\b/); // Should not be locked
 });
 
 test('zeroing profile: save and return to zero', async ({ page }) => {
@@ -459,7 +458,7 @@ test('zero range: shot limit mode toggle persists', async ({ page }) => {
   });
 
   // Go to zero range
-  await page.goto('/zero-range');
+  await page.goto('/zero');
   await expect(page.getByTestId('zero-range-page')).toBeVisible();
   await expect(page.getByTestId('zero-range-controls')).toBeVisible();
 
@@ -536,10 +535,11 @@ test('impact offset readout and arcade assist', async ({ page }) => {
     localStorage.clear();
   });
 
-  // Set Arcade preset in settings
+  // Set Arcade preset in settings and switch to Advanced HUD mode
   await page.getByTestId('settings-button').click();
   await page.waitForURL('**/settings');
   await page.getByTestId('preset-arcade').click();
+  await page.getByTestId('hud-mode-advanced').click();
   await page.waitForTimeout(100);
 
   // Go to game with deterministic seed

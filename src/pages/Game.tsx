@@ -203,7 +203,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }
   const [turretState, setTurretState] = useState<TurretState>(() => getTurretState(weaponId));
   
-  const settings = useState(() => getGameSettings())[0];
+  const [settings, setSettings] = useState<GameSettings>(() => getGameSettings());
   const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
   // Get test seed from URL params for deterministic testing
@@ -1024,14 +1024,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     navigate('/levels');
   }, [navigate]);
 
-  // Cycle through reticle styles
+  // Cycle through reticle styles (simple <-> mil in-game toggle)
   const handleReticleStyleCycle = useCallback(() => {
     const currentStyle = settings.reticle.style;
-    const styles: Array<'simple' | 'mil' | 'tree'> = ['simple', 'mil', 'tree'];
-    const currentIndex = styles.indexOf(currentStyle as 'simple' | 'mil' | 'tree');
+    // Toggle between simple and mil (tree is not implemented for in-game)
+    const styles: Array<'simple' | 'mil'> = ['simple', 'mil'];
+    const currentIndex = styles.indexOf(currentStyle as 'simple' | 'mil');
     if (currentIndex === -1) return;
     const nextIndex = (currentIndex + 1) % styles.length;
-    updateGameSettings({ reticle: { ...settings.reticle, style: styles[nextIndex] } });
+    const updated = updateGameSettings({ reticle: { ...settings.reticle, style: styles[nextIndex] } });
+    setSettings(updated.settings);
     if (!audioIsTestMode()) {
       AudioManager.playSound('click');
     }
@@ -1499,7 +1501,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
             ← Back
           </button>
-          <h2>{level.name}</h2>
+          <h2>{isZeroRange ? 'Zero Range' : level.name}</h2>
         </div>
         
         <div className="game-container">
@@ -1687,7 +1689,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     );
   }
 
-  if (!level || !weapon) {
+  // ZeroRange mode doesn't require a level
+  if (!isZeroRange && (!level || !weapon)) {
     return (
       <div className="game-page page-transition" data-testid="game-page">
         <div className="game-header">
@@ -1722,9 +1725,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           <span className="stat" data-testid="shot-count">
             {isZeroRange && shotLimitMode === 'unlimited'
               ? 'Shots: ∞'
+              : isZeroRange && shotLimitMode === 'three'
+              ? `Shots: ${shotCount}/3`
               : `Shots: ${shotCount}/${level.maxShots}`}
           </span>
-          <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
+          <span className="stat">Score: {!isZeroRange ? impacts.reduce((sum, i) => sum + i.score, 0) : impacts.reduce((sum, i) => sum + i.score, 0)}</span>
           {timeRemaining !== null && (
             <span className="stat" data-testid="timer">
               Time: <span className={timeRemaining <= 5 ? 'timer-warning' : ''}>{
