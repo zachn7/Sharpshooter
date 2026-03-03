@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LESSONS, LESSON_CATEGORIES, getLessonsByCategory } from '../data/lessons';
 import LessonOverlay from '../components/LessonOverlay';
 import type { Lesson } from '../data/lessons';
@@ -62,8 +62,13 @@ export function Academy() {
     }
   };
 
+  const [searchParams] = useSearchParams();
+  const isTestMode = searchParams.get('testMode') === '1' || searchParams.get('testMode') === 'true';
+
   // Check if lesson is locked (prerequisite not completed)
+  // In testMode, all lessons are unlocked
   const isLessonLocked = (lesson: Lesson): boolean => {
+    if (isTestMode) return false; // Unlock all lessons in testMode
     if (!lesson.prerequisite) return false;
     return !completedLessons.includes(lesson.prerequisite);
   };

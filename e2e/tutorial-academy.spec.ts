@@ -111,21 +111,21 @@ test.describe('Tutorial Academy', () => {
   });
 
   test('Lesson 3 shows Coach card and applies correction', async ({ page }) => {
-    // Start at academy
-    await page.goto('/academy');
+    // Start at academy with testMode to unlock all lessons
+    await page.goto('/academy?testMode=1');
     
     // Click on Turret Clicks lesson (Lesson 3)
     await page.getByTestId('lesson-turret-clicks').click();
     await expect(page.getByTestId('lesson-overlay')).toBeVisible();
     
-    // Navigate to practice step
+    // Navigate to practice step (action button, not Got It button)
     await page.getByText('Next').click();
     await page.getByText('Next').click();
-    await page.getByText('Next').click();
-    await expect(page.getByText('Practice')).toBeVisible();
+    await page.getByText('Next').click(); // One more to get to practice step
     
-    // Start practice game
-    await page.getByRole('button', { name: /Start interactive practice/ }).click();
+    // Start practice game - click the action button (green button with action text)
+    // The button text is whatever currentStep.action is, or 'Practice' as default
+    await page.getByRole('button', { name: /Practice/i }).click();
     await expect(page).toHaveURL(/.*\/game\/tutorial\?tutorialId=lesson-turret-clicks.*/);
     await expect(page.getByTestId('game-page')).toBeVisible();
     
@@ -189,6 +189,10 @@ test.describe('HUD Readability', () => {
     // Start a game directly with a simple level (testMode for determinism)
     await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Start the level first
+    await page.getByTestId('start-level').click();
+    await expect(page.getByTestId('game-canvas')).toBeVisible();
     
     // Basic HUD should be visible
     await expect(page.getByTestId('hud-basic')).toBeVisible();
@@ -276,6 +280,10 @@ test.describe('Input Polish', () => {
   test('canvas is properly sized', async ({ page }) => {
     await page.goto('/game/pistol-calm?testMode=1');
     await expect(page.getByTestId('game-page')).toBeVisible();
+    
+    // Start the level first
+    await page.getByTestId('start-level').click();
+    await expect(page.getByTestId('game-canvas')).toBeVisible();
     
     const canvas = page.getByTestId('game-canvas');
     
