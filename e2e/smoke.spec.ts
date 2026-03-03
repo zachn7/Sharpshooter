@@ -1270,20 +1270,31 @@ test('shotguns pack: select weapon, start level and complete', async ({ page }) 
   expect(hasPellets).toBe('true');
 
   // Fire remaining shots at the clay targets
-  if (box) {
-    // Aim at top clay
-    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 - 50 } });
+  // Stop when results screen appears (level completion)
+  let shotsFired = 1;
+  const boxRect = await box; // Cache the box dimensions
+  while (shotsFired <= 5 && !(await page.getByTestId('results-screen').isVisible())) {
+    if (!boxRect) break;
+
+    // Re-get canvas before each click in case page has changed
+    const canvas = page.getByTestId('game-canvas');
+    const isVisible = await canvas.isVisible().catch(() => false);
+    if (!isVisible) {
+      // Canvas is gone, likely results screen showed
+      break;
+    }
+    
+    if (shotsFired < 4) {
+      // Aim at different positions for first few shots
+      const yOffset = (shotsFired - 1) * 50 - 50;  // -50, 0, +50
+      await canvas.click({ position: { x: boxRect.width / 2, y: boxRect.height / 2 + yOffset } });
+    } else {
+      // Last 2 shots at center
+      await canvas.click({ position: { x: boxRect.width / 2, y: boxRect.height / 2 } });
+    }
+    
     await page.waitForTimeout(100);
-    // Aim at middle clay (center)
-    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
-    await page.waitForTimeout(100);
-    // Aim at bottom clay
-    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 + 50 } });
-    await page.waitForTimeout(100);
-    // Fire 3 more shots to complete the level
-    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
-    await page.waitForTimeout(100);
-    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    shotsFired++;
   }
 
   // Should see results screen after completing the level
@@ -1428,13 +1439,13 @@ test('settings page: reticle skin selector exists', async ({ page }) => {
 
 
 test('weapon identity and cosmetics unlock flow', async ({ page }) => {
-  // Start a quick testMode level
-  await page.goto('/game/pistol-calm');
+  //Start a quick testMode level with testMode parameter
+  await page.goto('/game/pistol-calm?testMode=1');
   await expect(page.getByTestId('game-page')).toBeVisible();
   
-  // Enable test mode for deterministic behavior
-  await page.getByTestId('test-mode-toggle').click();
-  await expect(page.getByTestId('test-mode-indicator')).toBeVisible();
+  // Start the level (click Start Mission button)
+  await page.getByTestId('start-level').click();
+  await expect(page.getByTestId('game-canvas')).toBeVisible();
   
   // Complete the level (hit the target once)
   const gameCanvas = page.getByTestId('game-canvas');

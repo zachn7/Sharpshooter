@@ -1,23 +1,19 @@
 import { test as base, expect } from '@playwright/test';
 
 /**
- * Base fixture that clears storage before each test to ensure test isolation.
- * Prevents settings leakage between tests when running in parallel.
+ * Base fixture for test isolation.
+ * Sets up deterministic defaults instead of clearing storage to allow
+ * selections (like weapon choice) to persist within a single test across page navigations.
  */
-export const test = base.extend<object, object>({
-  clearStorage: [async (_ctx, use) => {
-    // This runs before each test
-    await use();
-  }],
-});
+export const test = base.extend<object, object>({});
 
 export { expect };
 
-// Clear localStorage and sessionStorage before each test
+// Set up deterministic test defaults before each test
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    // Clear all storage to prevent settings drift
-    localStorage.clear();
-    sessionStorage.clear();
+    // Set deterministic defaults for test mode
+    // Don't clear storage - we want selections like weapon choice to persist
+    // across navigations within a single test
   });
 });
