@@ -67,6 +67,8 @@ jobs:
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
+    env:
+      CI: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,3 +90,13 @@ jobs:
 
       - name: Run E2E tests
         run: npm run test:e2e
+
+      - name: Upload Playwright artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
