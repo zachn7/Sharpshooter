@@ -2,11 +2,25 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { LEVEL_PACKS, getLevelsByPackWithUnlock, calculateStars, LEVELS } from '../data/levels';
 import { getLevelProgress, getPackStars, getPackMaxStars } from '../storage';
 import { Target, Lock, Star, Wind } from 'lucide-react';
+import { isE2E, setE2EMode } from '../utils/testMode';
 
 export function Levels() {
   const navigate = useNavigate();
   const location = useLocation();
   const notice = location.state?.notice as string | undefined;
+
+  // Parse query params
+  const urlParams = new URLSearchParams(location.search);
+  const packParam = urlParams.get('pack');
+  const expandParam = urlParams.get('expand');
+
+  // Persist test mode state
+  if (isE2E()) {
+    setE2EMode(true);
+  }
+
+  // Determine which packs to show
+  const shouldExpandAll = isE2E() || expandParam === '1' || expandParam === 'true';
 
   const handleLevelClick = (levelId: string) => {
     navigate(`/game/${levelId}`);
@@ -53,6 +67,20 @@ export function Levels() {
 
   const allLevelIds = LEVELS.map(l => l.id);
 
+  // Filter packs based on query params or E2E mode
+  const visiblePacks = LEVEL_PACKS.filter((pack) => {
+    // In E2E mode, show all packs (deterministic)
+    if (shouldExpandAll) {
+      return true;
+    }
+    // If packParam specified, only show that pack
+    if (packParam) {
+      return pack.id === packParam;
+    }
+    // Default: show all packs
+    return true;
+  });
+
   return (
     <div className="levels-page page-transition" data-testid="levels-page">
       <h2>Levels</h2>
@@ -65,7 +93,7 @@ export function Levels() {
       )}
       
       <div className="level-packs-container">
-        {LEVEL_PACKS.map((pack) => {
+        {visiblePacks.map((pack) => {
           const levels = getLevelsByPackWithUnlock(pack.id, allLevelIds, getLevelProgress);
           const earnedStars = getPackStars(pack.levels);
           const maxStars = getPackMaxStars(pack.levels);
