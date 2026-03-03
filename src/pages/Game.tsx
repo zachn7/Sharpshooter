@@ -203,7 +203,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }
   const [turretState, setTurretState] = useState<TurretState>(() => getTurretState(weaponId));
   
-  const [settings, setSettings] = useState<GameSettings>(() => getGameSettings());
+  const [settings, setSettings] = useState<GameSettings>(() => {
+    const baseSettings = getGameSettings();
+    // In testMode, auto-configure advanced HUD for consistent testing
+    if (isTestModeEnabled(searchParams) && baseSettings.realismPreset === 'expert' && baseSettings.hudMode !== 'advanced') {
+      return { ...baseSettings, hudMode: 'advanced' };
+    }
+    return baseSettings;
+  });
   const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
   // Get test seed from URL params for deterministic testing

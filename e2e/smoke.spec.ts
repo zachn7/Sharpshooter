@@ -1385,8 +1385,8 @@ test('stats page: displays correctly', async ({ page }) => {
   await expect(page.getByTestId('stats-progress')).toBeVisible();
   await expect(page.getByTestId('stats-playtime')).toBeVisible();
 
-  // Check back button
-  await expect(page.getByTestId('stats-page').getByTestId('back-button')).toBeVisible();
+  // Check back button (in Layout header, not in stats-page)
+  await expect(page.getByTestId('back-button')).toBeVisible();
 });
 
 test('achievements page: displays correctly', async ({ page }) => {
@@ -1410,8 +1410,8 @@ test('achievements page: displays correctly', async ({ page }) => {
   // Check cosmetics section
   await expect(page.getByText(/Reticle Skins/i)).toBeVisible();
 
-  // Check back button
-  await expect(page.getByTestId('achievements-page').getByTestId('back-button')).toBeVisible();
+  // Check back button (in Layout header, not in achievements-page)
+  await expect(page.getByTestId('back-button')).toBeVisible();
 });
 
 test('settings page: reticle skin selector exists', async ({ page }) => {
