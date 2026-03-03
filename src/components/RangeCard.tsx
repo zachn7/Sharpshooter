@@ -43,7 +43,7 @@ export function RangeCard({ rangeCard, className = '' }: RangeCardProps) {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.shotNumber}>
+              <tr key={row.shotNumber} data-testid={`shot-row-${row.shotNumber}`}>
                 <td>#{row.shotNumber}</td>
                 <td>{row.windUsed}</td>
                 <td>{row.dials}</td>

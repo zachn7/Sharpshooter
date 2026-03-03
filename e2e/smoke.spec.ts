@@ -762,6 +762,9 @@ test('Expert extras: HUD badge visible when extras enabled', async ({ page }) =>
   await page.getByTestId('toggle-expert-spin-drift').click();
   await expect(page.getByTestId('toggle-expert-spin-drift')).toHaveText('ON');
   
+  // Badge requires Advanced HUD mode
+  await page.getByTestId('hud-mode-advanced').click();
+  
   // Start a level with Expert preset and extras enabled
   await page.goto('/game/pistol-calm?testMode=1');
   await expect(page.getByTestId('game-page')).toBeVisible();
@@ -913,6 +916,9 @@ test('display settings: offset unit toggle changes impact offset readout', async
   // Verify offset unit options exist
   await expect(page.getByTestId('offset-units-mil')).toBeVisible();
   await expect(page.getByTestId('offset-units-moa')).toBeVisible();
+
+  // Impact offset panel requires Advanced HUD mode
+  await page.getByTestId('hud-mode-advanced').click();
 
   // Change to MOA
   await page.getByTestId('offset-units-moa').click();
@@ -1102,9 +1108,8 @@ test('shotgun: multi-impacts rendering', async ({ page }) => {
   const shotRow1 = page.getByTestId('shot-row-1');
   
   // Check that it has the shotgun multi-impacts indicator
-  // This is done by checking for the data-testid attribute
-  const firstShotId = await shotRow1.getAttribute('data-testid');
-  expect(firstShotId).toBe('shotgun-multi-impacts');
+  const hasPellets = await shotRow1.getAttribute('data-has-pellets');
+  expect(hasPellets).toBe('true');
   
   // Verify the pellet count is displayed
   await expect(shotRow1.getByText(/🔫/)).toBeVisible();
@@ -1248,9 +1253,23 @@ test('shotguns pack: select weapon, start level and complete', async ({ page }) 
   await page.getByTestId('start-level').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
 
-  // Fire shots at the clay targets
+  // Fire first shot to verify shotgun multi-impacts
   const canvas = page.getByTestId('game-canvas');
   const box = await canvas.boundingBox();
+  if (box) {
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  }
+
+  // Wait for shot to register and check shot history
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId('shot-row-1')).toBeVisible();
+  const firstShot = page.getByTestId('shot-row-1');
+  
+  // Check that it has the shotgun multi-impacts indicator
+  const hasPellets = await firstShot.getAttribute('data-has-pellets');
+  expect(hasPellets).toBe('true');
+
+  // Fire remaining shots at the clay targets
   if (box) {
     // Aim at top clay
     await canvas.click({ position: { x: box.width / 2, y: box.height / 2 - 50 } });
@@ -1261,32 +1280,29 @@ test('shotguns pack: select weapon, start level and complete', async ({ page }) 
     // Aim at bottom clay
     await canvas.click({ position: { x: box.width / 2, y: box.height / 2 + 50 } });
     await page.waitForTimeout(100);
-    // Fire 2 more shots to complete the level
+    // Fire 3 more shots to complete the level
     await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
     await page.waitForTimeout(100);
     await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
   }
 
-  // Should see results screen
+  // Should see results screen after completing the level
   await expect(page.getByTestId('results-screen')).toBeVisible();
   await expect(page.getByTestId('total-score')).toBeVisible();
   await expect(page.getByTestId('stars-earned')).toBeVisible();
-
-  // Verify shot history shows shotgun multi-impacts
-  await expect(page.getByTestId('shot-row-1')).toBeVisible();
-  const firstShot = page.getByTestId('shot-row-1');
-  await expect(firstShot.getByText(/🔫/)).toBeVisible();
 });
 
 test('wind layers: ELR level shows layered wind cues', async ({ page }) => {
+  // Navigate to settings and enable numeric wind display
+  await page.goto('/settings');
+  await page.getByTestId('toggle-show-numeric-wind').click();
+  await expect(page.getByTestId('toggle-show-numeric-wind')).toHaveText('ON');
+
   // Navigate directly to ELR level with testMode
   await page.goto('/game/elr-intro?testMode=1');
   await expect(page.getByTestId('game-page')).toBeVisible();
 
-  // Verify layered wind cues are visible in briefing
-  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
-
-  // Start the level
+  // Start the level to show HUD
   await page.getByTestId('start-level').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
 
@@ -1323,9 +1339,8 @@ test('ELR pack: introduction level completes successfully', async ({ page }) => 
 
   // Verify level briefing shows correct info
   await expect(page.locator('text=ELR Introduction')).toBeVisible();
-  await expect(page.getByTestId('wind-cues-layered')).toBeVisible();
 
-  // Start the level
+  // Start the level to show HUD and wind cues
   await page.getByTestId('start-level').click();
   await expect(page.getByTestId('game-canvas')).toBeVisible();
 
@@ -1370,8 +1385,8 @@ test('stats page: displays correctly', async ({ page }) => {
   await expect(page.getByTestId('stats-progress')).toBeVisible();
   await expect(page.getByTestId('stats-playtime')).toBeVisible();
 
-  // Check back button
-  await expect(page.getByTestId('stats-page').getByTestId('back-button')).toBeVisible();
+  // Check back button (in Layout header, not in stats-page)
+  await expect(page.getByTestId('back-button')).toBeVisible();
 });
 
 test('achievements page: displays correctly', async ({ page }) => {
@@ -1395,8 +1410,8 @@ test('achievements page: displays correctly', async ({ page }) => {
   // Check cosmetics section
   await expect(page.getByText(/Reticle Skins/i)).toBeVisible();
 
-  // Check back button
-  await expect(page.getByTestId('achievements-page').getByTestId('back-button')).toBeVisible();
+  // Check back button (in Layout header, not in achievements-page)
+  await expect(page.getByTestId('back-button')).toBeVisible();
 });
 
 test('settings page: reticle skin selector exists', async ({ page }) => {

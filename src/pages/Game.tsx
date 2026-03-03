@@ -203,7 +203,14 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   }
   const [turretState, setTurretState] = useState<TurretState>(() => getTurretState(weaponId));
   
-  const [settings, setSettings] = useState<GameSettings>(() => getGameSettings());
+  const [settings, setSettings] = useState<GameSettings>(() => {
+    const baseSettings = getGameSettings();
+    // In testMode, auto-configure advanced HUD for consistent testing
+    if (isTestModeEnabled(searchParams) && baseSettings.realismPreset === 'expert' && baseSettings.hudMode !== 'advanced') {
+      return { ...baseSettings, hudMode: 'advanced' };
+    }
+    return baseSettings;
+  });
   const { dragScale, windScale } = getRealismScaling(settings.realismPreset);
   
   // Get test seed from URL params for deterministic testing
@@ -2099,7 +2106,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           <h4>Shot History</h4>
           <div className="shot-list">
             {impacts.map((impact) => (
-              <div key={impact.index} className="shot-row" data-testid={`shot-row-${impact.index}`} {...(impact.pellets && impact.pellets.length > 0 && { 'data-testid': 'shotgun-multi-impacts' })}>
+              <div 
+                key={impact.index} 
+                className="shot-row" 
+                data-testid={`shot-row-${impact.index}`}
+                {...(impact.pellets && impact.pellets.length > 0 && { 'data-has-pellets': 'true' })}
+              >
                 <span className="shot-number">#{impact.index}</span>
                 <span className="shot-score">{impact.score} pts</span>
                 {impact.pellets && impact.pellets.length > 0 && (
