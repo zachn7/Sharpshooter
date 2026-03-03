@@ -121,6 +121,24 @@ describe('levels data validation', () => {
     expect(found).toEqual(testPack);
   });
 
+  describe('Pistol Basics pack', () => {
+    it('Pistol Basics pack exists and contains pistol-windy level', () => {
+      const pistolBasics = getPackById('pistol-basics');
+      expect(pistolBasics).toBeDefined();
+      expect(pistolBasics?.levels).toContain('pistol-calm');
+      expect(pistolBasics?.levels).toContain('pistol-windy');
+    });
+
+    it('pistol-windy level exists with correct properties', () => {
+      const windyLevel = getLevelById('pistol-windy');
+      expect(windyLevel).toBeDefined();
+      expect(windyLevel?.packId).toBe('pistol-basics');
+      expect(windyLevel?.name).toBe('Windy Day');
+      expect(windyLevel?.id).toBe('pistol-windy');
+      expect(windyLevel?.windMps).toBeGreaterThan(0); // Should have wind
+    });
+  });
+
   describe('ELR pack', () => {
     it('ELR pack exists with correct properties', () => {
       const elrPack = getPackById('elr-pack');
