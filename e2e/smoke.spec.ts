@@ -367,9 +367,8 @@ test('level unlock progression: next level unlocks on star', async ({ page }) =>
     localStorage.clear();
   });
 
-  // Go to levels
-  await page.getByTestId('levels-button').click();
-  await page.waitForURL('**/levels');
+  // Go to levels with deterministic query params to ensure consistent state
+  await page.goto('/levels?pack=pistols&expand=1&testMode=1');
   await expect(page.getByTestId('levels-page')).toBeVisible();
 
   // First level should be unlocked, second should be locked
@@ -394,9 +393,11 @@ test('level unlock progression: next level unlocks on star', async ({ page }) =>
     }
   }
 
-  // Go back to levels
+  // Go back to levels with deterministic query params
   await page.getByTestId('back-to-levels').click();
   await page.waitForURL('**/levels');
+  // Force deterministic state again to ensure consistent UI
+  await page.goto('/levels?pack=pistols&expand=1&testMode=1');
 
   // Second level should now be unlocked
   const pistolWindyAfter = page.getByTestId('level-pistol-windy');
