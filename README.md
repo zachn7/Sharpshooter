@@ -226,6 +226,8 @@ npm run dev
 
 Open http://localhost:5173 in your browser.
 
+> **Safari users:** If `localhost` doesn't work, try http://127.0.0.1:5173 or http://[::1]:5173
+
 ### Build
 
 ```bash
