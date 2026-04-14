@@ -1,3 +1,5 @@
+import { getPreviousPackInProgression, isPackUnlockedByDefault } from './engagements';
+
 // Level difficulty tiers
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
 
@@ -17,6 +19,7 @@ export interface LevelEnvironment {
 
 // Target mode type
 export type TargetMode = 'bullseye' | 'plates';
+export type TargetType = 'plate' | 'bottle' | 'can' | 'steel' | 'dummy' | 'clay';
 
 // Individual plate target for 'plates' mode
 export interface PlateTarget {
@@ -26,6 +29,7 @@ export interface PlateTarget {
   radiusM: number;            // Radius in meters
   points: number;             // Points for hitting this plate
   label?: string;             // Optional label (e.g., "A1", "B2")
+  targetType?: TargetType;    // Visual target type for challenge variety
   // Moving target parameters
   moving?: {
     speedMps: number;         // Speed in meters per second
@@ -339,11 +343,11 @@ export const LEVELS: Level[] = [
   {
     id: 'pistols-5-timed-string',
     packId: 'pistols',
-    name: 'Timed String',
-    description: 'Hit 5 plates under time pressure. Speed and precision combined.',
+    name: 'Bottle Break',
+    description: 'Three bottles, three shots. Read the hold and smash all three for the clean run.',
     difficulty: 'medium',
     requiredWeaponType: 'pistol',
-    distanceM: 35,
+    distanceM: 30,
     env: { temperatureC: 18, altitudeM: 200 },
     windMps: 2,
     gustMps: 1,
@@ -351,16 +355,14 @@ export const LEVELS: Level[] = [
     gravityMps2: 9.80665,
     targetMode: 'plates',
     targets: [
-      { id: 'p5-1', centerY_M: 0.05, centerZ_M: -0.05, radiusM: 0.04, points: 3 },
-      { id: 'p5-2', centerY_M: -0.03, centerZ_M: -0.02, radiusM: 0.04, points: 3 },
-      { id: 'p5-3', centerY_M: 0.02, centerZ_M: 0.06, radiusM: 0.04, points: 3 },
-      { id: 'p5-4', centerY_M: -0.06, centerZ_M: 0.03, radiusM: 0.04, points: 3 },
-      { id: 'p5-5', centerY_M: 0.04, centerZ_M: -0.08, radiusM: 0.04, points: 3 },
+      { id: 'p5-1', centerY_M: 0.02, centerZ_M: -0.10, radiusM: 0.035, points: 3, targetType: 'bottle', label: 'Bottle 1' },
+      { id: 'p5-2', centerY_M: -0.03, centerZ_M: 0, radiusM: 0.035, points: 3, targetType: 'bottle', label: 'Bottle 2' },
+      { id: 'p5-3', centerY_M: 0.04, centerZ_M: 0.10, radiusM: 0.035, points: 3, targetType: 'bottle', label: 'Bottle 3' },
     ],
     targetScale: 1.0,
-    maxShots: 10,
-    timerSeconds: 45,
-    starThresholds: { one: 12, two: 21, three: 30 },
+    maxShots: 3,
+    timerSeconds: 30,
+    starThresholds: { one: 3, two: 6, three: 9 },
     unlocked: true,
   },
   {
@@ -377,10 +379,10 @@ export const LEVELS: Level[] = [
     gravityMps2: 9.80665,
     targetMode: 'plates',
     targets: [
-      { id: 'p6-1', centerY_M: 0.08, centerZ_M: -0.04, radiusM: 0.045, points: 2 },
-      { id: 'p6-2', centerY_M: -0.07, centerZ_M: 0.05, radiusM: 0.045, points: 2 },
-      { id: 'p6-3', centerY_M: 0.02, centerZ_M: 0.08, radiusM: 0.045, points: 2 },
-      { id: 'p6-4', centerY_M: -0.05, centerZ_M: -0.06, radiusM: 0.045, points: 2 },
+      { id: 'p6-1', centerY_M: 0.08, centerZ_M: -0.04, radiusM: 0.045, points: 2, targetType: 'can', label: 'Can A' },
+      { id: 'p6-2', centerY_M: -0.07, centerZ_M: 0.05, radiusM: 0.045, points: 2, targetType: 'can', label: 'Can B' },
+      { id: 'p6-3', centerY_M: 0.02, centerZ_M: 0.08, radiusM: 0.045, points: 2, targetType: 'can', label: 'Can C' },
+      { id: 'p6-4', centerY_M: -0.05, centerZ_M: -0.06, radiusM: 0.045, points: 2, targetType: 'can', label: 'Can D' },
     ],
     targetScale: 1.0,
     maxShots: 8,
@@ -454,9 +456,9 @@ export const LEVELS: Level[] = [
     gravityMps2: 9.80665,
     targetMode: 'plates',
     targets: [
-      { id: 'p10-1', centerY_M: 0.1, centerZ_M: 0, radiusM: 0.06, points: 4, label: 'A' },
-      { id: 'p10-2', centerY_M: 0, centerZ_M: 0.1, radiusM: 0.06, points: 4, label: 'B' },
-      { id: 'p10-3', centerY_M: -0.1, centerZ_M: 0, radiusM: 0.06, points: 4, label: 'C' },
+      { id: 'p10-1', centerY_M: 0.1, centerZ_M: 0, radiusM: 0.06, points: 4, label: 'Dummy A', targetType: 'dummy' },
+      { id: 'p10-2', centerY_M: 0, centerZ_M: 0.1, radiusM: 0.06, points: 4, label: 'Dummy B', targetType: 'dummy' },
+      { id: 'p10-3', centerY_M: -0.1, centerZ_M: 0, radiusM: 0.06, points: 4, label: 'Dummy C', targetType: 'dummy' },
     ],
     targetScale: 0.9,
     maxShots: 9,
@@ -493,12 +495,12 @@ export const LEVELS: Level[] = [
     distanceM: 100,
     targetMode: 'plates',
     targets: [
-      { id: 'p1', centerY_M: 0, centerZ_M: -0.2, radiusM: 0.1, points: 5, label: 'A1' },
-      { id: 'p2', centerY_M: 0, centerZ_M: 0, radiusM: 0.1, points: 5, label: 'A2' },
-      { id: 'p3', centerY_M: 0, centerZ_M: 0.2, radiusM: 0.1, points: 5, label: 'A3' },
-      { id: 'p4', centerY_M: 0.15, centerZ_M: -0.2, radiusM: 0.08, points: 8, label: 'B1' },
-      { id: 'p5', centerY_M: 0.15, centerZ_M: 0.2, radiusM: 0.08, points: 8, label: 'B3' },
-      { id: 'p6', centerY_M: 0.3, centerZ_M: 0, radiusM: 0.06, points: 10, label: 'C2' },
+      { id: 'p1', centerY_M: 0, centerZ_M: -0.2, radiusM: 0.1, points: 5, label: 'Steel 1', targetType: 'steel' },
+      { id: 'p2', centerY_M: 0, centerZ_M: 0, radiusM: 0.1, points: 5, label: 'Steel 2', targetType: 'steel' },
+      { id: 'p3', centerY_M: 0, centerZ_M: 0.2, radiusM: 0.1, points: 5, label: 'Steel 3', targetType: 'steel' },
+      { id: 'p4', centerY_M: 0.15, centerZ_M: -0.2, radiusM: 0.08, points: 8, label: 'Can L', targetType: 'can' },
+      { id: 'p5', centerY_M: 0.15, centerZ_M: 0.2, radiusM: 0.08, points: 8, label: 'Can R', targetType: 'can' },
+      { id: 'p6', centerY_M: 0.3, centerZ_M: 0, radiusM: 0.06, points: 10, label: 'Bottle', targetType: 'bottle' },
     ],
     windMps: 3,
     gustMps: 1,
@@ -824,9 +826,9 @@ export const LEVELS: Level[] = [
     gravityMps2: 9.80665,
     targetMode: 'plates',
     targets: [
-      { id: 'clay1', centerY_M: 0, centerZ_M: 0, radiusM: 0.25, points: 10, label: 'Clay 1' },
-      { id: 'clay2', centerY_M: 0.15, centerZ_M: 0, radiusM: 0.25, points: 10, label: 'Clay 2' },
-      { id: 'clay3', centerY_M: -0.15, centerZ_M: 0, radiusM: 0.25, points: 10, label: 'Clay 3' },
+      { id: 'clay1', centerY_M: 0, centerZ_M: 0, radiusM: 0.25, points: 10, label: 'Clay 1', targetType: 'clay' },
+      { id: 'clay2', centerY_M: 0.15, centerZ_M: 0, radiusM: 0.25, points: 10, label: 'Clay 2', targetType: 'clay' },
+      { id: 'clay3', centerY_M: -0.15, centerZ_M: 0, radiusM: 0.25, points: 10, label: 'Clay 3', targetType: 'clay' },
     ],
     maxShots: 5,
     starThresholds: { one: 15, two: 25, three: 30 },
@@ -1474,28 +1476,54 @@ export function getPackById(id: string): LevelPack | undefined {
 // This function requires getLevelProgress to be passed as a parameter to avoid circular imports
 export function getLevelsByPackWithUnlock(
   packId: string,
-  allLevelIds: string[],
+  _allLevelIds: string[],
   getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
 ): Level[] {
-  return getLevelsByPack(packId).map(level => ({
+  const packLevels = getLevelsByPack(packId);
+  const packUnlocked = isPackAvailable(packId, getLevelProgress);
+
+  return packLevels.map((level, index) => ({
     ...level,
-    unlocked: allLevelIds.indexOf(level.id) === 0 || 
-              checkPreviousLevelUnlocked(level.id, allLevelIds, getLevelProgress)
+    unlocked: packUnlocked && isLevelUnlockedWithinPack(packLevels, index, getLevelProgress),
   }));
 }
 
-// Internal helper to check if previous level is unlocked
-function checkPreviousLevelUnlocked(
-  levelId: string,
-  allLevelIds: string[],
+function isLevelUnlockedWithinPack(
+  packLevels: Level[],
+  levelIndex: number,
   getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
 ): boolean {
-  const currentIndex = allLevelIds.indexOf(levelId);
-  if (currentIndex <= 0) return true;
-  
-  const previousLevelId = allLevelIds[currentIndex - 1];
-  const previousProgress = getLevelProgress(previousLevelId);
+  if (levelIndex === 0) {
+    return true;
+  }
+
+  const previousLevel = packLevels[levelIndex - 1];
+  const previousProgress = getLevelProgress(previousLevel.id);
   return (previousProgress?.stars ?? 0) >= 1;
+}
+
+function isPackCompleted(
+  packId: string,
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+): boolean {
+  const levels = getLevelsByPack(packId);
+  return levels.length > 0 && levels.every((level) => (getLevelProgress(level.id)?.stars ?? 0) >= 1);
+}
+
+function isPackAvailable(
+  packId: string,
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+): boolean {
+  if (isPackUnlockedByDefault(packId)) {
+    return true;
+  }
+
+  const previousPackId = getPreviousPackInProgression(packId);
+  if (!previousPackId) {
+    return false;
+  }
+
+  return isPackCompleted(previousPackId, getLevelProgress);
 }
 
 // Calculate stars earned (0-3) from score
@@ -1515,11 +1543,9 @@ export function getLevelWithUnlockStatus(
   const level = getLevelById(levelId);
   if (!level) return undefined;
   
-  // Get all level IDs to determine index
-  const allLevelIds = LEVELS.map(l => l.id);
-  
-  // Dynamically determine unlock status from storage
-  const unlocked = checkPreviousLevelUnlocked(levelId, allLevelIds, getLevelProgress);
+  const packLevels = getLevelsByPack(level.packId);
+  const levelIndex = packLevels.findIndex((packLevel) => packLevel.id === levelId);
+  const unlocked = isPackAvailable(level.packId, getLevelProgress) && isLevelUnlockedWithinPack(packLevels, levelIndex, getLevelProgress);
   
   return { ...level, unlocked };
 }

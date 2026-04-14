@@ -16,6 +16,8 @@ import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type Magnificatio
 import { samplePelletImpacts, type ShotgunPatternConfig, type PelletImpact } from '../physics/shotgun';
 import { TutorialOverlay } from '../components/TutorialOverlay';
 import { generateTutorialScenario, getTutorialLevel, getTutorialSeed } from '../data/tutorialScenarios';
+import { clampToViewport, createZoomedViewport } from '../game/viewport';
+import { drawTargetShape } from '../game/targetRendering';
 import { RangeCard } from '../components/RangeCard';
 import { ReplayViewer } from '../components/ReplayViewer';
 import { AudioManager, initAudioOnInteraction, isTestMode as audioIsTestMode } from '../audio';
@@ -361,8 +363,25 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     effectiveAmmo = selectedAmmo || (weapon ? getAmmoByWeaponType(weapon.type).find(a => a.name.includes('Match')) || null : null);
   }
   
-  // Target configuration based on level's targetScale
-  const targetConfig = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+  const viewportConfig = useMemo(() => createZoomedViewport(
+    WORLD_WIDTH,
+    WORLD_HEIGHT,
+    canvasDisplaySize.width,
+    canvasDisplaySize.height,
+    magnification
+  ), [canvasDisplaySize.height, canvasDisplaySize.width, magnification]);
+
+  const targetConfig = useMemo(() => {
+    const baseTarget = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+    const scale = level?.targetScale || 1;
+    return {
+      ...baseTarget,
+      rings: baseTarget.rings.map((ring) => ({
+        ...ring,
+        radius: ring.radius * scale,
+      })),
+    };
+  }, [level?.targetScale]);
 
   // Handle canvas resize with DPR-aware sizing
   useEffect(() => {
@@ -433,12 +452,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         y: event.clientY - rect.top,
       };
 
-      const worldPoint = canvasToWorld(canvasPoint, {
-        worldWidth: WORLD_WIDTH,
-        worldHeight: WORLD_HEIGHT,
-        canvasWidth: canvasDisplaySize.width,
-        canvasHeight: canvasDisplaySize.height,
-      });
+      const worldPoint = clampToViewport(canvasToWorld(canvasPoint, viewportConfig), viewportConfig);
 
       // Apply aim smoothing if enabled
       if (aimSmootherRef.current) {
@@ -447,7 +461,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       } else {
         setReticlePosition({ x: worldPoint.x, y: worldPoint.y });
       }
-    }, [canvasDisplaySize.width, canvasDisplaySize.height]);
+    }, [viewportConfig]);
 
   // Convert physics path (Vec3[]) to telemetry path (PathPoint[])
   // Physics uses: x=downrange, y=up, z=right
@@ -618,48 +632,38 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       // Generate pellet offsets
       const pellets: PelletImpact[] = samplePelletImpacts(shotgunConfig);
       
-      // Add pellet offsets to base impact position
-      const baseX = impactX;
-      const baseY = impactY;
-      
+      const shotgunPlateHitCounts: Record<string, number> = {};
       shotgunPellets = pellets.map(pellet => {
-        // Convert pellet offset from meters to canvas pixels
-        const pelletOffsetX = (pellet.dZ / level.distanceM) * (canvasDisplaySize.width / 2); // Z = horizontal on canvas
-        const pelletOffsetY = -(pellet.dY / level.distanceM) * (canvasDisplaySize.height / 2); // Y = vertical, inverted
-        
-        const pelletCanvasX = baseX + pelletOffsetX;
-        const pelletCanvasY = baseY + pelletOffsetY;
-        
-        // Calculate pellet score based on target mode
+        const pelletImpactY = finalImpactY + pellet.dY;
+        const pelletImpactZ = finalImpactZ + pellet.dZ;
+        const pelletWorldX = WORLD_WIDTH / 2 + pelletImpactZ;
+        const pelletWorldY = WORLD_HEIGHT / 2 - pelletImpactY;
+
         let pelletScore = 0;
         if (targetMode === 'plates' && plates.length > 0) {
-          // Calculate pellet score using plate detection (direct in coordinate space)
-          const pelletResult = findHitPlate({ y_M: finalImpactY + pellet.dY, z_M: finalImpactZ + pellet.dZ }, plates);
+          const pelletResult = findHitPlate({ y_M: pelletImpactY, z_M: pelletImpactZ }, plates);
           pelletScore = pelletResult.points;
+          if (pelletResult.plate) {
+            shotgunPlateHitCounts[pelletResult.plate.id] = (shotgunPlateHitCounts[pelletResult.plate.id] || 0) + 1;
+          }
         } else {
-          // Bullseye mode
-          pelletScore = calculateRingScore({ x: pelletCanvasX, y: pelletCanvasY }, targetConfig);
+          pelletScore = calculateRingScore({ x: pelletWorldX, y: pelletWorldY }, targetConfig);
         }
-        
-        return { x: pelletCanvasX, y: pelletCanvasY, score: pelletScore };
+
+        return { x: pelletWorldX, y: pelletWorldY, score: pelletScore };
       });
       
       // Calculate overall score for shotgun: use best pellet for bullseye, sum for plates
       if (targetMode === 'plates') {
         score = shotgunPellets ? shotgunPellets.reduce((sum, p) => sum + p.score, 0) : 0;
-        // Track plate hits from pellets
-        const pellets = shotgunPellets;
-        if (pellets) {
-          plates.forEach(plate => {
-            const pelletHitCount = pellets.filter(p => p.score > 0).length;
-            if (pelletHitCount > 0) {
-              const plateId = plate.id;
-              setPlateHits(prev => {
-                const hits = { ...prev };
-                hits[plateId] = (hits[plateId] || 0) + pelletHitCount;
-                return hits;
-              });
-            }
+        const hitEntries = Object.entries(shotgunPlateHitCounts);
+        if (hitEntries.length > 0) {
+          setPlateHits(prev => {
+            const hits = { ...prev };
+            hitEntries.forEach(([hitPlateId, pelletHitCount]) => {
+              hits[hitPlateId] = (hits[hitPlateId] || 0) + pelletHitCount;
+            });
+            return hits;
           });
         }
       } else {
@@ -720,12 +724,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     // Add impact animation for visual feedback (if not reduced motion)
     if (!settings.vfx.reducedMotion) {
       // Convert impact world position to canvas coordinates for animation
-      const viewportConfig = {
-        worldWidth: WORLD_WIDTH,
-        worldHeight: WORLD_HEIGHT,
-        canvasWidth: canvasDisplaySize.width,
-        canvasHeight: canvasDisplaySize.height,
-      };
       const canvasPoint = worldToCanvas({ x: impact.x, y: impact.y }, viewportConfig);
       
       setImpactAnimations(prev => [...prev, {
@@ -865,10 +863,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     settings.expertCoriolisEnabled,
     settings.vfx.recordShotPath,
     settings.arcadeCoachEnabled,
-    canvasDisplaySize.width,
-    canvasDisplaySize.height,
     tutorialLessonId,
     convertPhysicsPath,
+    viewportConfig,
   ]);
 
   // Start level handler
@@ -1092,8 +1089,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     const startTime = performance.now();
 
     const draw = (timestamp: number) => {
-      // Apply DPR scaling
-      ctx.scale(dpr, dpr);
+      // Reset transform every frame so DPR scaling does not stack forever.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       
       // Calculate time in seconds for animations (frame-rate independent)
       const timeS = (timestamp - startTime) / 1000;
@@ -1101,13 +1098,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       // Clear canvas (use display size, not device pixel size)
       ctx.fillStyle = '#1a1a2e';
       ctx.fillRect(0, 0, canvasDisplaySize.width, canvasDisplaySize.height);
-
-      const viewportConfig = {
-        worldWidth: WORLD_WIDTH,
-        worldHeight: WORLD_HEIGHT,
-        canvasWidth: canvasDisplaySize.width,
-        canvasHeight: canvasDisplaySize.height,
-      };
 
       // Draw wind cues (flags and mirage) if there's any wind
       if (level && settings.showHud) {
@@ -1174,21 +1164,10 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             { x: WORLD_WIDTH / 2 + plate.centerZ_M, y: WORLD_HEIGHT / 2 - plate.centerY_M },
             viewportConfig
           );
-          const radiusPixels = plate.radiusM * (canvasDisplaySize.width / WORLD_WIDTH);
-
-          // Draw plate circle
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(center.x, center.y, radiusPixels, 0, Math.PI * 2);
-          ctx.stroke();
-
-          // Fill with semi-transparent red if hit
+          const radiusPixels = plate.radiusM * (canvasDisplaySize.width / viewportConfig.worldWidth);
           const hitCount = plateHits[plate.id] || 0;
-          if (hitCount > 0) {
-            ctx.fillStyle = 'rgba(255, 68, 68, 0.3)';
-            ctx.fill();
-          }
+
+          drawTargetShape(ctx, plate, center.x, center.y, radiusPixels, hitCount);
 
           // Draw plate label
           if (plate.label) {
@@ -1218,7 +1197,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             { x: targetConfig.centerX, y: targetConfig.centerY },
             viewportConfig
           );
-          const radiusPixels = ring.radius * (canvasDisplaySize.width / WORLD_WIDTH) * (level?.targetScale || 1);
+          const radiusPixels = ring.radius * (canvasDisplaySize.width / viewportConfig.worldWidth);
 
           // Alternate colors for rings
           const ringIndex = targetConfig.rings.findIndex((r) => r.radius === ring.radius);
@@ -1405,7 +1384,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     // Start the animation loop with initial timestamp
     const animationId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animationId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     canvasDisplaySize,
     impacts,
@@ -1415,6 +1393,15 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     magnification,
     settings.showHud,
     settings.reticle,
+    settings.vfx.reducedMotion,
+    impactAnimations,
+    plates,
+    plateHits,
+    targetMode,
+    viewportConfig,
+    dpr,
+    testSeed,
+    windScale,
   ]);
 
   // Setup press-and-hold handlers for turret buttons (only when game is running)
@@ -1502,6 +1489,22 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   // Show briefing screen
   if (gameState === 'briefing' && level && weapon) {
+    const missionObjective = isZeroRange
+      ? 'Use this range to confirm zero, test holds, and build confidence before real stages.'
+      : targetMode === 'plates'
+        ? `Hit the marked targets before you run out of ${level.maxShots} shot${level.maxShots === 1 ? '' : 's'}.`
+        : `Score as many points as possible in ${level.maxShots} shot${level.maxShots === 1 ? '' : 's'}.`;
+
+    const preShotChecklist = [
+      settings.showNumericWind
+        ? 'Check the wind panel before firing so you are not guessing the hold.'
+        : 'Read the visual wind cues first: flags and mirage are doing the talking here.',
+      'Use the reticle first, then fine-tune with turrets if your impacts repeat in the same spot.',
+      targetMode === 'plates'
+        ? 'Prioritize clean hits over perfect center holds — steel does not care about your ego.'
+        : 'Watch the impact offset after each shot so the next correction is deliberate, not vibes-based.',
+    ];
+
     return (
       <div className="game-page page-transition" data-testid="game-page">
         <div className="game-header">
@@ -1514,15 +1517,34 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         <div className="game-container">
           <div className="level-briefing" data-testid="level-briefing">
             <h3>Mission Briefing</h3>
+            <p className="briefing-intro">{missionObjective}</p>
+
+            <div className="briefing-summary-row">
+              <div className="briefing-pill">
+                <span className="briefing-pill-label">Mode</span>
+                <strong>{targetMode === 'plates' ? 'Plates' : isZeroRange ? 'Practice' : 'Bullseye'}</strong>
+              </div>
+              <div className="briefing-pill">
+                <span className="briefing-pill-label">Shots</span>
+                <strong>{isZeroRange && shotLimitMode === 'unlimited' ? 'Unlimited' : level.maxShots}</strong>
+              </div>
+              <div className="briefing-pill">
+                <span className="briefing-pill-label">Timer</span>
+                <strong>{level.timerSeconds ? `${level.timerSeconds}s` : 'None'}</strong>
+              </div>
+            </div>
+
             <div className="briefing-content">
               <div className="briefing-section">
                 <h4>Weapon</h4>
                 <p>{weapon.name}</p>
+                {effectiveAmmo && <p className="briefing-subtext">Ammo: {effectiveAmmo.name}</p>}
               </div>
               
               <div className="briefing-section">
                 <h4>Target Distance</h4>
                 <p>{level.distanceM}m</p>
+                <p className="briefing-subtext">Difficulty: {level.difficulty}</p>
               </div>
               
               <div className="briefing-section">
@@ -1534,7 +1556,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                     ) : (
                       <>
                         <p>Baseline: {level.windMps || 0} m/s</p>
-                        {level.gustMps && level.gustMps > 0 && <p>Gust range: ±{level.gustMps} m/s</p>}
+                        {level.gustMps && level.gustMps > 0 && <p className="briefing-subtext">Gust range: ±{level.gustMps} m/s</p>}
                       </>
                     )}
                   </>
@@ -1551,6 +1573,15 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               <div className="briefing-section">
                 <h4>Star Thresholds</h4>
                 <p>★ {level.starThresholds.one}pts | ★★ {level.starThresholds.two}pts | ★★★ {level.starThresholds.three}pts</p>
+              </div>
+
+              <div className="briefing-section briefing-section-wide">
+                <h4>Before You Fire</h4>
+                <ul className="briefing-checklist">
+                  {preShotChecklist.map((tip) => (
+                    <li key={tip}>{tip}</li>
+                  ))}
+                </ul>
               </div>
             </div>
             
@@ -1641,10 +1672,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 {showReplay && (
                   <ReplayViewer
                     shots={shotTelemetry}
-                    canvasRef={canvasRef}
-                    metersToPixelsRatio={canvasDisplaySize.width / WORLD_WIDTH}
-                    centerX={canvasDisplaySize.width / 2}
-                    centerY={canvasDisplaySize.height / 2}
                     visible={true}
                     onToggle={() => setShowReplay(false)}
                   />
@@ -1963,8 +1990,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
         )}
       </div>
       
-      {/* Impact Offset Panel - Advanced mode only */}
-      {settings.hudMode === 'advanced' && impacts.length > 0 && settings.showHud && (
+      {/* Impact Offset Panel - always shown in tutorials, otherwise advanced HUD only */}
+      {((settings.hudMode === 'advanced') || tutorialLessonId) && impacts.length > 0 && settings.showHud && (
         <div className="impact-offset-panel" data-testid="impact-offset-panel">
           <div className="impact-offset-header">
             <span>Impact Offset</span>

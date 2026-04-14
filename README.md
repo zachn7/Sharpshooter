@@ -38,6 +38,8 @@ It's designed as a **skill-forward ballistics puzzle**: you get a limited number
 
 ## Play
 
+- **GitHub Pages:** https://zachn7.github.io/Sharpshooter/
+
 ### Goals
 
 - Read the conditions (wind, distance, environment)
@@ -225,6 +227,8 @@ npm run dev
 ```
 
 Open http://localhost:5173 in your browser.
+
+For the deployed build, use https://zachn7.github.io/Sharpshooter/
 
 > **Safari users:** If `localhost` doesn't work, try http://127.0.0.1:5173 or http://[::1]:5173
 

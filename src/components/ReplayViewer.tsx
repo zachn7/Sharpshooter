@@ -1,104 +1,90 @@
-/**
- * Replay Viewer Component
- * 
- * Overlays shot path traces on the target canvas for visualizing shot trajectories.
- */
-
-import { useEffect, useCallback } from 'react';
-import type { ShotTelemetry, PathPoint } from '../types';
+import { useEffect, useMemo, useRef } from 'react';
+import type { ShotTelemetry } from '../types';
 
 interface ReplayViewerProps {
   shots: ShotTelemetry[];
-  canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  metersToPixelsRatio: number; // Meters to pixels conversion
-  centerX: number; // Center X in pixels
-  centerY: number; // Center Y in pixels
   visible: boolean;
   onToggle: () => void;
 }
 
-export function ReplayViewer({
-  shots,
-  canvasRef,
-  metersToPixelsRatio,
-  centerX,
-  centerY,
-  visible,
-  onToggle,
-}: ReplayViewerProps) {
-  /**
-   * Draw shot path on canvas
-   * @param ctx - Canvas 2D context
-   * @param path - Array of path points
-   * @param color - Trace color
-   */
-  const drawPath = useCallback((
-    ctx: CanvasRenderingContext2D,
-    path: PathPoint[],
-    color: string
-  ): void => {
-    if (path.length < 2) return;
+const CANVAS_WIDTH = 520;
+const CANVAS_HEIGHT = 390;
+const COLORS = ['#ff6b6b', '#4dabf7', '#69db7c', '#ffd43b', '#b197fc'];
 
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]); // Dashed line for path
+export function ReplayViewer({ shots, visible, onToggle }: ReplayViewerProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const shotsWithPaths = useMemo(
+    () => shots.filter((shot) => shot.path && shot.path.length > 0),
+    [shots]
+  );
 
-    // Move to first point (convert from meters to pixels, from center)
-    const startX = centerX + path[0].x * metersToPixelsRatio;
-    const startY = centerY - path[0].y * metersToPixelsRatio; // Y is inverted in canvas
-    ctx.moveTo(startX, startY);
-
-    // Draw to each subsequent point
-    for (let i = 1; i < path.length; i++) {
-      const x = centerX + path[i].x * metersToPixelsRatio;
-      const y = centerY - path[i].y * metersToPixelsRatio;
-      ctx.lineTo(x, y);
+  useEffect(() => {
+    if (!visible) {
+      return;
     }
 
-    ctx.stroke();
-    ctx.setLineDash([]); // Reset dash
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
 
-    // Draw impact point
-    const lastPoint = path[path.length - 1];
-    const impactX = centerX + lastPoint.x * metersToPixelsRatio;
-    const impactY = centerY - lastPoint.y * metersToPixelsRatio;
-    
-    ctx.beginPath();
-    ctx.arc(impactX, impactY, 4, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-  }, [centerX, centerY, metersToPixelsRatio]);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return;
+    }
 
-  // Draw traces when visibility or shots change
-  useEffect(() => {
-    const drawTraces = (): void => {
-      const canvas = canvasRef.current;
-      if (!canvas || !visible) return;
+    ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+    const centerX = CANVAS_WIDTH / 2;
+    const centerY = CANVAS_HEIGHT / 2;
+    const maxOffset = Math.max(
+      0.25,
+      ...shotsWithPaths.flatMap((shot) => [
+        ...(shot.path ?? []).map((point) => Math.abs(point.x)),
+        ...(shot.path ?? []).map((point) => Math.abs(point.y)),
+        Math.abs(shot.impactX),
+        Math.abs(shot.impactY),
+      ])
+    );
+    const scale = Math.min(CANVAS_WIDTH, CANVAS_HEIGHT) * 0.36 / maxOffset;
 
-      // Colors: red, blue, green, orange, purple for different shots
-      const colors = ['#ff4444', '#4444ff', '#44aa44', '#ffaa00', '#aa44ff'];
+    drawReferenceTarget(ctx, centerX, centerY);
 
-      // Draw each shot path
-      shots.forEach((shot, index) => {
-        if (shot.path && shot.path.length > 0) {
-          const color = colors[index % colors.length];
-          drawPath(ctx, shot.path, color);
+    shotsWithPaths.forEach((shot, index) => {
+      const color = COLORS[index % COLORS.length];
+      const path = shot.path ?? [];
+      if (path.length === 0) {
+        return;
+      }
+
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      path.forEach((point, pointIndex) => {
+        const x = centerX + point.x * scale;
+        const y = centerY - point.y * scale;
+        if (pointIndex === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
         }
       });
-    };
+      ctx.stroke();
 
-    if (visible) {
-      // Schedule draw after render to avoid accessing refs during render
-      const timer = setTimeout(drawTraces, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [visible, shots, canvasRef, drawPath]);
+      const impactX = centerX + shot.impactX * scale;
+      const impactY = centerY - shot.impactY * scale;
+      ctx.beginPath();
+      ctx.fillStyle = color;
+      ctx.arc(impactX, impactY, 5, 0, Math.PI * 2);
+      ctx.fill();
 
-  const shotsWithPaths = shots.filter((s) => s.path && s.path.length > 0).length;
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`#${shot.shotNumber}`, impactX + 8, impactY - 8);
+    });
+  }, [shotsWithPaths, visible]);
 
   return (
     <div className="replay-viewer" data-testid="replay-viewer">
@@ -109,24 +95,54 @@ export function ReplayViewer({
           data-testid="replay-toggle"
           aria-pressed={visible}
         >
-          {visible ? 'Hide' : 'Show'} Shot Traces
+          {visible ? 'Hide' : 'Show'} Replay
         </button>
-        {shotsWithPaths > 0 && (
+        {shotsWithPaths.length > 0 && (
           <span className="traces-count">
-            {shotsWithPaths} trace{shotsWithPaths !== 1 ? 's' : ''} available
+            {shotsWithPaths.length} replay trace{shotsWithPaths.length === 1 ? '' : 's'} loaded
           </span>
         )}
       </div>
-      {visible && shotsWithPaths === 0 && (
+
+      {visible && shotsWithPaths.length === 0 && (
         <p className="no-traces">
-          No shot traces available. Enable "Record Shot Path" in settings to save trajectories.
+          No replay data was recorded for these shots. New runs save trajectories by default now.
         </p>
       )}
-      {visible && shotsWithPaths > 0 && (
-        <p className="traces-info">
-          Shot traces show the projectile path. Different colors represent different shots.
-        </p>
+
+      {visible && shotsWithPaths.length > 0 && (
+        <div className="replay-preview">
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_WIDTH}
+            height={CANVAS_HEIGHT}
+            className="replay-preview-canvas"
+            data-testid="replay-preview-canvas"
+          />
+          <p className="traces-info">
+            Top-down-ish shot trace view: center is point of aim, colored lines show flight paths, dots mark impacts.
+          </p>
+        </div>
       )}
     </div>
   );
+}
+
+function drawReferenceTarget(ctx: CanvasRenderingContext2D, centerX: number, centerY: number) {
+  const radii = [24, 48, 72, 96, 120];
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+
+  radii.forEach((radius) => {
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  ctx.beginPath();
+  ctx.moveTo(centerX - 130, centerY);
+  ctx.lineTo(centerX + 130, centerY);
+  ctx.moveTo(centerX, centerY - 130);
+  ctx.lineTo(centerX, centerY + 130);
+  ctx.stroke();
 }

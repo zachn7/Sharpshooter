@@ -1,5 +1,7 @@
+import { STARTER_WEAPON_IDS } from '../data/engagements';
+
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 18;
+export const CURRENT_SCHEMA_VERSION = 19;
 
 // Stats tracked from gameplay telemetry
 export interface PlayerStats {
@@ -217,7 +219,7 @@ const MIGRATIONS: Migration[] = [
         vfx: {
           reducedMotion: false,
           reducedFlash: false,
-          recordShotPath: false,
+          recordShotPath: true,
         },
       },
     };
@@ -436,6 +438,22 @@ const MIGRATIONS: Migration[] = [
       } as GameSettings,
     };
   },
+  // v18 -> v19: Unlock starter weapons for every core weapon family and enable replay paths by default
+  (data) => {
+    const save = data as GameSave;
+    return {
+      ...save,
+      version: 19,
+      unlockedWeapons: Array.from(new Set([...(save.unlockedWeapons || []), ...STARTER_WEAPON_IDS])),
+      settings: {
+        ...save.settings,
+        vfx: {
+          ...save.settings.vfx,
+          recordShotPath: save.settings.vfx?.recordShotPath ?? true,
+        },
+      } as GameSettings,
+    };
+  },
 ];
 
 // Internal storage helpers - safe for testing environment
@@ -513,7 +531,7 @@ function createDefaultSave(): GameSave {
     version: CURRENT_SCHEMA_VERSION,
     selectedWeaponId: 'pistol-training',
     levelProgress: {},
-    unlockedWeapons: ['pistol-training'],
+    unlockedWeapons: STARTER_WEAPON_IDS,
     settings: {
       realismPreset: 'realistic',
       showShotTrace: false,

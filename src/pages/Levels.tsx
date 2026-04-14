@@ -84,6 +84,24 @@ export function Levels() {
   return (
     <div className="levels-page page-transition" data-testid="levels-page">
       <h2>Levels</h2>
+
+      <div className="levels-intro" data-testid="levels-intro">
+        <div>
+          <h3>Not sure where to start?</h3>
+          <p>
+            New players should begin with <strong>Pistol Basics</strong> or jump into the
+            <strong> Tutorial Academy</strong> for guided lessons. Pick a level card below to launch straight into the mission briefing.
+          </p>
+        </div>
+        <div className="levels-intro-actions">
+          <button type="button" onClick={() => navigate('/academy')} data-testid="levels-go-academy">
+            Open Academy
+          </button>
+          <button type="button" onClick={() => navigate('/weapons')} className="levels-secondary-action" data-testid="levels-go-weapons">
+            Check Loadout
+          </button>
+        </div>
+      </div>
       
       {/* Notice banner for when user is redirected from invalid route */}
       {notice && (

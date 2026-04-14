@@ -4,8 +4,12 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const repoName = 'Sharpshooter';
+const basePath = process.env.NODE_ENV === 'production' ? `/${repoName}/` : '/';
+
 // https://vite.dev/config/
 export default defineConfig({
+  base: basePath,
   plugins: [
     react(),
     VitePWA({
@@ -19,15 +23,17 @@ export default defineConfig({
         background_color: '#1a1a2e',
         display: 'standalone',
         orientation: 'landscape',
+        start_url: basePath,
+        scope: basePath,
         icons: [
           {
-            src: '/pwa-192x192.svg',
+            src: `${basePath}pwa-192x192.svg`,
             sizes: '192x192',
             type: 'image/svg+xml',
             purpose: 'any maskable'
           },
           {
-            src: '/pwa-512x512.svg',
+            src: `${basePath}pwa-512x512.svg`,
             sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any maskable'
@@ -36,7 +42,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        navigateFallback: '/offline.html',
+        navigateFallback: `${basePath}offline.html`,
         navigateFallbackDenylist: [/^\/api/],
         // Disable service worker in development
         mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',

@@ -1118,10 +1118,42 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
 }
 
 .level-briefing h3 {
-  margin: 0 0 1.5rem 0;
+  margin: 0 0 1rem 0;
   font-size: 2rem;
   text-align: center;
   color: #e94560;
+}
+
+.briefing-intro {
+  margin: 0 auto 1.5rem;
+  max-width: 60ch;
+  text-align: center;
+  color: #d7def0;
+  line-height: 1.6;
+}
+
+.briefing-summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.briefing-pill {
+  padding: 0.85rem 1rem;
+  background: rgba(15, 52, 96, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.briefing-pill-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9fb3d9;
 }
 
 .briefing-content {
@@ -1147,6 +1179,26 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
   margin: 0.5rem 0 0 0;
   color: #ddd;
   font-size: 1.1rem;
+}
+
+.briefing-subtext {
+  color: #9fb3d9;
+  font-size: 0.95rem;
+}
+
+.briefing-section-wide {
+  grid-column: 1 / -1;
+}
+
+.briefing-checklist {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  color: #dce5f7;
+  line-height: 1.6;
+}
+
+.briefing-checklist li + li {
+  margin-top: 0.5rem;
 }
 
 .level-start-button {
@@ -2227,6 +2279,45 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
   padding: var(--spacing-lg) var(--spacing-md);
   max-width: var(--max-container);
   margin: 0 auto;
+}
+
+.levels-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: linear-gradient(135deg, var(--color-primary-50), var(--color-background-elevated));
+  border: 1px solid var(--color-primary-100);
+  border-radius: var(--radius-xl);
+}
+
+.levels-intro h3 {
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-2xl);
+}
+
+.levels-intro p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.levels-intro-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.levels-secondary-action {
+  background: var(--color-background-primary);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-200);
+}
+
+.levels-secondary-action:hover:not(:disabled) {
+  background: var(--color-primary-50);
 }
 
 .level-packs-container {

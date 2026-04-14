@@ -2,6 +2,7 @@
 import type { Level } from './levels';
 import { AMMO_CATALOG } from './ammo';
 import { WEAPONS_CATALOG } from './weapons';
+import { getTutorialLoadoutForDistance } from './engagements';
 
 export interface TutorialScenario {
   level: Level;
@@ -17,6 +18,8 @@ export interface TutorialScenario {
  * All parameters are fixed to ensure consistent behavior
  */
 export function generateTutorialScenario(tutorialId: string): TutorialScenario {
+  const buildLoadout = (distanceM: number) => getTutorialLoadoutForDistance(distanceM);
+
   const scenarios: Record<string, TutorialScenario> = {
     // Lesson 1: HUD Basics
     'lesson-hud-basics': {
@@ -41,8 +44,8 @@ export function generateTutorialScenario(tutorialId: string): TutorialScenario {
         targetScale: 1.0,
         unlocked: true,
       },
-      weaponId: 'remington-700',
-      ammoId: '175gr-hpbt',
+      weaponId: buildLoadout(400).weaponId,
+      ammoId: buildLoadout(400).ammoId,
       seed: 12345,
       description: 'Learn to read the HUD: distance, wind, turret dials',
       expectedOutcome: 'Understand what each HUD element shows',
@@ -71,8 +74,8 @@ export function generateTutorialScenario(tutorialId: string): TutorialScenario {
         targetScale: 1.0,
         unlocked: true,
       },
-      weaponId: 'remington-700',
-      ammoId: '175gr-hpbt',
+      weaponId: buildLoadout(600).weaponId,
+      ammoId: buildLoadout(600).ammoId,
       seed: 23456,
       description: 'Learn MIL subtension and how much 1 mil equals',
       expectedOutcome: 'Calculate that 1 mil = 60cm at 600m',
@@ -101,8 +104,8 @@ export function generateTutorialScenario(tutorialId: string): TutorialScenario {
         targetScale: 1.0,
         unlocked: true,
       },
-      weaponId: 'remington-700',
-      ammoId: '175gr-hpbt',
+      weaponId: buildLoadout(500).weaponId,
+      ammoId: buildLoadout(500).ammoId,
       seed: 34567,
       description: 'Learn turret adjustments: 0.1 mil per click',
       expectedOutcome: 'Dial correction using turret clicks',
@@ -131,8 +134,8 @@ export function generateTutorialScenario(tutorialId: string): TutorialScenario {
         targetScale: 1.0,
         unlocked: true,
       },
-      weaponId: 'remington-700',
-      ammoId: '175gr-hpbt',
+      weaponId: buildLoadout(700).weaponId,
+      ammoId: buildLoadout(700).ammoId,
       seed: 45678,
       description: 'Apply wind correction using hold or dial',
       expectedOutcome: 'Hit target by accounting for wind',
@@ -161,8 +164,8 @@ export function generateTutorialScenario(tutorialId: string): TutorialScenario {
         targetScale: 1.0,
         unlocked: true,
       },
-      weaponId: 'remington-700',
-      ammoId: '175gr-hpbt',
+      weaponId: buildLoadout(300).weaponId,
+      ammoId: buildLoadout(300).ammoId,
       seed: 56789,
       description: 'Zero your rifle and return to zero',
       expectedOutcome: 'Save zero profile, try changes, return to zero',
