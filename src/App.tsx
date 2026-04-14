@@ -13,6 +13,7 @@ import { ZeroRange } from './pages/ZeroRange';
 import { DailyChallenge } from './pages/DailyChallenge';
 import { Drills } from './pages/Drills';
 import { Academy } from './pages/Academy';
+import { Freeplay } from './pages/Freeplay';
 import { Contracts } from './pages/Contracts';
 import { ContractSummary } from './pages/ContractSummary';
 
@@ -103,6 +104,14 @@ function InnerApp() {
         element={
           <Layout>
             <Drills />
+          </Layout>
+        }
+      />
+      <Route
+        path="/freeplay"
+        element={
+          <Layout>
+            <Freeplay />
           </Layout>
         }
       />

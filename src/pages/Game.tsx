@@ -7,9 +7,9 @@ import { createStandardTarget, calculateRingScore, findHitPlate } from '../utils
 import { simulateShotToDistance, computeFinalShotParams, computeAirDensity, DEFAULT_ENVIRONMENT, calculateExpertEffects, hasExpertExtras, type ExpertEffectsParams, type WindSamplingContext } from '../physics';
 import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
-import { getLevelById, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
+import { getLevelById, getLevelWithUnlockStatus, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
 import { DRILLS, generateDrillScenario, type DrillScenario } from '../data/drills';
-import { getSelectedWeaponId, updateLevelProgress, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, type TurretState, type GameSettings } from '../storage';
+import { getSelectedWeaponId, getLevelProgress, completeCampaignLevel, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, getPlayerProfileLevel, getFirstSelectableWeaponId, isWeaponUnlockedForCampaign, type TurretState, type GameSettings } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, recommendDialFromOffset, type DialRecommendation } from '../utils/turret';
 import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
@@ -176,6 +176,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const [totalScore, setTotalScore] = useState(0);
   const [earnedStars, setEarnedStars] = useState<0 | 1 | 2 | 3>(0);
   const [groupSizeMeters, setGroupSizeMeters] = useState(0);
+  const [xpAwarded, setXpAwarded] = useState(0);
+  const [newWeaponUnlocks, setNewWeaponUnlocks] = useState<string[]>([]);
   
   // Impact animation state for visual feedback
   const [impactAnimations, setImpactAnimations] = useState<ImpactAnimation[]>([]);
@@ -188,9 +190,11 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   
   // Tutorial lesson ID
   const tutorialLessonId = useMemo(() => searchParams.get('tutorialId') || undefined, [searchParams]);
+  const isFreeplay = isZeroRange && searchParams.get('mode') === 'freeplay';
+  const playerProfileLevel = getPlayerProfileLevel();
   
   // Turret state (loaded from storage per weapon)
-  let weaponId = getSelectedWeaponId() || DEFAULT_WEAPON_ID;
+  let weaponId = getSelectedWeaponId(isFreeplay ? 'freeplay' : 'campaign') || DEFAULT_WEAPON_ID;
   let tutorialScenario;
   
   // Load tutorial scenario to get weapon/ammo overrides
@@ -281,17 +285,35 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       unlocked: true,
     };
   } else {
-    level = getLevelById(levelIdSafe);
+    level = getLevelWithUnlockStatus(levelIdSafe, getLevelProgress, playerProfileLevel) || getLevelById(levelIdSafe);
   }
   
+  if (!tutorialLessonId && !isFreeplay && !isDailyChallenge && !isDrill) {
+    const selectedWeapon = getWeaponById(weaponId);
+    const campaignWeaponAllowed = isWeaponUnlockedForCampaign(weaponId);
+    const levelWeaponAllowed = !level || level.requiredWeaponType === 'any' || selectedWeapon?.type === level.requiredWeaponType;
+
+    if (!campaignWeaponAllowed || !levelWeaponAllowed) {
+      const fallbackWeaponType = level?.requiredWeaponType && level.requiredWeaponType !== 'any'
+        ? level.requiredWeaponType
+        : 'any';
+      weaponId = getFirstSelectableWeaponId(fallbackWeaponType, 'campaign');
+    }
+  }
+
   const levelMaxShots = level?.maxShots ?? 3;
   
   // Guard: Redirect to /levels if accessed without a valid level (not special mode)
   useEffect(() => {
     if (!level && !isDailyChallenge && !tutorialLessonId && !isDrill) {
       navigate('/levels', { replace: true, state: { notice: 'Select a level to start' } });
+      return;
     }
-  }, [level, isDailyChallenge, tutorialLessonId, isDrill, navigate]);
+
+    if (!isDailyChallenge && !tutorialLessonId && !isDrill && level && !level.unlocked) {
+      navigate('/levels', { replace: true, state: { notice: `${level.name} is still locked. Finish earlier missions and level up to unlock it.` } });
+    }
+  }, [level, isDailyChallenge, tutorialLessonId, isDrill, navigate, playerProfileLevel]);
   
   // Compute environment data from level env preset or use defaults
   const levelEnv = level?.env || DEFAULT_ENVIRONMENT;
@@ -825,7 +847,9 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           });
         } else if (!tutorialLessonId) {
           // Save regular level progress (not for drills or tutorials)
-          updateLevelProgress(level.id, finalScore, level.starThresholds);
+          const rewardResult = completeCampaignLevel(level.id, finalScore, level.starThresholds, level.difficulty);
+          setXpAwarded(rewardResult.xpAwarded);
+          setNewWeaponUnlocks(rewardResult.newlyUnlockedWeapons);
         }
       }
     }
@@ -973,6 +997,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setTotalScore(0);
     setEarnedStars(0);
     setGroupSizeMeters(0);
+    setXpAwarded(0);
+    setNewWeaponUnlocks([]);
     setRecoilState(null);
     setGameState('running');
   }, [maxShots]);
@@ -988,6 +1014,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     setTotalScore(0);
     setEarnedStars(0);
     setGroupSizeMeters(0);
+    setXpAwarded(0);
+    setNewWeaponUnlocks([]);
     setRecoilState(null);
     setGameState('briefing');
   }, [maxShots]);
@@ -1014,6 +1042,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       setTotalScore(0);
       setEarnedStars(0);
       setGroupSizeMeters(0);
+      setXpAwarded(0);
+      setNewWeaponUnlocks([]);
       setRecoilState(null);
       setGameState('briefing');
       navigate(`/game/${next.id}`);
@@ -1025,8 +1055,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     if (!audioIsTestMode()) {
       AudioManager.playSound('click');
     }
+    if (isFreeplay) {
+      navigate('/freeplay');
+      return;
+    }
+    if (isZeroRange) {
+      navigate('/zero');
+      return;
+    }
     navigate('/levels');
-  }, [navigate]);
+  }, [isFreeplay, isZeroRange, navigate]);
 
   // Cycle through reticle styles (simple <-> mil in-game toggle)
   const handleReticleStyleCycle = useCallback(() => {
@@ -1635,6 +1673,17 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             <div className="results-summary">
               <p>Shots fired: {level.maxShots}</p>
               <p>Weapon: {weapon?.name}</p>
+              {!isZeroRange && !tutorialLessonId && !isDailyChallenge && !isDrill && (
+                <p data-testid="xp-awarded">Profile XP Earned: +{xpAwarded}</p>
+              )}
+              {newWeaponUnlocks.length > 0 && (
+                <p className="results-unlocks" data-testid="results-unlocks">
+                  New weapon unlock{newWeaponUnlocks.length === 1 ? '' : 's'}:{' '}
+                  {newWeaponUnlocks
+                    .map((weaponUnlockId) => getWeaponById(weaponUnlockId)?.name ?? weaponUnlockId)
+                    .join(', ')}
+                </p>
+              )}
               {impacts.length >= 2 && (
                 <p data-testid="group-size">
                   Group Size: {(groupSizeMeters * 100).toFixed(1)} cm

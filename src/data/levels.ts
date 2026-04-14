@@ -1,4 +1,5 @@
 import { getPreviousPackInProgression, isPackUnlockedByDefault } from './engagements';
+import { getPackUnlockLevel } from './progression';
 
 // Level difficulty tiers
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
@@ -91,6 +92,7 @@ export interface LevelPack {
   description: string;
   levels: string[];            // Level IDs in this pack
   weaponType: 'pistol' | 'rifle' | 'sniper' | 'shotgun' | 'any';
+  unlockLevel?: number;
 }
 
 // All level packs
@@ -101,13 +103,7 @@ export const LEVEL_PACKS: LevelPack[] = [
     description: 'Learn fundamentals with training pistols',
     levels: ['pistol-calm', 'pistol-windy', 'pistol-gusty'],
     weaponType: 'pistol',
-  },
-  {
-    id: 'pistol-marksman',
-    name: 'Pistol Marksman',
-    description: 'Advanced challenges for pistols',
-    levels: ['pistol-long-range', 'pistol-blizzard'],
-    weaponType: 'pistol',
+    unlockLevel: getPackUnlockLevel('pistol-basics'),
   },
   {
     id: 'pistols',
@@ -120,6 +116,15 @@ export const LEVEL_PACKS: LevelPack[] = [
       'pistols-10-urban-engage'
     ],
     weaponType: 'pistol',
+    unlockLevel: getPackUnlockLevel('pistols'),
+  },
+  {
+    id: 'pistol-marksman',
+    name: 'Pistol Marksman',
+    description: 'Advanced challenges for pistols',
+    levels: ['pistol-long-range', 'pistol-blizzard'],
+    weaponType: 'pistol',
+    unlockLevel: getPackUnlockLevel('pistol-marksman'),
   },
   {
     id: 'rifle-basics',
@@ -132,6 +137,7 @@ export const LEVEL_PACKS: LevelPack[] = [
       'rifle-basics-plates', 'rifle-basics-timed'
     ],
     weaponType: 'rifle',
+    unlockLevel: getPackUnlockLevel('rifle-basics'),
   },
   {
     id: 'rifle-fundamentals',
@@ -139,20 +145,7 @@ export const LEVEL_PACKS: LevelPack[] = [
     description: 'Mid-range rifle engagements',
     levels: ['rifle-standard', 'rifle-windy-day'],
     weaponType: 'rifle',
-  },
-  {
-    id: 'sniper-basics',
-    name: 'Sniper Basics',
-    description: 'Long-range precision shooting',
-    levels: ['sniper-calm', 'sniper-windy', 'sniper-gale'],
-    weaponType: 'sniper',
-  },
-  {
-    id: 'expert-challenge',
-    name: 'Expert Challenge',
-    description: 'Extreme conditions for expert marksman',
-    levels: ['expert-blizzard', 'expert-hurricane'],
-    weaponType: 'any',
+    unlockLevel: getPackUnlockLevel('rifle-fundamentals'),
   },
   {
     id: 'shotguns-pack',
@@ -164,6 +157,23 @@ export const LEVEL_PACKS: LevelPack[] = [
       'shotgun-speed-1', 'shotgun-speed-2', 'shotgun-master'
     ],
     weaponType: 'shotgun',
+    unlockLevel: getPackUnlockLevel('shotguns-pack'),
+  },
+  {
+    id: 'sniper-basics',
+    name: 'Sniper Basics',
+    description: 'Long-range precision shooting',
+    levels: ['sniper-calm', 'sniper-windy', 'sniper-gale'],
+    weaponType: 'sniper',
+    unlockLevel: getPackUnlockLevel('sniper-basics'),
+  },
+  {
+    id: 'expert-challenge',
+    name: 'Expert Challenge',
+    description: 'Extreme conditions for expert marksman',
+    levels: ['expert-blizzard', 'expert-hurricane'],
+    weaponType: 'any',
+    unlockLevel: getPackUnlockLevel('expert-challenge'),
   },
   {
     id: 'elr-pack',
@@ -175,6 +185,7 @@ export const LEVEL_PACKS: LevelPack[] = [
       'elr-gust-gauntlet', 'elr-environment-alchemist', 'elr-extreme', 'elr-master'
     ],
     weaponType: 'sniper',
+    unlockLevel: getPackUnlockLevel('elr-pack'),
   },
 ];
 
@@ -1477,10 +1488,11 @@ export function getPackById(id: string): LevelPack | undefined {
 export function getLevelsByPackWithUnlock(
   packId: string,
   _allLevelIds: string[],
-  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined,
+  playerLevel: number
 ): Level[] {
   const packLevels = getLevelsByPack(packId);
-  const packUnlocked = isPackAvailable(packId, getLevelProgress);
+  const packUnlocked = isPackAvailable(packId, getLevelProgress, playerLevel);
 
   return packLevels.map((level, index) => ({
     ...level,
@@ -1510,10 +1522,16 @@ function isPackCompleted(
   return levels.length > 0 && levels.every((level) => (getLevelProgress(level.id)?.stars ?? 0) >= 1);
 }
 
-function isPackAvailable(
+export function isPackAvailable(
   packId: string,
-  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined,
+  playerLevel: number
 ): boolean {
+  const requiredLevel = getPackUnlockLevel(packId);
+  if (playerLevel < requiredLevel) {
+    return false;
+  }
+
   if (isPackUnlockedByDefault(packId)) {
     return true;
   }
@@ -1538,14 +1556,15 @@ export function calculateStars(score: number, thresholds: { one: number; two: nu
 // This function requires getLevelProgress to be passed as a parameter to avoid circular imports
 export function getLevelWithUnlockStatus(
   levelId: string,
-  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined
+  getLevelProgress: (levelId: string) => { stars: number; bestScore: number; attempts: number; lastPlayedAt: number } | undefined,
+  playerLevel: number
 ): Level | undefined {
   const level = getLevelById(levelId);
   if (!level) return undefined;
   
   const packLevels = getLevelsByPack(level.packId);
   const levelIndex = packLevels.findIndex((packLevel) => packLevel.id === levelId);
-  const unlocked = isPackAvailable(level.packId, getLevelProgress) && isLevelUnlockedWithinPack(packLevels, levelIndex, getLevelProgress);
+  const unlocked = isPackAvailable(level.packId, getLevelProgress, playerLevel) && isLevelUnlockedWithinPack(packLevels, levelIndex, getLevelProgress);
   
   return { ...level, unlocked };
 }

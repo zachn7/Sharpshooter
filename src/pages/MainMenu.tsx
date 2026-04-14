@@ -10,7 +10,8 @@ import {
   Crosshair,
   Layers,
   Settings,
-  BookOpen
+  BookOpen,
+  FlaskConical
 } from 'lucide-react';
 import { Glossary } from '../components/Glossary';
 
@@ -86,6 +87,13 @@ export function MainMenu() {
               icon={<Dumbbell size={24} />}
               title="Training Drills"
               description="Practice specific skills challenges"
+            />
+            <MenuItem
+              to="/freeplay"
+              testId="freeplay-button"
+              icon={<FlaskConical size={24} />}
+              title="Freeplay"
+              description="Sandbox with all weapons available for testing"
             />
             <MenuItem
               to="/daily"

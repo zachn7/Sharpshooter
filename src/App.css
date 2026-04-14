@@ -3604,3 +3604,173 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Progression / armory */
+.weapon-progress-banner,
+.academy-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(27, 38, 59, 0.96), rgba(15, 52, 96, 0.92));
+  color: #fff;
+  margin-bottom: 1.25rem;
+}
+
+.weapon-progress-banner p,
+.academy-hero p,
+.academy-hero-subtext {
+  margin: 0.35rem 0 0;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.weapon-progress-banner button,
+.levels-secondary-action {
+  border: none;
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  background: #ffd166;
+  color: #1a1a2e;
+  font-weight: 700;
+}
+
+.weapon-lock-note,
+.pack-level-gate,
+.academy-lesson-prereq {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.pack-requirements {
+  margin-top: 0.5rem;
+}
+
+/* Academy */
+.academy-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.academy-hero-card {
+  min-width: 260px;
+  padding: 1rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.academy-hero-label {
+  display: block;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.academy-section {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  padding: 1.25rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.academy-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.academy-lesson-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.academy-lesson-card {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  padding: 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.academy-lesson-card.completed {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: #f0fdf4;
+}
+
+.academy-lesson-card.locked {
+  cursor: not-allowed;
+  opacity: 0.7;
+  background: #f8fafc;
+}
+
+.academy-status-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.academy-lesson-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.academy-lesson-content p {
+  margin: 0;
+  color: #475569;
+}
+
+.academy-lesson-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.academy-lesson-topline h3 {
+  margin: 0;
+}
+
+.academy-lesson-state {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.freeplay-intro {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+  .weapon-progress-banner,
+  .academy-hero,
+  .academy-lesson-topline,
+  .academy-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .academy-hero-card {
+    min-width: 100%;
+  }
+}

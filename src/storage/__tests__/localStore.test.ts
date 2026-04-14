@@ -270,6 +270,8 @@ describe('localStore', () => {
           gameSave: {
             version: CURRENT_SCHEMA_VERSION - 1, // Older version
             selectedWeaponId: 'pistol-training',
+freeplaySelectedWeaponId: 'pistol-training',
+profileXp: 0,
             levelProgress: {},
             unlockedWeapons: ['pistol-training'],
             settings: {
@@ -394,6 +396,8 @@ describe('localStore', () => {
       const save: GameSave = {
         version: CURRENT_SCHEMA_VERSION,
         selectedWeaponId: 'rifle-assault',
+freeplaySelectedWeaponId: 'rifle-assault',
+profileXp: 250,
         levelProgress: {
           'level-1': { stars: 3, bestScore: 30, attempts: 1, lastPlayedAt: Date.now() },
         },

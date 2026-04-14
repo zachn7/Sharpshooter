@@ -1,7 +1,15 @@
-import { STARTER_WEAPON_IDS } from '../data/engagements';
+import { LEVEL_PACKS } from '../data/levels';
+import {
+  CAMPAIGN_STARTER_WEAPON_IDS,
+  calculateCampaignXpReward,
+  getCampaignUnlockedWeaponIdsForLevel,
+  getProfileLevel,
+  getProfileProgress,
+} from '../data/progression';
+import { WEAPONS_CATALOG } from '../data/weapons';
 
 // Current schema version
-export const CURRENT_SCHEMA_VERSION = 19;
+export const CURRENT_SCHEMA_VERSION = 20;
 
 // Stats tracked from gameplay telemetry
 export interface PlayerStats {
@@ -175,6 +183,8 @@ export interface GameSettings {
 export interface GameSave {
   version: number;
   selectedWeaponId: string;
+  freeplaySelectedWeaponId: string;
+  profileXp: number;
   levelProgress: Record<string, LevelProgress>;
   unlockedWeapons: string[];
   settings: GameSettings;
@@ -444,7 +454,7 @@ const MIGRATIONS: Migration[] = [
     return {
       ...save,
       version: 19,
-      unlockedWeapons: Array.from(new Set([...(save.unlockedWeapons || []), ...STARTER_WEAPON_IDS])),
+      unlockedWeapons: Array.from(new Set([...(save.unlockedWeapons || []), ...CAMPAIGN_STARTER_WEAPON_IDS])),
       settings: {
         ...save.settings,
         vfx: {
@@ -454,7 +464,54 @@ const MIGRATIONS: Migration[] = [
       } as GameSettings,
     };
   },
+  // v19 -> v20: Add profile XP, freeplay loadout, and recalculate campaign unlocks for the new progression system
+  (data) => {
+    const save = data as GameSave;
+    const profileXp = save.profileXp ?? estimateProfileXp(save.levelProgress);
+    const profileLevel = getProfileLevel(profileXp);
+    const unlockedWeapons = getCampaignUnlockedWeaponIdsForLevel(profileLevel);
+    const selectedWeaponId = unlockedWeapons.includes(save.selectedWeaponId) ? save.selectedWeaponId : unlockedWeapons[0] || 'pistol-training';
+
+    return {
+      ...save,
+      version: 20,
+      profileXp,
+      selectedWeaponId,
+      freeplaySelectedWeaponId: save.freeplaySelectedWeaponId || save.selectedWeaponId || 'pistol-training',
+      unlockedWeapons,
+    };
+  },
 ];
+
+function estimateProfileXp(levelProgress: Record<string, LevelProgress> = {}): number {
+  return Object.values(levelProgress).reduce((totalXp, progress) => {
+    if (progress.stars <= 0) {
+      return totalXp;
+    }
+
+    return totalXp + calculateCampaignXpReward({
+      difficulty: 'easy',
+      stars: progress.stars,
+      firstClear: true,
+      improvedStars: progress.stars,
+    });
+  }, 0);
+}
+
+function syncProgressionUnlocks(save: GameSave): GameSave {
+  const profileLevel = getProfileLevel(save.profileXp);
+  save.unlockedWeapons = getCampaignUnlockedWeaponIdsForLevel(profileLevel);
+
+  if (!save.unlockedWeapons.includes(save.selectedWeaponId)) {
+    save.selectedWeaponId = save.unlockedWeapons[0] || 'pistol-training';
+  }
+
+  if (!save.freeplaySelectedWeaponId) {
+    save.freeplaySelectedWeaponId = save.selectedWeaponId;
+  }
+
+  return save;
+}
 
 // Internal storage helpers - safe for testing environment
 const storage = {
@@ -495,6 +552,8 @@ function validateGameSave(data: unknown): data is GameSave {
   return (
     typeof save.version === 'number' &&
     typeof save.selectedWeaponId === 'string' &&
+    typeof save.freeplaySelectedWeaponId === 'string' &&
+    typeof save.profileXp === 'number' &&
     typeof save.levelProgress === 'object' &&
     Array.isArray(save.unlockedWeapons) &&
     typeof save.settings === 'object' &&
@@ -530,8 +589,10 @@ function createDefaultSave(): GameSave {
   return {
     version: CURRENT_SCHEMA_VERSION,
     selectedWeaponId: 'pistol-training',
+    freeplaySelectedWeaponId: 'pistol-training',
+    profileXp: 0,
     levelProgress: {},
-    unlockedWeapons: STARTER_WEAPON_IDS,
+    unlockedWeapons: CAMPAIGN_STARTER_WEAPON_IDS,
     settings: {
       realismPreset: 'realistic',
       showShotTrace: false,
@@ -739,13 +800,15 @@ export function loadGameSave(): GameSave | null {
  */
 export function saveGameSave(save: GameSave): boolean {
   try {
-    if (!validateGameSave(save)) {
+    const normalizedSave = syncProgressionUnlocks(save);
+
+    if (!validateGameSave(normalizedSave)) {
       console.error('[Storage] saveGameSave failed: invalid save data');
       return false;
     }
     
     const toSave = {
-      ...save,
+      ...normalizedSave,
       updatedAt: Date.now(),
     };
     
@@ -763,9 +826,11 @@ export function saveGameSave(save: GameSave): boolean {
  */
 export function getOrCreateGameSave(): GameSave {
   const existing = loadGameSave();
-  if (existing) return existing;
+  if (existing) {
+    return syncProgressionUnlocks(existing);
+  }
   
-  const fresh = createDefaultSave();
+  const fresh = syncProgressionUnlocks(createDefaultSave());
   saveGameSave(fresh);
   return fresh;
 }
@@ -774,42 +839,83 @@ export function getOrCreateGameSave(): GameSave {
  * Update level progress
  */
 export function updateLevelProgress(levelId: string, score: number, starThresholds: { one: number; two: number; three: number }): GameSave {
+  return applyLevelProgress(levelId, score, starThresholds).save;
+}
+
+function applyLevelProgress(levelId: string, score: number, starThresholds: { one: number; two: number; three: number }) {
   const save = getOrCreateGameSave();
-  
+
   const existing = save.levelProgress[levelId];
+  const previousStars = existing?.stars ?? 0;
   const bestScore = existing ? Math.max(existing.bestScore, score) : score;
   const attempts = existing ? existing.attempts + 1 : 1;
-  
-  // Calculate stars based on best score
+
   let stars: 0 | 1 | 2 | 3;
   if (bestScore >= starThresholds.three) stars = 3;
   else if (bestScore >= starThresholds.two) stars = 2;
   else if (bestScore >= starThresholds.one) stars = 1;
   else stars = 0;
-  
+
   save.levelProgress[levelId] = {
     stars,
     bestScore,
     attempts,
     lastPlayedAt: Date.now(),
   };
-  
-  // Recalculate stats and check achievements on level completion
+
   save.stats.levelsCompleted = Object.values(save.levelProgress).filter(
-    progress => progress.stars > 0
+    (progress) => progress.stars > 0
   ).length;
-  
-  // Update daily streak when a level is completed
+  save.stats.packsCompleted = LEVEL_PACKS.filter((pack) =>
+    pack.levels.every((packLevelId) => (save.levelProgress[packLevelId]?.stars ?? 0) >= 1)
+  ).length;
+
   updateDailyStreakInternal(save);
-  
-  // Check achievements
   checkAndUnlockAchievementsInternal(save);
-  
+
   save.updatedAt = Date.now();
   saveGameSave(save);
-  
-  // Return the updated save
-  return save;
+
+  return {
+    save,
+    stars,
+    previousStars,
+    firstClear: previousStars === 0 && stars > 0,
+    improvedStars: Math.max(0, stars - previousStars),
+  };
+}
+
+export function completeCampaignLevel(
+  levelId: string,
+  score: number,
+  starThresholds: { one: number; two: number; three: number },
+  difficulty: 'easy' | 'medium' | 'hard' | 'expert'
+): {
+  save: GameSave;
+  stars: 0 | 1 | 2 | 3;
+  xpAwarded: number;
+  leveledUp: boolean;
+  newlyUnlockedWeapons: string[];
+} {
+  const progressResult = applyLevelProgress(levelId, score, starThresholds);
+  const xpAwarded = progressResult.stars > 0
+    ? calculateCampaignXpReward({
+        difficulty,
+        stars: progressResult.stars,
+        firstClear: progressResult.firstClear,
+        improvedStars: progressResult.improvedStars,
+      })
+    : 25;
+
+  const xpResult = awardProfileXp(xpAwarded);
+
+  return {
+    save: xpResult.save,
+    stars: progressResult.stars,
+    xpAwarded,
+    leveledUp: xpResult.leveledUp,
+    newlyUnlockedWeapons: xpResult.newlyUnlockedWeapons,
+  };
 }
 
 // Internal helper for updateDailyStreak that doesn't save
@@ -892,20 +998,105 @@ export function getLevelProgress(levelId: string): LevelProgress | undefined {
 }
 
 /**
+ * Get profile XP total
+ */
+export function getProfileXp(): number {
+  return getOrCreateGameSave().profileXp;
+}
+
+/**
+ * Get current profile level
+ */
+export function getPlayerProfileLevel(): number {
+  return getProfileLevel(getProfileXp());
+}
+
+/**
+ * Get profile progress details for current level band
+ */
+export function getPlayerProfileProgress() {
+  return getProfileProgress(getProfileXp());
+}
+
+/**
+ * Get campaign-unlocked weapon IDs
+ */
+export function getCampaignUnlockedWeaponIds(): string[] {
+  return [...getOrCreateGameSave().unlockedWeapons];
+}
+
+/**
+ * Check if a weapon is unlocked for standard campaign play
+ */
+export function isWeaponUnlockedForCampaign(weaponId: string): boolean {
+  return getCampaignUnlockedWeaponIds().includes(weaponId);
+}
+
+export function getSelectableWeaponIdsForType(
+  weaponType: 'pistol' | 'rifle' | 'sniper' | 'shotgun' | 'any',
+  mode: 'campaign' | 'freeplay' = 'campaign'
+): string[] {
+  const availableIds = mode === 'freeplay'
+    ? WEAPONS_CATALOG.map((weapon) => weapon.id)
+    : getCampaignUnlockedWeaponIds();
+
+  return WEAPONS_CATALOG
+    .filter((weapon) => availableIds.includes(weapon.id))
+    .filter((weapon) => weaponType === 'any' || weapon.type === weaponType)
+    .map((weapon) => weapon.id);
+}
+
+export function getFirstSelectableWeaponId(
+  weaponType: 'pistol' | 'rifle' | 'sniper' | 'shotgun' | 'any',
+  mode: 'campaign' | 'freeplay' = 'campaign'
+): string {
+  return getSelectableWeaponIdsForType(weaponType, mode)[0] || 'pistol-training';
+}
+
+/**
+ * Award profile XP and unlock any newly earned campaign weapons
+ */
+export function awardProfileXp(amount: number): { save: GameSave; leveledUp: boolean; newlyUnlockedWeapons: string[] } {
+  const save = getOrCreateGameSave();
+  const previousLevel = getProfileLevel(save.profileXp);
+  const previousUnlocks = new Set(save.unlockedWeapons);
+
+  save.profileXp += Math.max(0, Math.round(amount));
+  syncProgressionUnlocks(save);
+
+  const currentLevel = getProfileLevel(save.profileXp);
+  const newlyUnlockedWeapons = save.unlockedWeapons.filter((weaponId) => !previousUnlocks.has(weaponId));
+
+  saveGameSave(save);
+
+  return {
+    save,
+    leveledUp: currentLevel > previousLevel,
+    newlyUnlockedWeapons,
+  };
+}
+
+/**
  * Set selected weapon
  */
-export function setSelectedWeapon(weaponId: string): boolean {
+export function setSelectedWeapon(weaponId: string, mode: 'campaign' | 'freeplay' = 'campaign'): boolean {
   const save = getOrCreateGameSave();
-  save.selectedWeaponId = weaponId;
+  if (mode === 'freeplay') {
+    save.freeplaySelectedWeaponId = weaponId;
+  } else {
+    save.selectedWeaponId = weaponId;
+  }
   return saveGameSave(save);
 }
 
 /**
  * Get selected weapon ID
  */
-export function getSelectedWeaponId(): string {
-  const save = loadGameSave();
-  return save?.selectedWeaponId || 'pistol-training';
+export function getSelectedWeaponId(mode: 'campaign' | 'freeplay' = 'campaign'): string {
+  const save = getOrCreateGameSave();
+  return mode === 'freeplay'
+    ? save.freeplaySelectedWeaponId || save.selectedWeaponId || 'pistol-training'
+    : save.selectedWeaponId || 'pistol-training';
 }
 
 /**

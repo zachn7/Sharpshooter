@@ -1,7 +1,16 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getWeaponsByType, type WeaponType } from '../data/weapons';
 import { getAmmoByWeaponType } from '../data/ammo';
-import { setSelectedWeapon, getSelectedWeaponId, setSelectedAmmoId, getSelectedAmmoId } from '../storage';
+import {
+  setSelectedWeapon,
+  getSelectedWeaponId,
+  setSelectedAmmoId,
+  getSelectedAmmoId,
+  getPlayerProfileProgress,
+  isWeaponUnlockedForCampaign,
+} from '../storage';
+import { getWeaponUnlockLevel } from '../data/progression';
 import { formatAmmoSummary } from '../physics/ammo';
 import { Lock, Check, Target, Gauge, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -10,9 +19,15 @@ function normalizeToBar(value: number, min: number, max: number): number {
   return Math.max(0, Math.min(1, (value - min) / (max - min)));
 }
 
-export function Weapons() {
+interface WeaponsProps {
+  mode?: 'campaign' | 'freeplay';
+}
+
+export function Weapons({ mode = 'campaign' }: WeaponsProps) {
+  const navigate = useNavigate();
+  const profileProgress = getPlayerProfileProgress();
   const [activeTab, setActiveTab] = useState<WeaponType>('pistol');
-  const [selectedWeaponId, setSelectedWeaponIdState] = useState(() => getSelectedWeaponId());
+  const [selectedWeaponId, setSelectedWeaponIdState] = useState(() => getSelectedWeaponId(mode));
   const [expandedWeapon, setExpandedWeapon] = useState<string | null>(null);
   const [selectedAmmoIdState, setSelectedAmmoIdState] = useState<Record<string, string>>({});
 
@@ -25,7 +40,7 @@ export function Weapons() {
 
   const handleWeaponSelect = (weaponId: string) => {
     setSelectedWeaponIdState(weaponId);
-    setSelectedWeapon(weaponId);
+    setSelectedWeapon(weaponId, mode);
     // Toggle expanded state
     setExpandedWeapon(expandedWeapon === weaponId ? null : weaponId);
   };
@@ -40,7 +55,27 @@ export function Weapons() {
 
   return (
     <div className="weapons-page" data-testid="weapons-page">
-      <h2>Weapons</h2>
+      <h2>{mode === 'freeplay' ? 'Freeplay Armory' : 'Weapons'}</h2>
+
+      <div className="weapon-progress-banner" data-testid="weapon-progress-banner">
+        <div>
+          <strong>Profile Level {profileProgress.level}</strong>
+          <p>
+            {mode === 'freeplay'
+              ? 'Freeplay lets you test every weapon without permanently unlocking it for campaign.'
+              : `Campaign unlocks expand as you level up. ${profileProgress.currentLevelXp}/${profileProgress.nextLevelXp} XP toward the next level.`}
+          </p>
+        </div>
+        {mode === 'freeplay' ? (
+          <button type="button" onClick={() => navigate('/zero?mode=freeplay')} data-testid="launch-freeplay">
+            Launch Freeplay
+          </button>
+        ) : (
+          <button type="button" className="levels-secondary-action" onClick={() => navigate('/freeplay')} data-testid="open-freeplay-from-weapons">
+            Try Freeplay
+          </button>
+        )}
+      </div>
       
       <div className="weapon-tabs">
         {weaponTypes.map((type) => (
@@ -59,6 +94,8 @@ export function Weapons() {
         {currentWeapons.map((weapon) => {
           const isExpanded = expandedWeapon === weapon.id;
           const isSelected = selectedWeaponId === weapon.id;
+          const isUnlocked = mode === 'freeplay' ? true : isWeaponUnlockedForCampaign(weapon.id);
+          const unlockLevel = getWeaponUnlockLevel(weapon.id);
           const selectedAmmoId = selectedAmmoIdState[weapon.id] || getSelectedAmmoId(weapon.id);
           const weaponAmmoOptions = getAmmoByWeaponType(weapon.type);
           
@@ -70,14 +107,14 @@ export function Weapons() {
           return (
             <div
               key={weapon.id}
-              className={`weapon-card ${isSelected ? 'selected' : ''} ${!weapon.unlocked ? 'locked' : ''}`}
+              className={`weapon-card ${isSelected ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}`}
               data-testid={`weapon-${weapon.id}`}
-              onClick={() => weapon.unlocked && handleWeaponSelect(weapon.id)}
+              onClick={() => isUnlocked && handleWeaponSelect(weapon.id)}
             >
               {/* Weapon Header */}
               <div className="weapon-card-header">
                 <div className="weapon-header-left">
-                  {!weapon.unlocked && (
+                  {!isUnlocked && (
                     <Lock size={18} className="lock-icon" />
                   )}
                   <div className="weapon-header-content">
@@ -86,10 +123,10 @@ export function Weapons() {
                   </div>
                 </div>
                 <div className="weapon-header-right">
-                  {isSelected && weapon.unlocked && (
+                  {isSelected && isUnlocked && (
                     <Check size={20} className="selected-badge" />
                   )}
-                  {weapon.unlocked && (
+                  {isUnlocked && (
                     <span className="expand-icon">
                       {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                     </span>
@@ -135,7 +172,11 @@ export function Weapons() {
               </div>
               
               {/* Weapon Stats */}
-              {weapon.unlocked && (
+              {!isUnlocked && (
+                <p className="weapon-lock-note">Unlocks at profile level {unlockLevel} in campaign.</p>
+              )}
+
+              {isUnlocked && (
                 <>
                   <div className="weapon-stats">
                     <div className="stat-row">

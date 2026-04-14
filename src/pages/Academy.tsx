@@ -10,6 +10,8 @@ export function Academy() {
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const completedLessons = getCompletedLessons();
+  const [searchParams] = useSearchParams();
+  const isTestMode = searchParams.get('testMode') === '1' || searchParams.get('testMode') === 'true';
 
   const startLesson = (lesson: Lesson) => {
     setActiveLesson(lesson);
@@ -30,7 +32,6 @@ export function Academy() {
 
   const handleClose = () => {
     if (activeLesson) {
-      // Mark lesson as complete when user finishes or closes it
       setLessonCompleted(activeLesson.id);
     }
     setActiveLesson(null);
@@ -47,205 +48,100 @@ export function Academy() {
     if (!activeLesson) return;
 
     const currentStep = activeLesson.steps[currentStepIndex];
-    
-    // If this is an interactive practice step and lesson has a tutorialId, launch game
     if (currentStep.action && activeLesson.tutorialId) {
-      // Launch the game with the tutorial parameter
-      // The game will use the tutorial scenario for this lesson
-      // Note: We use 'tutorial' as a placeholder levelId since tutorialId determines the level
       navigate(`/game/tutorial?tutorialId=${activeLesson.tutorialId}&testMode=true`);
-      // Close the overlay since we're navigating away
       setActiveLesson(null);
-    } else {
-      // Otherwise, just go to next step
-      handleNext();
+      return;
     }
+
+    handleNext();
   };
 
-  const [searchParams] = useSearchParams();
-  const isTestMode = searchParams.get('testMode') === '1' || searchParams.get('testMode') === 'true';
-
-  // Check if lesson is locked (prerequisite not completed)
-  // In testMode, all lessons are unlocked
   const isLessonLocked = (lesson: Lesson): boolean => {
-    if (isTestMode) return false; // Unlock all lessons in testMode
-    if (!lesson.prerequisite) return false;
+    if (isTestMode || !lesson.prerequisite) {
+      return false;
+    }
+
     return !completedLessons.includes(lesson.prerequisite);
   };
 
-  // Check if lesson is completed
-  const isLessonCompleted = (lessonId: string): boolean => {
-    return completedLessons.includes(lessonId);
-  };
+  const isLessonCompleted = (lessonId: string): boolean => completedLessons.includes(lessonId);
 
   return (
-    <div className="academy-page" data-testid="academy-page" style={{ padding: '1rem' }}>
-      <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-        <h1
-          style={{
-            fontSize: '2rem',
-            marginBottom: '1rem',
-            color: '#1a1a2e',
-          }}
-        >
-          Tutorial Academy
-        </h1>
-        <p
-          style={{
-            fontSize: '1.125rem',
-            color: '#666',
-            marginBottom: '2rem',
-          }}
-        >
-          Learn the fundamentals of ballistics simulation through interactive lessons.
-        </p>
+    <div className="academy-page" data-testid="academy-page">
+      <div className="academy-shell">
+        <header className="academy-hero">
+          <div>
+            <h1>Tutorial Academy</h1>
+            <p>
+              Learn the basics in a sane order, then jump into guided practice. Lessons unlock one
+              by one so the game teaches you without dumping a ballistics textbook on your face.
+            </p>
+          </div>
+          <div className="academy-hero-card">
+            <span className="academy-hero-label">Progress</span>
+            <strong>{completedLessons.length}/{LESSONS.length} lessons completed</strong>
+            <span className="academy-hero-subtext">Finish lessons to build confidence before campaign progression ramps up.</span>
+          </div>
+        </header>
 
-        {/* Lessons by category */}
         {LESSON_CATEGORIES.map((category) => {
           const categoryLessons = getLessonsByCategory(category);
           if (categoryLessons.length === 0) return null;
 
           return (
-            <div
-              key={category}
-              style={{
-                backgroundColor: 'white',
-                borderRadius: '12px',
-                padding: '1.5rem',
-                marginBottom: '1.5rem',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-              }}
-            >
-              <h3
-                style={{
-                  margin: '0 0 1rem 0',
-                  fontSize: '1.375rem',
-                  color: '#1a1a2e',
-                }}
-              >
-                {category}
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <section key={category} className="academy-section">
+              <div className="academy-section-header">
+                <h2>{category}</h2>
+                <span>{categoryLessons.length} lesson{categoryLessons.length === 1 ? '' : 's'}</span>
+              </div>
+
+              <div className="academy-lesson-list">
                 {categoryLessons.map((lesson) => {
                   const locked = isLessonLocked(lesson);
                   const completed = isLessonCompleted(lesson.id);
+                  const prerequisiteTitle = lesson.prerequisite
+                    ? LESSONS.find((candidate) => candidate.id === lesson.prerequisite)?.title
+                    : null;
 
                   return (
                     <button
                       key={lesson.id}
-                      onClick={() => {
-                        if (!locked) {
-                          startLesson(lesson);
-                        }
-                      }}
+                      type="button"
+                      className={`academy-lesson-card ${locked ? 'locked' : ''} ${completed ? 'completed' : ''}`}
+                      onClick={() => !locked && startLesson(lesson)}
                       disabled={locked}
                       data-testid={`lesson-${lesson.id}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '1rem',
-                        textAlign: 'left',
-                        backgroundColor: locked ? '#f0f0f0' : '#f8f9fa',
-                        border: locked ? '1px solid #e0e0e0' : '1px solid #0f3460',
-                        borderRadius: '8px',
-                        cursor: locked ? 'not-allowed' : 'pointer',
-                        opacity: locked ? 0.6 : 1,
-                        transition: 'all 0.2s',
-                      }}
-                      {...(!locked && {
-                        onMouseEnter: (e) => {
-                          e.currentTarget.style.backgroundColor = '#e9ecef';
-                        },
-                        onMouseLeave: (e) => {
-                          e.currentTarget.style.backgroundColor = '#f8f9fa';
-                        },
-                      })}
                     >
-                      {/* Status icon */}
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          marginRight: '1rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: '50%',
-                          backgroundColor: completed ? '#10b981' : locked ? '#9ca3af' : '#0f3460',
-                          color: 'white',
-                          fontSize: '1rem',
-                        }}
-                      >
+                      <div className="academy-status-icon" aria-hidden="true">
                         {completed ? '✓' : locked ? '🔒' : '▶'}
                       </div>
 
-                      {/* Lesson info */}
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontSize: '1.125rem',
-                            fontWeight: completed ? '600' : '500',
-                            color: '#1a1a2e',
-                            marginBottom: '0.25rem',
-                          }}
-                        >
-                          {lesson.title}
+                      <div className="academy-lesson-content">
+                        <div className="academy-lesson-topline">
+                          <h3>{lesson.title}</h3>
+                          <span className="academy-lesson-state">
+                            {completed ? 'Completed' : locked ? 'Locked' : 'Start'}
+                          </span>
                         </div>
-                        <div
-                          style={{
-                            fontSize: '0.875rem',
-                            color: '#666',
-                          }}
-                        >
-                          {lesson.description}
-                        </div>
-                        {locked && lesson.prerequisite && (
-                          <div
-                            style={{
-                              fontSize: '0.75rem',
-                              color: '#9ca3af',
-                              marginTop: '0.25rem',
-                            }}
-                          >
-                            Complete "{LESSONS.find((l) => l.id === lesson.prerequisite)?.title}"
-                            first
-                          </div>
+                        <p>{lesson.description}</p>
+                        {locked && prerequisiteTitle && (
+                          <span className="academy-lesson-prereq">
+                            Complete “{prerequisiteTitle}” first
+                          </span>
                         )}
-                      </div>
-
-                      {/* Start/Completed label */}
-                      <div
-                        style={{
-                          fontSize: '0.875rem',
-                          color: completed ? '#10b981' : '#0f3460',
-                          fontWeight: '600',
-                        }}
-                      >
-                        {completed ? 'Completed' : locked ? 'Locked' : 'Start'}
                       </div>
                     </button>
                   );
                 })}
               </div>
-            </div>
+            </section>
           );
         })}
 
-        {/* No lessons message */}
-        {LESSONS.length === 0 && (
-          <p
-            style={{
-              textAlign: 'center',
-              color: '#666',
-              padding: '2rem',
-            }}
-          >
-            No lessons available yet. Check back soon!
-          </p>
-        )}
+        {LESSONS.length === 0 && <p className="academy-empty">No lessons available yet. Rude, honestly.</p>}
       </div>
 
-      {/* Lesson Overlay */}
       {activeLesson && (
         <LessonOverlay
           lesson={activeLesson}

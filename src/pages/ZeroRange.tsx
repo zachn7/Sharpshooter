@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Game } from './Game';
 import { getZeroRangeShotLimitMode, setZeroRangeShotLimitMode, type ZeroRangeShotLimitMode } from '../storage';
 
@@ -7,6 +8,8 @@ import { getZeroRangeShotLimitMode, setZeroRangeShotLimitMode, type ZeroRangeSho
  * Uses wind=0 and distance=weapon's zero distance
  */
 export function ZeroRange() {
+  const [searchParams] = useSearchParams();
+  const isFreeplay = searchParams.get('mode') === 'freeplay';
   const [shotLimitMode, setShotLimitMode] = useState<ZeroRangeShotLimitMode>(
     () => getZeroRangeShotLimitMode()
   );
@@ -21,7 +24,9 @@ export function ZeroRange() {
     <div className="zero-range-page" data-testid="zero-range-page">
       <div className="zero-range-controls" data-testid="zero-range-controls">
         <span className="zero-mode-label" data-testid="zero-mode-label">
-          {shotLimitMode === 'unlimited' ? 'Practice (∞)' : 'Practice (3)'}
+          {isFreeplay
+            ? (shotLimitMode === 'unlimited' ? 'Freeplay Sandbox (∞)' : 'Freeplay Sandbox (3)')
+            : (shotLimitMode === 'unlimited' ? 'Practice (∞)' : 'Practice (3)')}
         </span>
         <button
           onClick={handleToggleMode}

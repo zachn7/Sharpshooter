@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LEVEL_PACKS, getLevelsByPackWithUnlock, calculateStars, LEVELS } from '../data/levels';
-import { getLevelProgress, getPackStars, getPackMaxStars } from '../storage';
+import { getLevelProgress, getPackStars, getPackMaxStars, getPlayerProfileLevel } from '../storage';
 import { Target, Lock, Star, Wind } from 'lucide-react';
 import { isE2E, setE2EMode } from '../utils/testMode';
 
@@ -66,6 +66,7 @@ export function Levels() {
   };
 
   const allLevelIds = LEVELS.map(l => l.id);
+  const playerLevel = getPlayerProfileLevel();
 
   // Filter packs based on query params or E2E mode
   const visiblePacks = LEVEL_PACKS.filter((pack) => {
@@ -92,6 +93,9 @@ export function Levels() {
             New players should begin with <strong>Pistol Basics</strong> or jump into the
             <strong> Tutorial Academy</strong> for guided lessons. Pick a level card below to launch straight into the mission briefing.
           </p>
+          <div className="pack-requirements">
+            <span className="pack-level-gate">Current Profile Level: {playerLevel}</span>
+          </div>
         </div>
         <div className="levels-intro-actions">
           <button type="button" onClick={() => navigate('/academy')} data-testid="levels-go-academy">
@@ -112,7 +116,7 @@ export function Levels() {
       
       <div className="level-packs-container">
         {visiblePacks.map((pack) => {
-          const levels = getLevelsByPackWithUnlock(pack.id, allLevelIds, getLevelProgress);
+          const levels = getLevelsByPackWithUnlock(pack.id, allLevelIds, getLevelProgress, playerLevel);
           const earnedStars = getPackStars(pack.levels);
           const maxStars = getPackMaxStars(pack.levels);
 
@@ -145,6 +149,9 @@ export function Levels() {
               
               {/* Pack Description */}
               <p className="pack-description">{pack.description}</p>
+              <div className="pack-requirements">
+                <span className="pack-level-gate">Unlocks at Level {pack.unlockLevel ?? 1}</span>
+              </div>
 
               {/* Level List */}
               <div className="level-list">

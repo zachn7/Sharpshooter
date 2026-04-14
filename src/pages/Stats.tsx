@@ -1,8 +1,9 @@
 
-import { getPlayerStats } from '../storage';
+import { getPlayerStats, getPlayerProfileProgress } from '../storage';
 
 export function Stats() {
   const stats = getPlayerStats();
+  const profile = getPlayerProfileProgress();
 
   const formatPlayTime = (ms: number): string => {
     const hours = Math.floor(ms / (1000 * 60 * 60));
@@ -71,6 +72,10 @@ export function Stats() {
           <h3>Progress</h3>
           <div className="stat-grid">
             <div className="stat-item">
+              <div className="stat-value">{profile.level}</div>
+              <div className="stat-label">Profile Level</div>
+            </div>
+            <div className="stat-item">
               <div className="stat-value">{stats.levelsCompleted}</div>
               <div className="stat-label">Levels Completed</div>
             </div>
@@ -81,6 +86,10 @@ export function Stats() {
             <div className="stat-item">
               <div className="stat-value">{stats.dailyChallengesCompleted}</div>
               <div className="stat-label">Daily Challenges</div>
+            </div>
+            <div className="stat-item">
+              <div className="stat-value">{profile.currentLevelXp}/{profile.nextLevelXp}</div>
+              <div className="stat-label">XP to Next Level</div>
             </div>
           </div>
         </div>
