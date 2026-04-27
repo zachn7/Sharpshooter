@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LEVEL_PACKS, getLevelsByPackWithUnlock, calculateStars, LEVELS } from '../data/levels';
+import { LEVEL_PACKS, getLevelsByPackWithUnlock, calculateStars, LEVELS, isPackAvailable } from '../data/levels';
+import { getPreviousPackInProgression } from '../data/engagements';
 import { getLevelProgress, getPackStars, getPackMaxStars, getPlayerProfileLevel } from '../storage';
 import { Target, Lock, Star, Wind } from 'lucide-react';
 import { isE2E, setE2EMode } from '../utils/testMode';
@@ -119,6 +120,12 @@ export function Levels() {
           const levels = getLevelsByPackWithUnlock(pack.id, allLevelIds, getLevelProgress, playerLevel);
           const earnedStars = getPackStars(pack.levels);
           const maxStars = getPackMaxStars(pack.levels);
+          const packUnlocked = isPackAvailable(pack.id, getLevelProgress, playerLevel);
+          const previousPackId = getPreviousPackInProgression(pack.id);
+          const previousPack = previousPackId ? LEVEL_PACKS.find((candidate) => candidate.id === previousPackId) : null;
+          const requiredLevel = pack.unlockLevel ?? 1;
+          const needsLevel = playerLevel < requiredLevel;
+          const needsPreviousPack = !packUnlocked && Boolean(previousPack) && !needsLevel;
 
           return (
             <div 
@@ -150,7 +157,17 @@ export function Levels() {
               {/* Pack Description */}
               <p className="pack-description">{pack.description}</p>
               <div className="pack-requirements">
-                <span className="pack-level-gate">Unlocks at Level {pack.unlockLevel ?? 1}</span>
+                <span className="pack-level-gate">Unlocks at Level {requiredLevel}</span>
+                {!packUnlocked && (
+                  <div className="pack-lock-reasons" data-testid={`pack-lock-reasons-${pack.id}`}>
+                    {needsPreviousPack && previousPack && (
+                      <span className="pack-lock-reason">Requires previous pack completion: {previousPack.name}</span>
+                    )}
+                    {needsLevel && (
+                      <span className="pack-lock-reason">Requires level {requiredLevel}</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Level List */}

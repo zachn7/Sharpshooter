@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { ZeroRangeShotLimitMode } from '../storage';
 import type { PointerEvent } from 'react';
@@ -9,7 +9,7 @@ import { getWeaponById, DEFAULT_WEAPON_ID } from '../data/weapons';
 import { getAmmoById, getAmmoByWeaponType } from '../data/ammo';
 import { getLevelById, getLevelWithUnlockStatus, DEFAULT_LEVEL_ID, calculateStars, LEVELS, type Level } from '../data/levels';
 import { DRILLS, generateDrillScenario, type DrillScenario } from '../data/drills';
-import { getSelectedWeaponId, getLevelProgress, completeCampaignLevel, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, getPlayerProfileLevel, getFirstSelectableWeaponId, isWeaponUnlockedForCampaign, type TurretState, type GameSettings } from '../storage';
+import { getSelectedWeaponId, getLevelProgress, completeCampaignLevel, getGameSettings, updateGameSettings, getRealismScaling, getTurretState, updateTurretState, getZeroProfile, saveZeroProfile, getSelectedAmmoId, getTodayDate, seedFromDate, saveDailyChallengeResult, saveDrillResult, getPlayerProfileLevel, getFirstSelectableWeaponId, isWeaponUnlockedForCampaign, getReticleSkinId, type TurretState, type GameSettings, type ReticleStyle } from '../storage';
 import { applyTurretOffset, nextClickValue, metersToMils, recommendDialFromOffset, type DialRecommendation } from '../utils/turret';
 import { createPressHoldHandler, type PressHoldHandler } from '../utils/pressHold';
 import { getMilSpacingPixels, MAGNIFICATION_LEVELS, milsToMoa, type MagnificationLevel } from '../utils/reticle';
@@ -41,6 +41,7 @@ import {
 } from '../physics/sway';
 import { drawWindCues, drawLayeredWindCues, shouldUseLayeredWindCues } from '../physics/windCues';
 import { AimSmoother, createAimSmoother } from '../utils/aimSmoothing';
+import { getReticleSkin } from '../storage/reticleSkins';
 
 interface Impact {
   x: number;
@@ -71,6 +72,27 @@ interface ImpactAnimation {
 }
 
 type GameState = 'briefing' | 'running' | 'results';
+
+const RETICLE_STYLE_ORDER: ReticleStyle[] = ['simple', 'duplex', 'dot', 'horseshoe', 'mil', 'tree'];
+const DEFAULT_TURRET_STEP = 0.1;
+
+function getReticleStyleLabel(style: ReticleStyle): string {
+  switch (style) {
+    case 'duplex':
+      return 'Duplex';
+    case 'dot':
+      return 'Dot';
+    case 'horseshoe':
+      return 'Horseshoe';
+    case 'mil':
+      return 'MIL Grid';
+    case 'tree':
+      return 'Tree';
+    case 'simple':
+    default:
+      return 'Crosshair';
+  }
+}
 
 const WORLD_WIDTH = 1.0; // meters
 const WORLD_HEIGHT = 0.75; // 4:3 aspect ratio
@@ -187,6 +209,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   
   // Reticle and magnification state
   const [magnification, setMagnification] = useState<MagnificationLevel>(1);
+  const [turretStep, setTurretStep] = useState(0.1);
   
   // Tutorial lesson ID
   const tutorialLessonId = useMemo(() => searchParams.get('tutorialId') || undefined, [searchParams]);
@@ -195,6 +218,16 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   
   // Turret state (loaded from storage per weapon)
   let weaponId = getSelectedWeaponId(isFreeplay ? 'freeplay' : 'campaign') || DEFAULT_WEAPON_ID;
+
+  // E2E override: allow forcing a specific weapon via query param.
+  // This keeps tests deterministic and avoids flaky state from prior navigations.
+  if (isTestMode && searchParams.get('weaponId')) {
+    const forcedWeaponId = searchParams.get('weaponId') as string;
+    if (getWeaponById(forcedWeaponId)) {
+      weaponId = forcedWeaponId;
+    }
+  }
+
   let tutorialScenario;
   
   // Load tutorial scenario to get weapon/ammo overrides
@@ -288,7 +321,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     level = getLevelWithUnlockStatus(levelIdSafe, getLevelProgress, playerProfileLevel) || getLevelById(levelIdSafe);
   }
   
-  if (!tutorialLessonId && !isFreeplay && !isDailyChallenge && !isDrill) {
+  // In test mode we allow forcing a loadout via query params without campaign unlock gating.
+  if (!tutorialLessonId && !isFreeplay && !isDailyChallenge && !isDrill && !isTestMode) {
     const selectedWeapon = getWeaponById(weaponId);
     const campaignWeaponAllowed = isWeaponUnlockedForCampaign(weaponId);
     const levelWeaponAllowed = !level || level.requiredWeaponType === 'any' || selectedWeapon?.type === level.requiredWeaponType;
@@ -304,16 +338,20 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
   const levelMaxShots = level?.maxShots ?? 3;
   
   // Guard: Redirect to /levels if accessed without a valid level (not special mode)
-  useEffect(() => {
+  // IMPORTANT: useLayoutEffect so we don't flash/flip between routes mid-click in E2E ("element detached").
+  // This keeps navigation deterministic and reduces flakiness.
+  useLayoutEffect(() => {
     if (!level && !isDailyChallenge && !tutorialLessonId && !isDrill) {
       navigate('/levels', { replace: true, state: { notice: 'Select a level to start' } });
       return;
     }
 
-    if (!isDailyChallenge && !tutorialLessonId && !isDrill && level && !level.unlocked) {
+    // In testMode we allow direct navigation to any level ID for determinism.
+    // The Levels page still shows real lock state; we just don't hard-redirect.
+    if (!isTestModeEnabled(searchParams) && !isDailyChallenge && !tutorialLessonId && !isDrill && level && !level.unlocked) {
       navigate('/levels', { replace: true, state: { notice: `${level.name} is still locked. Finish earlier missions and level up to unlock it.` } });
     }
-  }, [level, isDailyChallenge, tutorialLessonId, isDrill, navigate, playerProfileLevel]);
+  }, [level, isDailyChallenge, tutorialLessonId, isDrill, navigate, playerProfileLevel, searchParams]);
   
   // Compute environment data from level env preset or use defaults
   const levelEnv = level?.env || DEFAULT_ENVIRONMENT;
@@ -395,7 +433,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   const targetConfig = useMemo(() => {
     const baseTarget = createStandardTarget(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
-    const scale = level?.targetScale || 1;
+    const scale = level?.targetScale || 1.15;
     return {
       ...baseTarget,
       rings: baseTarget.rings.map((ring) => ({
@@ -404,6 +442,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       })),
     };
   }, [level?.targetScale]);
+
+  const reticleSkin = useMemo(() => getReticleSkin(getReticleSkinId()) ?? getReticleSkin('classic'), []);
 
   // Handle canvas resize with DPR-aware sizing
   useEffect(() => {
@@ -858,6 +898,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     shotCount,
     level,
     weapon,
+    weaponId,
     impacts,
     targetConfig,
     gameState,
@@ -882,7 +923,6 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     drillScenario,
     levelStartedAt,
     searchParams,
-    weaponId,
     settings.expertSpinDriftEnabled,
     settings.expertCoriolisEnabled,
     settings.vfx.recordShotPath,
@@ -927,21 +967,21 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     if (!audioIsTestMode()) {
       AudioManager.playSound('click');
     }
-    const newElevation = nextClickValue(turretState.elevationMils, direction, 0.1);
+    const newElevation = nextClickValue(turretState.elevationMils, direction, turretStep);
     const newTurretState = { ...turretState, elevationMils: newElevation };
     setTurretState(newTurretState);
     updateTurretState(weaponId, newTurretState);
-  }, [turretState, weaponId]);
+  }, [turretState, turretStep, weaponId]);
 
   const handleWindageAdjust = useCallback((direction: 1 | -1) => {
     if (!audioIsTestMode()) {
       AudioManager.playSound('click');
     }
-    const newWindage = nextClickValue(turretState.windageMils, direction, 0.1);
+    const newWindage = nextClickValue(turretState.windageMils, direction, turretStep);
     const newTurretState = { ...turretState, windageMils: newWindage };
     setTurretState(newTurretState);
     updateTurretState(weaponId, newTurretState);
-  }, [turretState, weaponId]);
+  }, [turretState, turretStep, weaponId]);
 
   const handleResetTurret = useCallback(() => {
     if (!audioIsTestMode()) {
@@ -1066,15 +1106,12 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     navigate('/levels');
   }, [isFreeplay, isZeroRange, navigate]);
 
-  // Cycle through reticle styles (simple <-> mil in-game toggle)
+  // Cycle through the available reticle styles in-game
   const handleReticleStyleCycle = useCallback(() => {
     const currentStyle = settings.reticle.style;
-    // Toggle between simple and mil (tree is not implemented for in-game)
-    const styles: Array<'simple' | 'mil'> = ['simple', 'mil'];
-    const currentIndex = styles.indexOf(currentStyle as 'simple' | 'mil');
-    if (currentIndex === -1) return;
-    const nextIndex = (currentIndex + 1) % styles.length;
-    const updated = updateGameSettings({ reticle: { ...settings.reticle, style: styles[nextIndex] } });
+    const currentIndex = RETICLE_STYLE_ORDER.indexOf(currentStyle);
+    const nextIndex = (currentIndex + 1) % RETICLE_STYLE_ORDER.length;
+    const updated = updateGameSettings({ reticle: { ...settings.reticle, style: RETICLE_STYLE_ORDER[nextIndex] } });
     setSettings(updated.settings);
     if (!audioIsTestMode()) {
       AudioManager.playSound('click');
@@ -1319,31 +1356,69 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
       // Draw reticle
       const reticleCanvas = worldToCanvas(recticlePosition, viewportConfig);
       const reticleStyle = settings.reticle.style;
-      const reticleThickness = settings.reticle.thickness;
+      const reticleThickness = reticleSkin?.thickness || settings.reticle.thickness;
       const showCenterDot = settings.reticle.centerDot;
+      const primaryReticleColor = reticleSkin?.colorPrimary || '#ff4d4d';
+      const secondaryReticleColor = reticleSkin?.colorSecondary || '#ffd6d6';
+
+      ctx.strokeStyle = primaryReticleColor;
+      ctx.fillStyle = primaryReticleColor;
+      ctx.lineWidth = reticleThickness;
+
+      const drawCenterDot = (radius = reticleThickness + 1) => {
+        if (!showCenterDot) {
+          return;
+        }
+        ctx.beginPath();
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      };
+
+      const drawCrosshairLines = (gap: number, armLength: number) => {
+        ctx.beginPath();
+        ctx.moveTo(reticleCanvas.x - armLength, reticleCanvas.y);
+        ctx.lineTo(reticleCanvas.x - gap, reticleCanvas.y);
+        ctx.moveTo(reticleCanvas.x + gap, reticleCanvas.y);
+        ctx.lineTo(reticleCanvas.x + armLength, reticleCanvas.y);
+        ctx.moveTo(reticleCanvas.x, reticleCanvas.y - armLength);
+        ctx.lineTo(reticleCanvas.x, reticleCanvas.y - gap);
+        ctx.moveTo(reticleCanvas.x, reticleCanvas.y + gap);
+        ctx.lineTo(reticleCanvas.x, reticleCanvas.y + armLength);
+        ctx.stroke();
+      };
 
       if (reticleStyle === 'simple') {
-        // Simple crosshair reticle
-        const reticleSize = 20;
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = reticleThickness;
+        drawCrosshairLines(6, 34);
         ctx.beginPath();
-        // Crosshair
-        ctx.moveTo(reticleCanvas.x - reticleSize, reticleCanvas.y);
-        ctx.lineTo(reticleCanvas.x + reticleSize, reticleCanvas.y);
-        ctx.moveTo(reticleCanvas.x, reticleCanvas.y - reticleSize);
-        ctx.lineTo(reticleCanvas.x, reticleCanvas.y + reticleSize);
-        // Circle
-        ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleSize / 2, 0, Math.PI * 2);
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, 14, 0, Math.PI * 2);
         ctx.stroke();
-        // Center dot
-        if (showCenterDot) {
-          ctx.beginPath();
-          ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleThickness, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (reticleStyle === 'mil' && level) {
-        // MIL reticle with tick marks
+        drawCenterDot();
+      } else if (reticleStyle === 'duplex') {
+        drawCrosshairLines(8, 26);
+        ctx.lineWidth = reticleThickness + 2;
+        drawCrosshairLines(24, 56);
+        drawCenterDot();
+      } else if (reticleStyle === 'dot') {
+        ctx.fillStyle = primaryReticleColor;
+        ctx.beginPath();
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, 5 + reticleThickness, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = secondaryReticleColor;
+        ctx.lineWidth = Math.max(1, reticleThickness - 1);
+        ctx.beginPath();
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, 16, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (reticleStyle === 'horseshoe') {
+        drawCrosshairLines(10, 34);
+        ctx.strokeStyle = secondaryReticleColor;
+        ctx.lineWidth = reticleThickness + 1;
+        ctx.beginPath();
+        ctx.arc(reticleCanvas.x, reticleCanvas.y, 18, Math.PI * 0.2, Math.PI * 1.8);
+        ctx.stroke();
+        ctx.strokeStyle = primaryReticleColor;
+        ctx.lineWidth = reticleThickness;
+        drawCenterDot();
+      } else if ((reticleStyle === 'mil' || reticleStyle === 'tree') && level) {
         const milSpacingPixels = getMilSpacingPixels(
           level.distanceM,
           1,
@@ -1352,68 +1427,61 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           magnification
         );
 
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = reticleThickness;
-        ctx.fillStyle = '#ff0000';
+        drawCenterDot(reticleThickness + 1);
 
-        // Draw center dot
-        if (showCenterDot) {
-          ctx.beginPath();
-          ctx.arc(reticleCanvas.x, reticleCanvas.y, reticleThickness, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        ctx.fillStyle = secondaryReticleColor;
+        ctx.strokeStyle = primaryReticleColor;
 
-        // Draw horizontal MIL ticks (left and right from center)
         [-1, 1].forEach((direction) => {
           for (let i = 1; i <= 10; i++) {
-            const xPos = reticleCanvas.x + (i * milSpacingPixels * direction);
+            const xPos = reticleCanvas.x + i * milSpacingPixels * direction;
             const isMajorTick = i % 5 === 0;
-            const tickLength = isMajorTick ? 15 : 8;
+            const tickLength = isMajorTick ? 16 : 9;
 
             ctx.beginPath();
             ctx.moveTo(xPos, reticleCanvas.y - tickLength / 2);
             ctx.lineTo(xPos, reticleCanvas.y + tickLength / 2);
             ctx.stroke();
 
-            // Draw number labels for major ticks
-            if (isMajorTick && i <= 10) {
+            if (isMajorTick) {
               ctx.font = '10px sans-serif';
               ctx.textAlign = 'center';
-              const labelY = reticleCanvas.y + (direction === 1 ? 25 : -10);
-              ctx.fillText(i.toString() + 'M', xPos, labelY);
+              ctx.fillText(i.toString(), xPos, reticleCanvas.y + 24);
             }
           }
         });
 
-        // Draw vertical MIL ticks (up and down from center)
         [-1, 1].forEach((direction) => {
-          for (let i = 1; i <= 10; i++) {
-            const yPos = reticleCanvas.y + (i * milSpacingPixels * direction);
-            const isMajorTick = i % 5 === 0;
-            const tickLength = isMajorTick ? 15 : 8;
+          for (let i = 1; i <= 8; i++) {
+            const yPos = reticleCanvas.y + i * milSpacingPixels * direction;
+            const isMajorTick = i % 2 === 0;
+            const tickLength = isMajorTick ? 16 : 9;
 
             ctx.beginPath();
             ctx.moveTo(reticleCanvas.x - tickLength / 2, yPos);
             ctx.lineTo(reticleCanvas.x + tickLength / 2, yPos);
             ctx.stroke();
-
-            // Draw number labels for major ticks
-            if (isMajorTick && i <= 10) {
-              ctx.font = '10px sans-serif';
-              ctx.textAlign = 'left';
-              const labelX = reticleCanvas.x + 15;
-              ctx.fillText(i.toString() + 'M', labelX, yPos + 3);
-            }
           }
         });
 
-        // Draw thin crosshair lines to edges
         ctx.beginPath();
         ctx.moveTo(0, reticleCanvas.y);
         ctx.lineTo(canvasDisplaySize.width, reticleCanvas.y);
         ctx.moveTo(reticleCanvas.x, 0);
         ctx.lineTo(reticleCanvas.x, canvasDisplaySize.height);
         ctx.stroke();
+
+        if (reticleStyle === 'tree') {
+          ctx.strokeStyle = secondaryReticleColor;
+          for (let row = 1; row <= 5; row++) {
+            const yPos = reticleCanvas.y + row * milSpacingPixels;
+            const halfWidth = row * milSpacingPixels * 1.2;
+            ctx.beginPath();
+            ctx.moveTo(reticleCanvas.x - halfWidth, yPos);
+            ctx.lineTo(reticleCanvas.x + halfWidth, yPos);
+            ctx.stroke();
+          }
+        }
       }
 
       requestAnimationFrame(draw);
@@ -1431,6 +1499,7 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
     magnification,
     settings.showHud,
     settings.reticle,
+    reticleSkin,
     settings.vfx.reducedMotion,
     impactAnimations,
     plates,
@@ -1739,6 +1808,20 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
               </button>
             )}
 
+            {newWeaponUnlocks.length > 0 && (
+              <div className="unlock-celebration-modal" data-testid="weapon-unlock-modal">
+                <div className="unlock-celebration-header">🎉 Armory Updated</div>
+                <div className="unlock-celebration-list">
+                  {newWeaponUnlocks.map((weaponUnlockId) => (
+                    <div key={weaponUnlockId} className="unlock-celebration-card">
+                      <strong>{getWeaponById(weaponUnlockId)?.name ?? weaponUnlockId}</strong>
+                      <span>Now available in campaign loadouts.</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="results-card results-actions">
               <button
                 onClick={handleRetry}
@@ -1799,41 +1882,40 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
 
   return (
     <div className="game-page" data-testid="game-page">
-      <div className="game-header">
+      <div className="game-header game-header-compact">
         <button onClick={handleBack} className="back-button-in-game" data-testid="back-button">
           ← Back
         </button>
-        <h2>{isZeroRange ? 'Zero Range' : level?.name ?? 'Unknown Level'}</h2>
-        <div className="game-stats" data-testid={settings.hudMode === 'basic' ? 'hud-basic' : 'hud-advanced'}>
-          <span className="stat" data-testid="shot-count">
-            {isZeroRange && shotLimitMode === 'unlimited'
-              ? 'Shots: ∞'
-              : isZeroRange && shotLimitMode === 'three'
-              ? `Shots: ${shotCount}/3`
-              : `Shots: ${shotCount}/${level?.maxShots ?? 10}`}
-          </span>
-          <span className="stat">Score: {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
-          {timeRemaining !== null && (
-            <span className="stat" data-testid="timer">
-              Time: <span className={timeRemaining <= 5 ? 'timer-warning' : ''}>{
-                timeRemaining > 0 ? `${Math.ceil(timeRemaining)}s` : '0s'
-              }</span>
+        <div className="game-header-title-block">
+          <h2>{isZeroRange ? 'Zero Range' : level?.name ?? 'Unknown Level'}</h2>
+          <div className="game-stats" data-testid={settings.hudMode === 'basic' ? 'hud-basic' : 'hud-advanced'}>
+            <span className="stat" data-testid="shot-count">
+              {isZeroRange && shotLimitMode === 'unlimited'
+                ? 'Shots ∞'
+                : isZeroRange && shotLimitMode === 'three'
+                ? `Shots ${shotCount}/3`
+                : `Shots ${shotCount}/${level?.maxShots ?? 10}`}
             </span>
-          )}
-          {targetMode === 'plates' && plates.length > 0 && (
-            <span className="stat" data-testid="plates-mode">
-              Mode: Plates
-            </span>
-          )}
+            <span className="stat">Score {impacts.reduce((sum, i) => sum + i.score, 0)}</span>
+            <span className="stat" data-testid="hud-distance">{level?.distanceM ?? 100}m</span>
+            {timeRemaining !== null && (
+              <span className="stat" data-testid="timer">
+                Time <span className={timeRemaining <= 5 ? 'timer-warning' : ''}>{timeRemaining > 0 ? `${Math.ceil(timeRemaining)}s` : '0s'}</span>
+              </span>
+            )}
+            {targetMode === 'plates' && plates.length > 0 && (
+              <span className="stat" data-testid="plates-mode">Plates</span>
+            )}
+          </div>
         </div>
         <div className="reticle-controls">
           <button
             onClick={handleReticleStyleCycle}
             className="control-button"
             data-testid="reticle-mode-toggle"
-            title="Toggle reticle mode"
+            title="Cycle reticle style"
           >
-            {settings.reticle.style === 'simple' ? 'Crosshair' : settings.reticle.style === 'mil' ? 'MIL Reticle' : 'Tree Reticle'}
+            {getReticleStyleLabel(settings.reticle.style)}
           </button>
           <button
             onClick={() => {
@@ -1849,92 +1931,71 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
           </button>
         </div>
       </div>
-      
-      {/* Wind HUD Panel - always shown in Basic and Advanced */}
+
       {level && settings.showHud && (
-        <div className={level.windProfile ? "wind-hud layered" : "wind-hud"} data-testid={level.windProfile ? "wind-cues-layered" : "wind-cues"}>
-          <div className="wind-display">
-            <div className="wind-header">
-              <span>Wind</span>
-              {!level.windProfile && (
-                <div className={`wind-arrow ${(level.windMps || 0) >= 0 ? 'right' : 'left'}`} data-testid="wind-arrow">
-                  {(level.windMps || 0) >= 0 ? '→' : '←'}
-                </div>
-              )}
-              {level.windProfile && <span className="layered-indicator" title="Layered wind">3⃣</span>}
+        <div className="combat-hud-grid">
+          <section className="combat-hud-card combat-hud-card-primary" data-testid={level.windProfile ? 'wind-cues-layered' : 'wind-cues'}>
+            <div className="combat-hud-card-header">
+              <span>Shot Conditions</span>
+              <span className="combat-hud-kicker">Plain view. Wild concept, I know.</span>
             </div>
-            <div className="wind-details">
-              {settings.showNumericWind ? (
-                <>
+            <div className="combat-hud-chip-row level-info-bar" data-testid="level-info-bar">
+              <span>Weapon: {weapon?.name ?? 'Unknown Weapon'}</span>
+              {effectiveAmmo && <span data-testid="ammo-name">Ammo: {effectiveAmmo.name}</span>}
+              <span>Range: {level?.difficulty ?? 'Easy'}</span>
+              {targetMode === 'plates' && plates.length > 0 && (
+                <span data-testid="plate-hit-count">
+                  Plate Hits: {Object.values(plateHits).reduce((sum, count) => sum + count, 0)}/{impacts.filter(i => i.plateId).length}
+                </span>
+              )}
+            </div>
+            <div className="combat-readout-grid">
+              <div className="combat-readout">
+                <span className="combat-readout-label">Wind</span>
+                <strong data-testid="wind-numeric">
                   {level.windProfile ? (
-                    <>
-                      <span className="wind-baseline" data-testid="wind-numeric">Layered Wind</span>
-                      <span className="wind-gust" data-testid="wind-numeric">{level.windProfile.length} segments</span>
-                    </>
+                    `${level.windProfile.length} layered segments`
                   ) : (
                     <>
-                      <span className="wind-baseline" data-testid="wind-numeric">Baseline: <strong>{(level.windMps || 0) > 0 ? '+' : ''}{((level.windMps || 0) * windScale).toFixed(1)} m/s</strong></span>
-                      <span className="wind-gust" data-testid="wind-numeric">Gust: ±{((level.gustMps || 0) * windScale).toFixed(1)} m/s</span>
+                      <span data-testid="wind-arrow">{(level.windMps || 0) >= 0 ? '→' : '←'}</span>{' '}
+                      {Math.abs(((level.windMps || 0) * windScale)).toFixed(1)} m/s
                     </>
                   )}
-                </>
-              ) : (
-                <span className="wind-visual">Visual cues only</span>
-              )}
-              {dragScale !== 1 && <span className="wind-preset">Preset: {settings.realismPreset}</span>}
-            </div>
-          </div>
-          {/* Environment HUD - Advanced mode only */}
-          {settings.hudMode === 'advanced' && (
-            <div className="env-hud" data-testid="env-summary">
-            <div className="env-header">
-              <span>Environment</span>
-            </div>
-            <div className="env-details">
-              {settings.showNumericWind || settings.realismPreset !== 'arcade' ? (
-                <>
-                  <span className="env-temp">Temp: <strong>{levelEnv.temperatureC}°C</strong></span>
-                  <span className="env-alt">Alt: <strong>{levelEnv.altitudeM}m</strong></span>
-                  {settings.realismPreset !== 'arcade' && (
-                    <span className="env-density">ρ: {computedAirDensity.toFixed(3)} kg/m³</span>
-                  )}
-                </>
-              ) : (
-                <span className="env-visual">Std conditions</span>
-              )}
-            </div>
-            </div>
-          )}
-          
-          {/* Expert Extras Badge - Advanced mode only */}
-          {settings.hudMode === 'advanced' && settings.realismPreset === 'expert' && (settings.expertSpinDriftEnabled || settings.expertCoriolisEnabled) && (
-            <div className="expert-extras-badge" data-testid="expert-extras-badge" title="Expert Sim Extras enabled: gameplay approximations for additional challenge">
-              <div className="expert-extras-header">
-                <span>🎯 Expert Extras</span>
-                <span className="expert-extras-status">ON</span>
+                </strong>
+                <span>Gust ±{((level.gustMps || 0) * windScale).toFixed(1)} m/s</span>
               </div>
-              <div className="expert-extras-list">
-                {settings.expertSpinDriftEnabled && (
-                  <span className="expert-extra-item" title="Sim extras: Rightward bullet curve from rotation">
-                    Spin Drift
-                  </span>
-                )}
-                {settings.expertCoriolisEnabled && (
-                  <span className="expert-extra-item" title="Sim extras: Earth rotation-based deflections">
-                    Coriolis
-                  </span>
-                )}
+              <div className="combat-readout">
+                <span className="combat-readout-label">Environment</span>
+                <strong data-testid="env-summary">{levelEnv.temperatureC}°C · {levelEnv.altitudeM}m</strong>
+                <span>Density {computedAirDensity.toFixed(3)} kg/m³</span>
+              </div>
+              <div className="combat-readout">
+                <span className="combat-readout-label">Reticle</span>
+                <strong>{getReticleStyleLabel(settings.reticle.style)}</strong>
+                <span>Skin {reticleSkin?.name ?? 'Classic Red'}</span>
+              </div>
+              <div className="combat-readout">
+                <span className="combat-readout-label">Turret Step</span>
+                <strong>{turretStep.toFixed(1)} MIL</strong>
+                <span>{dragScale !== 1 ? `Preset ${settings.realismPreset}` : 'Standard drag/wind'}</span>
               </div>
             </div>
-          )}
-        </div>
-      )}
-      
-      {/* Turret Dialing UI */}
-      {level && settings.showHud && (
-        <div className="turret-hud" data-testid="turret-hud">
-          <div className="turret-display">
-            <div className="turret-header">
+            {settings.hudMode === 'advanced' && settings.realismPreset === 'expert' && (settings.expertSpinDriftEnabled || settings.expertCoriolisEnabled) && (
+              <div className="expert-extras-badge" data-testid="expert-extras-badge" title="Expert Sim Extras enabled: gameplay approximations for additional challenge">
+                <div className="expert-extras-header">
+                  <span>🎯 Expert Extras</span>
+                  <span className="expert-extras-status">ON</span>
+                </div>
+                <div className="expert-extras-list">
+                  {settings.expertSpinDriftEnabled && <span className="expert-extra-item">Spin Drift</span>}
+                  {settings.expertCoriolisEnabled && <span className="expert-extra-item">Coriolis</span>}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="combat-hud-card turret-hud" data-testid="turret-hud">
+            <div className="combat-hud-card-header turret-header">
               <span>Turret</span>
               <button
                 onClick={handleResetTurret}
@@ -1945,133 +2006,71 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
                 Reset
               </button>
             </div>
-            
-            {/* Elevation Controls */}
-            <div className="turret-control-group">
-              <span className="turret-label">Elevation</span>
-              <div className="turret-dial-controls">
-                <button
-                  ref={elevationDownRef}
-                  onClick={() => handleElevationAdjust(-1)}
-                  className="dial-button"
-                  data-testid="elevation-down"
-                  title="Elevation Down (-) (hold for rapid fire)"
-                >
-                  −
-                </button>
-                <span className="dial-value" data-testid="elevation-value">
-                  {turretState.elevationMils >= 0 ? '+' : ''}{turretState.elevationMils.toFixed(1)}
-                </span>
-                <button
-                  ref={elevationUpRef}
-                  onClick={() => handleElevationAdjust(1)}
-                  className="dial-button"
-                  data-testid="elevation-up"
-                  title="Elevation Up (+) (hold for rapid fire)"
-                >
-                  +
-                </button>
+
+            <div className="turret-step-toggle" role="group" aria-label="Turret step size">
+              <button type="button" className={`turret-step-button ${turretStep === DEFAULT_TURRET_STEP ? 'active' : ''}`} onClick={() => setTurretStep(DEFAULT_TURRET_STEP)}>
+                Fine 0.1
+              </button>
+              <button type="button" className={`turret-step-button ${turretStep === 0.5 ? 'active' : ''}`} onClick={() => setTurretStep(0.5)}>
+                Fast 0.5
+              </button>
+            </div>
+
+            <div className="turret-control-grid">
+              <div className="turret-control-group">
+                <span className="turret-label">Elevation</span>
+                <div className="turret-dial-controls">
+                  <button ref={elevationDownRef} onClick={() => handleElevationAdjust(-1)} className="dial-button" data-testid="elevation-down" title="Elevation Down (-) (hold for rapid fire)">−</button>
+                  <span className="dial-value" data-testid="elevation-value">{turretState.elevationMils >= 0 ? '+' : ''}{turretState.elevationMils.toFixed(1)}</span>
+                  <button ref={elevationUpRef} onClick={() => handleElevationAdjust(1)} className="dial-button" data-testid="elevation-up" title="Elevation Up (+) (hold for rapid fire)">+</button>
+                </div>
+              </div>
+
+              <div className="turret-control-group">
+                <span className="turret-label">Windage</span>
+                <div className="turret-dial-controls">
+                  <button ref={windageLeftRef} onClick={() => handleWindageAdjust(-1)} className="dial-button" data-testid="windage-left" title="Windage Left (-) (hold for rapid fire)">−</button>
+                  <span className="dial-value" data-testid="windage-value">{turretState.windageMils >= 0 ? '+' : ''}{turretState.windageMils.toFixed(1)}</span>
+                  <button ref={windageRightRef} onClick={() => handleWindageAdjust(1)} className="dial-button" data-testid="windage-right" title="Windage Right (+) (hold for rapid fire)">+</button>
+                </div>
               </div>
             </div>
-            
-            {/* Windage Controls */}
-            <div className="turret-control-group">
-              <span className="turret-label">Windage</span>
-              <div className="turret-dial-controls">
-                <button
-                  ref={windageLeftRef}
-                  onClick={() => handleWindageAdjust(-1)}
-                  className="dial-button"
-                  data-testid="windage-left"
-                  title="Windage Left (-) (hold for rapid fire)"
-                >
-                  −
-                </button>
-                <span className="dial-value" data-testid="windage-value">
-                  {turretState.windageMils >= 0 ? '+' : ''}{turretState.windageMils.toFixed(1)}
-                </span>
-                <button
-                  ref={windageRightRef}
-                  onClick={() => handleWindageAdjust(1)}
-                  className="dial-button"
-                  data-testid="windage-right"
-                  title="Windage Right (+) (hold for rapid fire)"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-            
-            {/* Zero Profile Actions */}
+
             <div className="turret-actions">
-              <button
-                onClick={handleSaveZero}
-                className="zero-action-button save-zero"
-                data-testid="save-zero"
-                title="Save current turret settings as zero profile"
-              >
-                Save Zero
-              </button>
-              <button
-                onClick={handleReturnToZero}
-                className="zero-action-button return-zero"
-                data-testid="return-to-zero"
-                title="Return to saved zero profile"
-              >
-                Return to Zero
-              </button>
+              <button onClick={handleSaveZero} className="zero-action-button save-zero" data-testid="save-zero" title="Save current turret settings as zero profile">Save Zero</button>
+              <button onClick={handleReturnToZero} className="zero-action-button return-zero" data-testid="return-to-zero" title="Return to saved zero profile">Return to Zero</button>
             </div>
-          </div>
-        </div>
-      )}
-      
-      <div className="level-info-bar" data-testid="level-info-bar">
-        <span>Weapon: {weapon?.name ?? 'Unknown Weapon'}</span>
-        {effectiveAmmo && (
-          <span data-testid="ammo-name">Ammo: {effectiveAmmo.name}</span>
-        )}
-        <span data-testid="hud-distance">{level?.distanceM ?? 100}m</span>
-        <span>Range: {level?.difficulty ?? 'Easy'}</span>
-        {targetMode === 'plates' && plates.length > 0 && (
-          <span data-testid="plate-hit-count">
-            Plate Hits: {Object.values(plateHits).reduce((sum, count) => sum + count, 0)}/{impacts.filter(i => i.plateId).length}
-          </span>
-        )}
-      </div>
-      
-      {/* Impact Offset Panel - always shown in tutorials, otherwise advanced HUD only */}
-      {((settings.hudMode === 'advanced') || tutorialLessonId) && impacts.length > 0 && settings.showHud && (
-        <div className="impact-offset-panel" data-testid="impact-offset-panel">
-          <div className="impact-offset-header">
-            <span>Impact Offset</span>
-            {impacts.length > 0 && (
-              <span className="last-shot-label">(Last Shot)</span>
-            )}
-          </div>
-          <div className="impact-offset-values">
-            <div className="offset-row">
-              <span className="offset-label">Elevation:</span>
-              <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`} data-testid="hud-offset-elevation">
-                {settings.display.offsetUnit === 'moa'
-                  ? `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].elevationMils).toFixed(1)} MOA`
-                  : `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL`}
-              </span>
-            </div>
-            <div className="offset-row">
-              <span className="offset-label">Windage:</span>
-              <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`} data-testid="hud-offset-windage">
-                {settings.display.offsetUnit === 'moa'
-                  ? `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].windageMils).toFixed(1)} MOA`
-                  : `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].windageMils.toFixed(1)} MIL`}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Coach Card - shows dial/hold recommendations */}
-      {coachRecommendation && settings.showHud && (
-        <div className="coach-card" data-testid="coach-card">
+          </section>
+
+          {((settings.hudMode === 'advanced') || tutorialLessonId) && impacts.length > 0 && (
+            <section className="combat-hud-card impact-offset-panel" data-testid="impact-offset-panel">
+              <div className="combat-hud-card-header impact-offset-header">
+                <span>Impact Offset</span>
+                <span className="last-shot-label">Last shot</span>
+              </div>
+              <div className="impact-offset-values">
+                <div className="offset-row">
+                  <span className="offset-label">Elevation</span>
+                  <span className={`offset-value ${impacts[impacts.length - 1].elevationMils > 0 ? 'positive' : impacts[impacts.length - 1].elevationMils < 0 ? 'negative' : 'zero'}`} data-testid="hud-offset-elevation">
+                    {settings.display.offsetUnit === 'moa'
+                      ? `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].elevationMils).toFixed(1)} MOA`
+                      : `${impacts[impacts.length - 1].elevationMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].elevationMils.toFixed(1)} MIL`}
+                  </span>
+                </div>
+                <div className="offset-row">
+                  <span className="offset-label">Windage</span>
+                  <span className={`offset-value ${impacts[impacts.length - 1].windageMils > 0 ? 'positive' : impacts[impacts.length - 1].windageMils < 0 ? 'negative' : 'zero'}`} data-testid="hud-offset-windage">
+                    {settings.display.offsetUnit === 'moa'
+                      ? `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${milsToMoa(impacts[impacts.length - 1].windageMils).toFixed(1)} MOA`
+                      : `${impacts[impacts.length - 1].windageMils >= 0 ? '+' : ''}${impacts[impacts.length - 1].windageMils.toFixed(1)} MIL`}
+                  </span>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {coachRecommendation && (
+            <div className="coach-card" data-testid="coach-card">
           <div className="coach-header">
             <span className="coach-title">🎯 Coach Recommendation</span>
             <span className="coach-mode">
@@ -2137,6 +2136,8 @@ export function Game({ isZeroRange = false, shotLimitMode = 'unlimited' }: GameP
             <div className="coach-hint">
               Adjustment suggestion only. Dial yourself for better learning.
             </div>
+          )}
+        </div>
           )}
         </div>
       )}

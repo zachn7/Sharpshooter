@@ -26,6 +26,7 @@ describe('App Pages', () => {
       expect(screen.getByTestId('weapons-button')).toBeInTheDocument();
       expect(screen.getByTestId('levels-button')).toBeInTheDocument();
       expect(screen.getByTestId('settings-button')).toBeInTheDocument();
+      expect(screen.getByTestId('profile-rank-bar')).toBeInTheDocument();
     });
   });
 
@@ -63,6 +64,15 @@ describe('App Pages', () => {
       expect(screen.getByTestId('levels-page')).toBeInTheDocument();
       expect(screen.getByTestId('pack-pistol-basics')).toBeInTheDocument();
       expect(screen.getByTestId('pack-sniper-basics')).toBeInTheDocument();
+    });
+
+    it('shows clear lock reasons for gated packs', () => {
+      render(
+        <BrowserRouter>
+          <Levels />
+        </BrowserRouter>
+      );
+      expect(screen.getByTestId('pack-lock-reasons-rifle-basics')).toHaveTextContent('Requires level 3');
     });
   });
 

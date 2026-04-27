@@ -3774,3 +3774,330 @@ e * touch gestures (pinch-to-zoom, scroll, pan) which causes pointercancel event
     min-width: 100%;
   }
 }
+
+/* Profile rank */
+.app-header-rank {
+  min-width: 240px;
+  margin-left: auto;
+}
+
+.profile-rank-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(15, 52, 96, 0.96), rgba(8, 145, 178, 0.86));
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
+}
+
+.profile-rank-bar.compact {
+  padding: 0.55rem 0.8rem;
+  gap: 0.75rem;
+}
+
+.profile-rank-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.profile-rank-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.profile-rank-bar.compact .profile-rank-badge {
+  width: 32px;
+  height: 32px;
+}
+
+.profile-rank-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-rank-kicker {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.72;
+}
+
+.profile-rank-progress {
+  flex: 1;
+  min-width: 140px;
+}
+
+.profile-rank-progress-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+}
+
+.profile-rank-track {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.profile-rank-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #facc15, #f97316);
+}
+
+.menu-rank-bar {
+  margin-top: 1.5rem;
+  max-width: 680px;
+}
+
+/* Levels lock reasons */
+.pack-lock-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.pack-lock-reason {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: #fff4e5;
+  color: #9a3412;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+/* Game HUD refresh */
+.game-page {
+  gap: 0.75rem;
+}
+
+.game-header-compact {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.game-header-title-block {
+  display: flex;
+  flex: 1;
+  min-width: 280px;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.game-stats {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.game-stats .stat,
+.level-info-bar span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.92rem;
+}
+
+.reticle-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.control-button {
+  min-height: 40px;
+  border-radius: 999px;
+}
+
+.combat-hud-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.combat-hud-card {
+  background: linear-gradient(180deg, #12233f, #0d1b31);
+  border-radius: 16px;
+  padding: 1rem;
+  color: #edf2ff;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.2);
+}
+
+.combat-hud-card-primary {
+  min-height: 100%;
+}
+
+.combat-hud-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+  margin-bottom: 0.85rem;
+}
+
+.combat-hud-kicker {
+  color: #93c5fd;
+  font-size: 0.8rem;
+}
+
+.combat-hud-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.combat-readout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.combat-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.combat-readout-label {
+  color: #93c5fd;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.turret-hud,
+.impact-offset-panel,
+.coach-card,
+.shot-history {
+  margin-bottom: 0;
+}
+
+.turret-step-toggle {
+  display: inline-flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.turret-step-button {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  color: #e2e8f0;
+  padding: 0.45rem 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.turret-step-button.active {
+  background: #38bdf8;
+  color: #082f49;
+  border-color: #7dd3fc;
+}
+
+.turret-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.game-container {
+  min-height: min(66vh, 760px);
+  padding: 0.75rem;
+  overflow: hidden;
+}
+
+.game-canvas {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 4 / 3;
+  max-height: 66vh;
+  object-fit: contain;
+}
+
+.unlock-celebration-modal {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  color: #fff;
+}
+
+.unlock-celebration-header {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 0.75rem;
+}
+
+.unlock-celebration-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.unlock-celebration-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+@media (max-width: 1024px) {
+  .header-content {
+    flex-wrap: wrap;
+  }
+
+  .app-header-rank {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .combat-hud-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-rank-bar,
+  .combat-readout-grid,
+  .turret-control-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-rank-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .game-header-compact,
+  .combat-hud-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .game-canvas {
+    max-height: 52vh;
+  }
+}

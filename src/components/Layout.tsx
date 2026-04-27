@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { ProfileRankBar } from './ProfileRankBar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export function Layout({ children, showBackButton = true }: LayoutProps) {
             </Link>
           )}
           <h1 className="app-title">Sharpshooter</h1>
+          <ProfileRankBar compact className="app-header-rank" />
         </div>
       </header>
       <main className="app-main">{children}</main>

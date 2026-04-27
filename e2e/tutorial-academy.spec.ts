@@ -25,8 +25,9 @@ test.describe('Tutorial Academy', () => {
     await page.getByTestId('lesson-hud-basics').click();
 
     // Should see lesson overlay
-    await expect(page.getByTestId('lesson-overlay')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'HUD Basics' })).toBeVisible();
+    const lessonOverlay = page.getByTestId('lesson-overlay');
+    await expect(lessonOverlay).toBeVisible();
+    await expect(lessonOverlay.getByRole('heading', { name: 'HUD Basics' })).toBeVisible();
 
     // Step 1: The Distance Display
     await expect(page.getByRole('heading', { name: 'The Distance Display' })).toBeVisible();
@@ -64,10 +65,11 @@ test.describe('Tutorial Academy', () => {
     
     // Now start HUD Basics lesson
     await page.getByTestId('lesson-hud-basics').click();
-    await expect(page.getByTestId('lesson-overlay')).toBeVisible();
+    const lessonOverlay = page.getByTestId('lesson-overlay');
+    await expect(lessonOverlay).toBeVisible();
 
     // Verify lesson overlay structure
-    await expect(page.getByRole('heading', { name: 'HUD Basics' })).toBeVisible();
+    await expect(lessonOverlay.getByRole('heading', { name: 'HUD Basics' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Next' })).toBeVisible();
 
     // Close the lesson using Skip Tutorial
@@ -185,8 +187,8 @@ test.describe('HUD Readability', () => {
     // Wind cue should be visible (always in Basic mode)
     await expect(page.getByTestId('wind-cues')).toBeVisible();
     
-    // Advanced HUD elements should NOT be visible
-    await expect(page.getByTestId('env-summary')).not.toBeVisible();
+    // Core shot conditions should remain visible in basic HUD
+    await expect(page.getByTestId('env-summary')).toBeVisible();
   });
   
   test('switch to advanced HUD shows additional info', async ({ page }) => {

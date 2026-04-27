@@ -136,7 +136,7 @@ export interface VFXSettings {
 export type OffsetUnit = 'mil' | 'moa';
 
 // Reticle style options
-export type ReticleStyle = 'simple' | 'mil' | 'tree';
+export type ReticleStyle = 'simple' | 'duplex' | 'dot' | 'horseshoe' | 'mil' | 'tree';
 
 // Reticle customization settings
 export interface ReticleSettings {
@@ -829,8 +829,32 @@ export function getOrCreateGameSave(): GameSave {
   if (existing) {
     return syncProgressionUnlocks(existing);
   }
-  
+
   const fresh = syncProgressionUnlocks(createDefaultSave());
+
+  // E2E escape hatch: allow Playwright to drop in a deterministic save when localStorage was cleared mid-test.
+  // This is ONLY honored when testMode is enabled via URL param.
+  try {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const testModeEnabled = urlParams.get('testMode') === '1' || urlParams.get('testMode') === 'true';
+
+      if (testModeEnabled) {
+        const overrideRaw = storage.getItem('__e2e_save_override__');
+        if (overrideRaw) {
+          const parsed = JSON.parse(overrideRaw) as unknown;
+          if (validateGameSave(parsed)) {
+            storage.removeItem('__e2e_save_override__');
+            saveGameSave(parsed);
+            return syncProgressionUnlocks(parsed);
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore override failures.
+  }
+
   saveGameSave(fresh);
   return fresh;
 }

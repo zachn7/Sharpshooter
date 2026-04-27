@@ -87,21 +87,12 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
     await expect(page.getByTestId('game-canvas')).toBeVisible();
     
     // Verify testMode is active (no sway/recoil for determinism)
-    await page.mouse.click(400, 300); // Start game
-    
-    // Shot count should be visible
-    await expect(page.getByTestId('shot-count')).toBeVisible();
-    
-    // Fire a shot
     await page.mouse.click(400, 300);
     
-    // Wait for results (tutorial completes after 3 shots)
-    // Check multiple times to avoid flake
-    const resultsVisible = await page.getByTestId('results-screen').isVisible({ timeout: 1000 });
-    if (resultsVisible) {
-      await expect(page.getByTestId('results-screen')).toBeVisible();
-      await expect(page.getByTestId('total-score')).toBeVisible();
-    }
+    // Fire an additional shot and verify gameplay remains responsive
+    await page.mouse.click(400, 300);
+    await expect(page.getByTestId('shot-history')).toBeVisible();
+    await expect(page.getByTestId('shot-row-1')).toBeVisible();
   });
   
   test('Academy navigation from Main Menu', async ({ page }) => {
@@ -158,8 +149,9 @@ test.describe('Regressions: v1.1 Critical Flows', () => {
       await page.waitForTimeout(100);
     }
     
-    // Shot count should be visible
-    await expect(page.getByTestId('shot-count')).toBeVisible();
+    // Results screen should appear after the final shot
+    await expect(page.getByTestId('results-screen')).toBeVisible();
+    await expect(page.getByTestId('total-score')).toBeVisible();
   });
   
   test('No error boundary trigger during normal gameplay', async ({ page }) => {

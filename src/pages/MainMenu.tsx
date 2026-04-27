@@ -14,6 +14,7 @@ import {
   FlaskConical
 } from 'lucide-react';
 import { Glossary } from '../components/Glossary';
+import { ProfileRankBar } from '../components/ProfileRankBar';
 
 interface MenuItemProps {
   to: string;
@@ -56,6 +57,7 @@ export function MainMenu() {
           <p className="menu-subtitle">
             Master long-range ballistics with realistic physics simulations
           </p>
+          <ProfileRankBar className="menu-rank-bar" />
         </header>
 
         {/* Main Actions */}
