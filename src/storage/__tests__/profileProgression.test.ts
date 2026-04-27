@@ -23,8 +23,9 @@ describe('profile progression storage', () => {
   });
 
   it('levels up and unlocks rifles before shotguns and snipers', () => {
-    awardProfileXp(250);
+    const result = awardProfileXp(250);
     expect(getPlayerProfileLevel()).toBe(3);
+    expect(result.newlyUnlockedWeapons).toContain('rifle-assault');
     expect(getCampaignUnlockedWeaponIds()).toContain('rifle-assault');
     expect(getCampaignUnlockedWeaponIds()).not.toContain('shotgun-pump');
     expect(getCampaignUnlockedWeaponIds()).not.toContain('sniper-marksman');

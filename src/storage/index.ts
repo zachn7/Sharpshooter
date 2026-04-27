@@ -91,4 +91,5 @@ export type {
   AchievementProgress,
   AchievementType,
   ReticleSkin,
+  ReticleStyle,
 } from './localStore';

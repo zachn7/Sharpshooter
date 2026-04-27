@@ -16,6 +16,7 @@ import {
   getUnlockedAchievementIds,
   type GameSettings,
   type RealismPreset,
+  type ReticleStyle,
   type ZeroProfile
 } from '../storage';
 import { getDefaultShowNumericWind } from '../physics/windCues';
@@ -120,7 +121,7 @@ export function Settings() {
     setSettings(updated.settings);
   };
 
-  const handleReticleStyleChange = (style: 'simple' | 'mil' | 'tree') => {
+  const handleReticleStyleChange = (style: ReticleStyle) => {
     if (!settings) return;
     const updated = updateGameSettings({
       reticle: {
@@ -699,6 +700,27 @@ export function Settings() {
                   data-testid="reticle-style-simple"
                 >
                   Simple
+                </button>
+                <button
+                  className={`option-button ${settings.reticle.style === 'duplex' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('duplex')}
+                  data-testid="reticle-style-duplex"
+                >
+                  Duplex
+                </button>
+                <button
+                  className={`option-button ${settings.reticle.style === 'dot' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('dot')}
+                  data-testid="reticle-style-dot"
+                >
+                  Dot
+                </button>
+                <button
+                  className={`option-button ${settings.reticle.style === 'horseshoe' ? 'active' : ''}`}
+                  onClick={() => handleReticleStyleChange('horseshoe')}
+                  data-testid="reticle-style-horseshoe"
+                >
+                  Horseshoe
                 </button>
                 <button
                   className={`option-button ${settings.reticle.style === 'mil' ? 'active' : ''}`}

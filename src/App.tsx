@@ -169,8 +169,9 @@ function App() {
     const applyReducedMotion = () => {
       const settings = getGameSettings();
       const systemPrefersReduced = window.matchMedia('(prefers-reduced-motion: reduced)').matches;
+      const isAutomatedBrowser = navigator.webdriver;
       
-      if (settings.vfx.reducedMotion || systemPrefersReduced) {
+      if (settings.vfx.reducedMotion || systemPrefersReduced || isAutomatedBrowser) {
         root.classList.add('reduced-motion');
       } else {
         root.classList.remove('reduced-motion');

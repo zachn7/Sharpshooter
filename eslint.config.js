@@ -8,7 +8,7 @@ import importPlugin from 'eslint-plugin-import';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['dist', 'playwright-report/**', 'node_modules', 'coverage'] },
+  { ignores: ['dist', 'playwright-report/**', 'test-results/**', 'node_modules', 'coverage'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

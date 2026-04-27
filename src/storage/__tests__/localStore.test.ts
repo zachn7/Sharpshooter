@@ -1110,9 +1110,9 @@ profileXp: 250,
     });
 
     it('updates reticle style', () => {
-      updateGameSettings({ reticle: { ...getGameSettings().reticle, style: 'simple' } });
+      updateGameSettings({ reticle: { ...getGameSettings().reticle, style: 'duplex' } });
       const settings = getGameSettings();
-      expect(settings.reticle.style).toBe('simple');
+      expect(settings.reticle.style).toBe('duplex');
     });
 
     it('updates reticle thickness', () => {
